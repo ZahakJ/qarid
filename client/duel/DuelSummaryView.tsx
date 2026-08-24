@@ -18,6 +18,7 @@ import { Nib, Rule } from "../components/Ornaments.tsx"
 import { Panel } from "../components/Panel.tsx"
 import { navigate, routeHash } from "../router.ts"
 import { useCollections } from "../store/collectionsStore.ts"
+import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
 import { loadMeta } from "../store/libraryStore.ts"
 import { motionReduced, useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
@@ -34,6 +35,19 @@ import { ExchangeLog, pulseExchange } from "./ExchangeLog.tsx"
 import { playerTurns, type DuelOutcome, type DuelState } from "./machine.ts"
 import { shareText } from "./share.ts"
 import { firstLetterOf } from "../../shared/arabic.ts"
+
+/** An `Exchange` is already the denormalized shape المختارات persist. */
+function savedFromBait2(e: {
+  baytKey: string
+  baitId: number | null
+  sadr: string
+  ajuz: string | null
+  poemId: string | null
+  poet: { slug: string; name: string } | null
+  meter: { slug: string; name: string; variant: string | null } | null
+}) {
+  return { baytKey: e.baytKey, baitId: e.baitId, sadr: e.sadr, ajuz: e.ajuz, poemId: e.poemId, poet: e.poet, meter: e.meter }
+}
 
 export function headlineOf(outcome: DuelOutcome, chain: number): string {
   switch (outcome) {
@@ -82,6 +96,8 @@ export function DuelSummaryView() {
   const settings = useSettings()
   const reduced = motionReduced(settings)
   const add = useCollections((s) => s.add)
+  const favorites = useCollections((s) => s.favorites)
+  const toggleFavorite = useCollections((s) => s.toggle)
   const [totalPoets, setTotalPoets] = useState<number | null>(null)
   const profile = useMemo(() => loadProfile(), [session?.endedAt])
   const metBefore = useMemo(() => poetsMetBefore(), [session?.startedAt])
@@ -214,6 +230,17 @@ export function DuelSummaryView() {
             tashkeel={settings.tashkeel}
             showRawiyy={settings.showRawiyy}
             numerals={settings.numerals}
+            isFavorite={(k) => favorites.some((f) => f.baytKey === k)}
+            onFavorite={(e) => {
+              const on = toggleFavorite(savedFromBait2(e))
+              toast(on ? "أُضيف إلى المختارات" : "أُزيل من المختارات", on ? "ok" : "info")
+            }}
+            onCard={(e) => {
+              void shareCard({ sadr: e.sadr, ajuz: e.ajuz, poet: e.poet?.name ?? null })
+                .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
+                .catch(() => toast(CARD_MESSAGE.failed, "danger"))
+            }}
+            onCopied={() => toast("نُسخ البيت", "ok")}
           />
         </section>
       ) : null}

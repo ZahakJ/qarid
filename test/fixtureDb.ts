@@ -47,7 +47,13 @@ export async function buildFixtureDb(out: string = FIXTURE_DB): Promise<BuildRep
 export async function ensureFixtureDb(out: string = FIXTURE_DB): Promise<string> {
   if (fs.existsSync(out)) {
     const built = fs.statSync(out).mtimeMs
-    const inputs = [FIXTURE_SRC, path.join(REPO_ROOT, "scripts", "ingest", "build.ts")]
+    // Every file that can change the SHAPE of the artefact, not just build.ts:
+    // a retuned tier in ddl.ts or a stricter predicate in transform.ts leaves a
+    // stale fixture that answers yesterday's questions.
+    const inputs = [
+      FIXTURE_SRC,
+      ...["build.ts", "ddl.ts", "transform.ts", "readers.ts"].map((f) => path.join(REPO_ROOT, "scripts", "ingest", f)),
+    ]
     const newest = Math.max(...inputs.map((f) => (fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0)))
     if (built >= newest) return out
   }

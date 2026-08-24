@@ -211,7 +211,11 @@ export function SearchView({ q, page }: { q: string; page: number }) {
                 {res.ms > 0 ? (
                   <>
                     {" · "}
-                    <span className="search-ms">{res.ms.toFixed(res.ms < 10 ? 1 : 0)} ms</span>
+                    {/* every string in قريض is Arabic — «ms» is not a numeral,
+                        it is an English word standing in an Arabic sentence */}
+                    <span className="search-ms">
+                      {res.ms.toFixed(res.ms < 10 ? 1 : 0)} مِلّي ثانية
+                    </span>
                   </>
                 ) : null}
               </p>

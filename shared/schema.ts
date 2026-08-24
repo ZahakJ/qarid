@@ -1198,6 +1198,15 @@ export const DuelLastResultSchema = z
   })
   .nullable()
 
+/**
+ * How a مساجلة ended. Persisted (not derived) because nothing left in a
+ * finished session distinguishes «أفحمتَ الخصم» from «انسحبتَ» — both end with
+ * lives to spare — so a reload on #/duel/summary would otherwise downgrade the
+ * headline to «سلسلة من N بيتًا».
+ */
+export const DuelOutcomeSchema = z.enum(["stumped", "defeat", "abandoned", "match"]).nullable()
+export type DuelOutcomeValue = z.infer<typeof DuelOutcomeSchema>
+
 export const DuelSessionSliceSchema = z.object({
   config: DuelConfigSchema,
   seed: z.string(),
@@ -1225,6 +1234,10 @@ export const DuelSessionSliceSchema = z.object({
   lastResult: DuelLastResultSchema.default(null),
   /** set on #/daily so the one-attempt-per-day rule can be enforced */
   dailyDate: DayKeySchema.nullable().default(null),
+  /* Both default to null, so a session written before they existed still
+   * parses — no PERSIST_VERSION bump, no migration step. */
+  outcome: DuelOutcomeSchema.default(null),
+  endedAt: z.number().int().nonnegative().nullable().default(null),
 })
 export type DuelSessionSlice = z.infer<typeof DuelSessionSliceSchema>
 

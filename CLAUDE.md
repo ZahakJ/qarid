@@ -1,8 +1,10 @@
 # قريض (Qarid)
 
 Arabic classical poetry corpus browser **and** مساجلة duel at
-**qarid.avicenna.space** — قَرِيض, the old word for verse itself. 254,630 poems
-/ ~3.86M أبيات / 7,167 شعراء from `arbml/ashaar`, ingested into one read-only
+**qarid.avicenna.space** — قَرِيض, the old word for verse itself. **245,675
+poems / 3,570,358 أبيات / 6,997 شعراء** in the built artefact (254,630 rows
+read; 8,949 duplicates and 6 verse-less poems dropped) from `arbml/ashaar`,
+of which **1,761,018 أبيات are game-playable**. Ingested into one read-only
 SQLite artefact, browsed by era/بحر/غرض/روي, searched with FTS5, and played:
 the machine recites a بيت, you must answer with one that starts on its روي.
 Single npm package (mimema/leyline shape): Vite 7 + React 19 client, Hono 4
@@ -22,10 +24,15 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 
 - `npm run dev:server` + `npm run dev` — dev pair (vite 5751 proxies `/api`, `/healthz` → 127.0.0.1:5750)
 - `npm run typecheck` / `npm test` / `npm run build` / `npm run smoke` — the done bar
-- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet` (expect 15–30 min, ~1 GB RSS)
+- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet`. **Measured: 156 s, peak RSS 617 MB, 1.62 GB out** (§5 estimated 15–30 min; hyparquet made it two and a half minutes). Stop any server on the artefact first — it is replaced, not updated.
 - `npm run ingest:fixture` — same `build.ts` over `test/fixtures/ashaar-sample.jsonl` → `data/fixture.db` (tests use the real ingest path)
 - `node scripts/ingest/profile.ts` — re-run the corpus profiler → `data/profile.json` + `data/sample-2000.jsonl` (~3 s)
 - `npm start` — prod server (reads `.env`, defaults PORT 8010)
+- `node tools/screenshot.mjs [--no-build] [--mobile] [--port N] [--db PATH] [--routes …]`
+  — the smoke walk. It starts the REAL server itself and kills only that PID;
+  never `pkill -f server/index.ts`, the suite shares that path. The server reads
+  `dist/index.html` ONCE at boot, so after `npm run build` a long-lived server
+  must be restarted or it serves the previous bundle's asset hashes.
 
 ## Architecture
 
@@ -62,7 +69,20 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
   `game_baits` browse.
 - `client/` React, hash-routed, `<html lang="ar" dir="rtl">`,
   `<body data-app="qarid">`; `BaytPlate` is the only بيت renderer,
-  `renderCard.ts` the only share-card renderer. Layout in design-ux.md.
+  `client/share/renderCard.ts` the only share-card renderer (canvas 1200×630 /
+  1080×1080; `shareCard()` delivers by share sheet → clipboard → download and
+  returns which, `CARD_MESSAGE` is the toast for each). Layout in design-ux.md.
+- Client route map — `#/` home · `#/poets` · `#/poet/<slug>` ·
+  `#/poem/<publicId>?bayt=N` · `#/browse?era&meter&theme&rawiyy&letter&sort&p` ·
+  `#/search?q&p` · `#/duel` `#/duel/play` `#/duel/summary` · `#/daily` ·
+  `#/favorites?collection` · `#/rules` · `#/stats`. `#/wander`, `#/train`,
+  `#/train/drill`, `#/train/arsenal` parse but render `ViewStub` (v1.5) and
+  **nothing in the UI links to them** — keep it that way until they are built,
+  or the shell starts advertising a page that says "قيد الإنشاء".
+  The switch is the `Body` function in `client/App.tsx`: add a `case`, touch
+  nothing else. The keymap is `useKeyboard` in `App.tsx` **and**
+  `client/data/shortcuts.ts` (HelpOverlay renders the latter) — add to both or
+  to neither, and make the label say what the key does.
 
 ### Invariants (hard-won)
 
@@ -89,6 +109,27 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 - localStorage keys are namespaced `qarid:v1:*`; the 255K-poem corpus never
   goes near localStorage (in-memory LRU only).
 - Never letter-space or italicise Arabic; logical properties only.
+- **`.gitignore` anchors `/data/`.** Unanchored, it also swallows
+  `client/data/` — buhur tables, flavour أبيات, the keymap — and four source
+  files sat outside the repo for three commits. Anchor every ignore rule that
+  names a common directory.
+- **A grid item's automatic minimum is its min-content width.** `minmax(0,1fr)`
+  on the TRACK is not enough: `.letter-well` also needs `min-inline-size: 0`,
+  or the 28 circular روي wells overflow the 15.5rem browse rail and the
+  neighbouring circle silently swallows the click. The grid asks a
+  `container-type: inline-size` shell how many columns it can afford — seven
+  where there is room, four in the rail.
+- **`BaytPlate` already owns j/k/c/f/s on a focused بيت row.** A view that adds
+  its own window-level handler for those keys gets them fired TWICE (add, then
+  remove). What a view may add is the way *in* — j/k when nothing is focused —
+  and page-level keys no row can own, like `t`.
+- **The chain letter is a property of the بيت, not of what was typed.** A fuzzy
+  match may forgive a misremembered word but never a different opening letter:
+  «وقِفا نبكِ» matches «قِفا نبكِ», which starts on ق, so it is refused on a و
+  turn. Verify checks the typed text first and the MATCHED بيت second.
+- Anything a view renders through `BaytPlate` with a ♥ must write to
+  `useCollections` (`qarid:v1:favorites`). Component-local favourite state looks
+  identical and persists nothing — that bug shipped once.
 
 ## Spike results
 
@@ -153,6 +194,51 @@ Three findings that contradict or extend the design doc — read before writing
 Not yet spiked: design-server.md §11(c), the `rawiyyOf` agreement check over
 200 real عجز — it needs `shared/arabic.ts`, which does not exist yet. Run it
 against `data/sample-2000.jsonl` as soon as that file lands.
+
+## The artefact, measured
+
+`data/qarid.db` as built by `npm run ingest` on 2026-08-24, Node v26.7.0:
+
+| fact | measured |
+|---|---|
+| build | **156 s**, peak RSS **617 MB**, deterministic (`build_id a0844e19`) |
+| size | **1,622,286,336 B** (1.51 GiB) at `page_size = 8192` |
+| rows read | 254,630 → **245,675 poems** (8,949 duplicate `dedup_key`, 6 verse-less) |
+| أبيات | **3,570,358** · شعراء **6,997** · `game_baits` **1,761,018** |
+| lookups | 12 عصور · 32 meters (16 بحور + التفعيلة/الموشح/النثر/الفولكلور) · 18 أغراض |
+| `combo_counts` | 20,089 rows · unmapped meters **0** |
+
+Tier pools (`game_baits`, the «العدد المتاح» the setup screen shows):
+مبتدئ 208,180 · شاعر 769,337 · فحل 1,192,189 · سيف 1,761,018. **شاعر carries a
+`position <= 12` cap** (`TIER_PREDICATES` in `scripts/ingest/ddl.ts`, mirrored in
+`TIERS` in `server/game.ts`): `fame >= 2` alone filled the tier with بيت 300 of a
+500-بيت ديوان, lines nobody has ever quoted. The cap still leaves ≥ 1,612 أبيات
+on the thinnest letter (ظ).
+
+### Latency on the real corpus (p50, warm, over HTTP)
+
+`/api/meta` 0.5 · `/api/facets` 0.7–8.4 · `/api/stats` 3.1 · `/api/search` 2.8–6.2
+· `/api/poems` filtered 5.1 · `/api/poets` 6.9 · `/api/baits` بيت-mode 22–38 ·
+`/api/game/start` 1.3 · `/api/game/reply` 1.4–3.1 (all 28 letters × 4 tiers < 20 ms)
+· `/api/game/verify` 1.0 exact / 11.0 not-found. Budget is 150 ms; nothing is
+close any more. Three indexes past design-server.md §5 bought that and are
+documented where they are declared (`scripts/ingest/ddl.ts`): `gb_chain`
+(the روي side of بيت-mode browse: 107 → 22 ms, 144 → 7 ms with an عصر),
+`gb_poem` (شاعر-filtered `/api/game/reply`: p90 32 → 4 ms), `gb_bias`
+(amendment 5's tail bias, which used to walk a whole letter looking for
+`opens_conj = 0`: letter و on سيف 149 → < 20 ms).
+
+### Corpus quirks to know before you "fix" them
+
+- «المتنبي» (slug `mutanabi`, 519 قصائد) and «أبو الطيب المتنبي» are two
+  `poets` rows: `name_key` is identity and the two names normalize apart. Same
+  for a long tail of شعراء the sources index twice. Merging needs an alias table
+  in ingest, not a patch in a view.
+- Some مطالع carry the scraper's own damage («لَمء» for «لَمْ»); some قصائد are
+  labelled `عمودية`, which is a form, not a بحر, and shows as a chip. Both are
+  the source's, not the pipeline's.
+- 39.8% of قصائد have no بحر at all — every بحر facet count is a count of the
+  60% that do.
 
 ## Deploy
 

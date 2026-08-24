@@ -92,7 +92,7 @@ export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRet
 
       {r.kind === "wrong_letter" ? (
         <p className="reject__body">
-          هذا البيت يبدأ بـ<span className="reject__letter">{r.got ?? "؟"}</span>، والمطلوب
+          هذا البيت يبدأ بـ<span className="reject__letter">{r.got ?? "؟"}</span>، والمطلوب{" "}
           <span className="reject__letter reject__letter--want">{r.expected}</span>
           {r.alsoAccepted.length ? <> (ويُقبل «{r.alsoAccepted.join("» و«")}»)</> : null}
         </p>

@@ -32,6 +32,9 @@ import { bahrBySlug } from "../data/buhur.ts"
 import { ApiError } from "../api/client.ts"
 import { getPoemBaits } from "../api/queries.ts"
 import { cachePoemBaits, loadPoem, loadSimilarPoems } from "../store/libraryStore.ts"
+import { savedFromBait, useCollections } from "../store/collectionsStore.ts"
+import { useKeyboard } from "../hooks/useKeyboard.ts"
+import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { routeHash } from "../router.ts"
@@ -48,13 +51,14 @@ const MAX_AUTO_PAGES = 40
 
 export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
   const settings = useSettings()
+  const favorites = useCollections((s) => s.favorites)
+  const isFavorite = (k: string) => favorites.some((f) => f.baytKey === k)
   const [data, setData] = useState<PoemDetailResponse | null>(null)
   const [baits, setBaits] = useState<BaitDto[]>([])
   const [error, setError] = useState<ApiError | null>(null)
   const [similar, setSimilar] = useState<PoemSummary[]>([])
   const [pulse, setPulse] = useState<number | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [favorites, setFavorites] = useState<ReadonlySet<string>>(new Set())
   const [copyMenu, setCopyMenu] = useState<{ bait: BaitDto; x: number; y: number } | null>(null)
   const [meterOpen, setMeterOpen] = useState(false)
 
@@ -235,14 +239,70 @@ export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
     [poem, poet, settings.tashkeel, copyWholePoem],
   )
 
-  const toggleFavorite = useCallback((key: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
+  /* المختارات live in `qarid:v1:favorites`, not in this component: a ♥ that
+   * only lives until the reader navigates away is a lie, and #/favorites reads
+   * the same store the search results and بيت اليوم write to. */
+  const toggleFavorite = useCallback(
+    (b: BaitDto) => {
+      const title = poem ? headingOf(poem).text : null
+      const on = useCollections.getState().toggle(savedFromBait(b, title))
+      toast(on ? "أُضيف إلى المختارات" : "أُزيل من المختارات", on ? "ok" : "info")
+    },
+    [poem],
+  )
+
+  /** بطاقة البيت — the canvas card, delivered however the platform allows. */
+  const runCard = useCallback(
+    (b: BaitDto) => {
+      if (!poet) return
+      void shareCard({
+        sadr: displayText(b.sadr, settings.tashkeel),
+        ajuz: displayTextOrNull(b.ajuz, settings.tashkeel),
+        poet: poet.name,
+        poem: poem && !headingOf(poem).isMatla ? poem.title : null,
+      })
+        .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
+        .catch(() => toast(CARD_MESSAGE.failed, "danger"))
+    },
+    [poem, poet, settings.tashkeel],
+  )
+
+  // ── the keymap of the قصيدة (client/data/shortcuts.ts, scope "poem") ────
+  // BaytPlate already owns j/k/c/f/s ON A FOCUSED ROW — every بيت row is
+  // `tabindex=0` and handles them itself. What was missing is the way IN:
+  // until something focuses a row, every one of those keys is dead, and
+  // nothing on the page focuses one for you. So this view adds exactly two
+  // things and duplicates none: j/k as the entry point when no بيت has focus
+  // yet, and `t`, which is a page-level setting no row can own.
+  const enterList = useCallback(
+    (from: "first" | "last") => {
+      const box = listRef.current
+      if (!box) return
+      const rows = [...box.querySelectorAll<HTMLElement>("[data-bayt-row]")]
+      const row = from === "first" ? rows[0] : rows[rows.length - 1]
+      if (!row) return
+      row.focus()
+      row.scrollIntoView({ block: "center", behavior: "smooth" })
+    },
+    [],
+  )
+
+  /** True while a بيت row (or something inside one) holds focus. */
+  const inList = () => (document.activeElement as HTMLElement | null)?.closest?.("[data-bayt-row]") != null
+
+  useKeyboard({
+    keys: {
+      j: () => {
+        if (!inList()) enterList("first")
+      },
+      k: () => {
+        if (!inList()) enterList("last")
+      },
+      t: () => {
+        if (data?.hasTashkeel) settings.patch({ tashkeel: !settings.tashkeel })
+      },
+    },
+  })
 
   // ── states ──────────────────────────────────────────────────────────────
   if (error) {
@@ -396,9 +456,9 @@ export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
             anchorId={anchorId(b.position)}
             pulse={pulse === b.position}
             label={`البيت ${toArabicDigits(b.position)}`}
-            favorite={favorites.has(b.baytKey)}
-            onFavorite={() => toggleFavorite(b.baytKey)}
-            onCard={() => toast("بطاقة المشاركة تأتي مع المرحلة القادمة")}
+            favorite={isFavorite(b.baytKey)}
+            onFavorite={() => toggleFavorite(b)}
+            onCard={() => runCard(b)}
             duelHref={routeHash({ view: "duel" })}
             onCopy={(e) => {
               if (e.altKey) {

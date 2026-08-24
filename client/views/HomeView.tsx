@@ -23,7 +23,9 @@ import { formatBayt, formatBaytWithPoet, writeClipboard } from "../bayt/copy.ts"
 import { Chip } from "../components/Chip.tsx"
 import { Omnibox } from "../components/Omnibox.tsx"
 import { Rule, Shamsa } from "../components/Ornaments.tsx"
+import { arabicDay } from "../duel/share.ts"
 import { useArsenal } from "../hooks/useArsenal.ts"
+import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
 import { loadFacets, loadMeta } from "../store/libraryStore.ts"
 import { useCollections } from "../store/collectionsStore.ts"
 import { useProfile } from "../store/profileStore.ts"
@@ -138,7 +140,16 @@ export function HomeView() {
                 })
                 toast(now ? "أُضيف إلى المختارات" : "أُزيل من المختارات", now ? "ok" : "info")
               }}
-              onCard={() => toast("بطاقة المشاركة تأتي مع المرحلة القادمة")}
+              onCard={() => {
+                void shareCard({
+                  sadr: bait.sadr,
+                  ajuz: bait.ajuz,
+                  poet: bait.poet?.name ?? null,
+                  poem: daily?.poem ? headingOf(daily.poem).text : null,
+                })
+                  .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
+                  .catch(() => toast(CARD_MESSAGE.failed, "danger"))
+              }}
               onCopy={() => {
                 void writeClipboard(formatBaytWithPoet(bait.sadr, bait.ajuz, bait.poet.name, null)).then((ok) =>
                   toast(ok ? "نُسخ البيت" : "تعذّر النسخ", ok ? "ok" : "danger"),
@@ -227,9 +238,7 @@ export function HomeView() {
               {/* `2026-08-24` is ASCII in an RTL line: without its own LTR run
                   the neutral hyphens take the paragraph direction and the date
                   renders back to front (amendments §15). */}
-              <bdi dir="ltr" className="daily-row__date">
-                {daily.date}
-              </bdi>
+              <bdi className="daily-row__date">{arabicDay(daily.date)}</bdi>
             </>
           ) : null}
         </span>
@@ -328,7 +337,10 @@ function doors(meta: MetaResponse | null, facets: FacetsResponse | null): Door[]
         count: r.count,
         query: { rawiyy: r.letter },
       })),
-      route: { view: "browse", query: rhymes[0] ? { rawiyy: rhymes[0].letter } : {} },
+      // …and «الكل ←» opens the whole ديوان with the روي grid in the rail, the
+      // same as the other three doors. Landing on ONE قافية would be a filter
+      // the reader never asked for.
+      route: { view: "browse", query: {} },
     },
   ]
 }

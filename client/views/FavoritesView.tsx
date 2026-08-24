@@ -126,11 +126,27 @@ export function FavoritesView({ collection }: { collection?: string }) {
       ) : null}
 
       {shown.length === 0 ? (
+        /* An empty COLLECTION is not an empty ديوان: the reader already has
+         * أبيات, they just have not filed any here yet — so the way out is «الكل»
+         * and the collection chip on a row, not «اضغط ♥ على أيّ بيت». */
         <EmptyState flavor="no-favorites" title={active ? "لا شيء في هذه المجموعة بعد" : undefined}>
-          <p className="fav-note">اضغط ♥ على أيّ بيت — في القصيدة، أو في البحث، أو في بيت اليوم.</p>
-          <a className="btn" href={routeHash({ view: "browse", query: {} })}>
-            إلى التصفح
-          </a>
+          {active && favorites.length > 0 ? (
+            <>
+              <p className="fav-note">
+                افتح «الكل» واضغط «<bdi>{activeCollection?.name}</bdi>» تحت أيّ بيت لتضمّه إلى هذه المجموعة.
+              </p>
+              <button type="button" className="btn" onClick={() => go(undefined)}>
+                إلى الكل
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="fav-note">اضغط ♥ على أيّ بيت — في القصيدة، أو في البحث، أو في بيت اليوم.</p>
+              <a className="btn" href={routeHash({ view: "browse", query: {} })}>
+                إلى التصفح
+              </a>
+            </>
+          )}
         </EmptyState>
       ) : (
         <div className="bayt-list" data-bayt-list="">

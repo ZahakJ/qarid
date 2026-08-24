@@ -25,15 +25,21 @@ export function LetterGrid({
   showCounts?: boolean
 }) {
   const rows = letterCellRows(counts, active)
+  // The shell is the CSS container the grid queries: seven columns wherever
+  // there is room for them, four in the browse rail, which is 15.5rem wide and
+  // cannot seat seven wells plus their counts. Without it the wells overflow
+  // their tracks and the neighbouring circle swallows the click.
   return (
-    <div className="letter-grid" role="group" aria-label={label}>
-      {rows.map((row, i) => (
-        <div className="letter-grid__row" key={i}>
-          {row.map((cell) => (
-            <LetterWell key={cell.letter} cell={cell} onPick={onPick} showCount={showCounts && counts != null} />
-          ))}
-        </div>
-      ))}
+    <div className="letter-grid-shell" role="group" aria-label={label}>
+      <div className="letter-grid">
+        {rows.map((row, i) => (
+          <div className="letter-grid__row" key={i}>
+            {row.map((cell) => (
+              <LetterWell key={cell.letter} cell={cell} onPick={onPick} showCount={showCounts && counts != null} />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

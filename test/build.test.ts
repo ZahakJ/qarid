@@ -13,6 +13,7 @@ import { DatabaseSync } from "node:sqlite"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { assertArtefact, type BuildReport } from "../scripts/ingest/build.ts"
+import { TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
 import { ftsQuery } from "../shared/arabic.ts"
 import { PLAYABLE } from "../shared/constants.ts"
 import { ERAS } from "../shared/eras.ts"
@@ -230,18 +231,15 @@ describe("combo_counts", () => {
   })
 
   it("its «any era / any metre» row equals the live count for that tier", () => {
-    for (const [tier, sql] of [
-      ["easy", "fame = 3 AND position <= 6"],
-      ["normal", "fame >= 2"],
-      ["hard", "fame <= 2"],
-      ["brutal", "1 = 1"],
-    ] as const) {
+    // TIER_PREDICATES is the source of truth; a literal copy here would go on
+    // agreeing with itself after a tier is retuned.
+    for (const [tier, sql] of TIER_PREDICATES) {
       const stored = all<{ first_letter: string; n: number }>(
         "SELECT first_letter, n FROM combo_counts WHERE tier = ? AND era_id = -1 AND meter_id = -1",
         tier,
       )
       const live = all<{ first_letter: string; n: number }>(
-        `SELECT first_letter, COUNT(*) n FROM game_baits WHERE ${sql} GROUP BY 1`,
+        `SELECT first_letter, COUNT(*) n FROM game_baits gb WHERE ${sql} GROUP BY 1`,
       )
       const asMap = (rows: Array<{ first_letter: string; n: number }>) =>
         Object.fromEntries(rows.map((r) => [r.first_letter, Number(r.n)]))
@@ -456,7 +454,7 @@ describe("the shipped artefact", () => {
       "poets_letter", "poets_era", "poets_fame",
       "poems_poet", "poems_filter", "poems_meter", "poems_rhyme", "poems_theme", "poems_first",
       "baits_poem_pos", "baits_hfull", "baits_hsadr",
-      "gb_pick", "gb_facet", "gb_rand",
+      "gb_pick", "gb_facet", "gb_rand", "gb_chain", "gb_poem", "gb_bias",
     ]) {
       expect(idx.has(name), `missing index ${name}`).toBe(true)
     }

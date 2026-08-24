@@ -120,7 +120,7 @@ const RARE_LIST = RARE_RAWIYY_WIDE.map((l) => `'${l}'`).join(",")
  */
 const TIERS: Readonly<Record<Difficulty, { fame: readonly number[]; extra: string | null }>> = {
   easy: { fame: [3], extra: "gb.position <= 6" },
-  normal: { fame: [3, 2], extra: null },
+  normal: { fame: [3, 2], extra: "gb.position <= 12" },
   hard: { fame: [2, 1, 0], extra: null },
   brutal: { fame: [3, 2, 1, 0], extra: null },
 }
@@ -868,6 +868,18 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
         reason: "ambiguous",
         normalized: q.normFull,
         candidates: rivals.map((r) => baitDto(r.row)),
+      }
+    }
+    // A fuzzy match is allowed to differ from what was typed — that is its
+    // whole job — but it is NOT allowed to move the chain letter. «وقفا نبكِ»
+    // is one و away from «قِفا نبكِ», and the corpus بيت begins on ق: accepting
+    // it on a و turn would let anyone prefix a letter onto any بيت and satisfy
+    // any روي. The letter rule is about the بيت as the ديوان has it, so the
+    // بيت we actually matched has to start on the letter too.
+    if (expected !== null) {
+      const found = letterOrNull(best.row.b_first_letter)
+      if (found !== null && found !== expected && !alsoAccepted.includes(found as ArabicLetter)) {
+        return { ok: false, reason: "wrong_letter", expected, alsoAccepted, got: found as ArabicLetter, normalized: q.normFull }
       }
     }
     return settle([best.row], "fuzzy", best.score, q, mode, usedBaits, usedPoems)

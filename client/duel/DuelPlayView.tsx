@@ -208,7 +208,7 @@ export function DuelPlayView() {
 
         {precheck !== null ? (
           <p className="duel-precheck" role="status">
-            جوابك يبدأ بـ<span className="reject__letter">{precheck ?? "؟"}</span>، والمطلوب
+            جوابك يبدأ بـ<span className="reject__letter">{precheck ?? "؟"}</span>، والمطلوب{" "}
             <span className="reject__letter reject__letter--want">{session.required.letter}</span> — لم أسأل الديوان بعد.
           </p>
         ) : null}

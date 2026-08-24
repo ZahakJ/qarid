@@ -84,7 +84,6 @@ export type HintReveals = {
 
 export type DuelState = DuelSessionSlice & {
   // ── transient (never persisted) ─────────────────────────────────────────
-  outcome: DuelOutcome
   rejection: Rejection | null
   /** hints bought on the CURRENT exchange */
   hints: HintKind[]
@@ -99,7 +98,6 @@ export type DuelState = DuelSessionSlice & {
   lastAward: AwardBreakdown | null
   /** dealing/reply failure text; null when healthy */
   error: string | null
-  endedAt: number | null
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -139,7 +137,6 @@ export type DuelAction =
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TRANSIENT: Omit<DuelState, keyof DuelSessionSlice> = {
-  outcome: null,
   rejection: null,
   hints: [],
   hintSpend: 0,
@@ -148,7 +145,6 @@ const TRANSIENT: Omit<DuelState, keyof DuelSessionSlice> = {
   turnStartedAt: 0,
   lastAward: null,
   error: null,
-  endedAt: null,
 }
 
 /** A fresh duel from a setup config — phase `dealing`, nothing said yet. */
@@ -158,6 +154,8 @@ export function newDuel(config: DuelConfig, seed: string, now: number, dailyDate
     config,
     seed,
     phase: "dealing",
+    outcome: null,
+    endedAt: null,
     required: { letter: null, source: null, alsoAccepted: [] },
     exchanges: [],
     usedKeys: [],
@@ -195,6 +193,8 @@ export function toSlice(s: DuelState): DuelSessionSlice {
     pausedAt: s.pausedAt,
     lastResult: s.lastResult,
     dailyDate: s.dailyDate,
+    outcome: s.outcome,
+    endedAt: s.endedAt,
   }
 }
 

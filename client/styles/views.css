@@ -456,16 +456,30 @@
 
 /* ══ LetterGrid — the 7×4 روي / حرف البداية wells ═══════════════════════ */
 
+/* The شكل is 7×4, but only where 7 fit. The browse facet rail is 15.5rem and
+ * seats four wells with their counts; seven would each get 24px, the wells
+ * would overflow their tracks (min-width:auto on a grid item is min-content)
+ * and the neighbouring circle would eat the click. So the rows are structural
+ * only — `display: contents` puts all 28 wells in ONE grid — and the shell is
+ * a size container the grid asks how many columns it can afford. */
+.letter-grid-shell {
+  container-type: inline-size;
+}
+
 .letter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: var(--sp-2);
 }
 
 .letter-grid__row {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--sp-2);
+  display: contents;
+}
+
+@container (max-width: 24rem) {
+  .letter-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .letter-well {
@@ -476,13 +490,16 @@
   border: 0;
   background: none;
   color: var(--text-1);
+  /* a grid item's automatic minimum is its min-content width; without this the
+   * circle and the count push the button out over its neighbours */
+  min-inline-size: 0;
 }
 
 .letter-well__ch {
   display: grid;
   place-items: center;
-  inline-size: 2.05em;
-  block-size: 2.05em;
+  inline-size: min(2.05em, 100%);
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 1px solid var(--lapis-line);
   font-family: var(--font-verse);
@@ -517,6 +534,8 @@
   font-variant-numeric: tabular-nums;
   font-size: 0.62rem;
   color: var(--text-3);
+  max-inline-size: 100%;
+  overflow: hidden;
   direction: ltr;
   unicode-bidi: isolate;
 }

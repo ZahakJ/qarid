@@ -89,6 +89,16 @@ export type ExchangeLogProps = {
   numerals?: "arabic" | "latin"
   /** the summary shows every شاعر and never animates */
   variant?: "play" | "summary"
+  /**
+   * The rail under each بيت — design-ux.md §4 Summary («every exchange as
+   * BaytPlate with poet, ♥, بطاقة»). Only the summary passes them: during play
+   * the log is a transcript and a hover rail on the بيت you are answering is a
+   * distraction, not an affordance.
+   */
+  isFavorite?: (baytKey: string) => boolean
+  onFavorite?: (ex: Exchange) => void
+  onCard?: (ex: Exchange) => void
+  onCopied?: () => void
 }
 
 export function ExchangeLog({
@@ -101,6 +111,10 @@ export function ExchangeLog({
   showRawiyy = false,
   numerals = "arabic",
   variant = "play",
+  isFavorite,
+  onFavorite,
+  onCard,
+  onCopied,
 }: ExchangeLogProps) {
   const endRef = useRef<HTMLLIElement | null>(null)
 
@@ -140,6 +154,11 @@ export function ExchangeLog({
                 tashkeel={tashkeel}
                 showRawiyy={showRawiyy}
                 numerals={numerals}
+                label={ex.poet ? ex.poet.name : undefined}
+                favorite={isFavorite ? isFavorite(ex.baytKey) : false}
+                onFavorite={onFavorite ? () => onFavorite(ex) : undefined}
+                onCard={onCard ? () => onCard(ex) : undefined}
+                onCopied={onCopied}
               />
             )}
           </li>

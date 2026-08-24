@@ -683,6 +683,33 @@ describe("persistence", () => {
     expect(back.deadline).toBeNull()
   })
 
+  /**
+   * Nothing left in a finished session tells «انسحبتَ» from «أفحمتَ الخصم» —
+   * both end with lives to spare — so the outcome has to be written down, or a
+   * reload on #/duel/summary downgrades the headline to «سلسلة من N بيتًا».
+   */
+  it("remembers HOW the duel ended across a reload", () => {
+    for (const done of [
+      reduce(awaiting(), { type: "ABANDON", now: T0 + 30_000 }),
+      reduce(awaiting(), { type: "NO_REPLY", letter: "ن", now: T0 + 30_000 }),
+    ]) {
+      if (done.phase !== "summary") continue
+      const back = fromSlice(JSON.parse(JSON.stringify(toSlice(done))) as never, T0 + 90_000)
+      expect(back.outcome).toBe(done.outcome)
+      expect(back.endedAt).toBe(done.endedAt)
+    }
+  })
+
+  it("tolerates a session persisted before the outcome was recorded", () => {
+    const done = reduce(awaiting(), { type: "ABANDON", now: T0 + 30_000 })
+    const legacy = { ...toSlice(done) } as Record<string, unknown>
+    delete legacy.outcome
+    delete legacy.endedAt
+    const back = fromSlice(DuelSessionSliceSchema.parse(legacy), T0 + 90_000)
+    expect(back.phase).toBe("summary")
+    expect(back.outcome).toBeNull()
+  })
+
   it("survives a round trip through JSON and the zod schema", () => {
     const s = awaiting()
     const raw = JSON.parse(JSON.stringify(toSlice(s))) as unknown

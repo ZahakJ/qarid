@@ -1,5 +1,8 @@
 node_modules/
 dist/
-data/
+# ANCHORED. An unanchored `data/` also matches `client/data/` — the buhur
+# tables, the flavour أبيات and the keymap — and silently kept four source
+# files out of the repository.
+/data/
 screenshots/*.png
 .env

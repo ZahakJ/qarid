@@ -18,9 +18,10 @@
  *   dealing          → POST /api/game/start, once per entry
  *   accepted         → CONTINUE after the award animation (900ms)
  *   computerThinking → POST /api/game/reply behind a 700–1400ms «thinking» floor
- *   rejected(soft)   → RESOLVE after 1.2s, except the cards that need an answer
- *                      (near_miss «اقبل هذا البيت», and ambiguous, which is its
- *                      own phase)
+ *   rejected(soft)   → RESOLVE after 1.2s (4s for `already_used`, whose card
+ *                      carries a clickable «أرِني أين قيل»), except the cards
+ *                      that need an answer (near_miss «اقبل هذا البيت», and
+ *                      ambiguous, which is its own phase)
  *   penalising       → RESOLVE after 5s, or when the player dismisses the card
  */
 import { create } from "zustand"
@@ -128,6 +129,22 @@ function needsAnswer(r: Rejection | null): boolean {
   return r?.kind === "near_miss"
 }
 
+/**
+ * How long a soft rejection stays up. 1.2 s is a toast — long enough to read
+ * «هذا البيت يبدأ بـم والمطلوب ن» and no longer. `already_used` is the one soft
+ * card that carries a CONTROL («أرِني أين قيل» scrolls to the exchange that
+ * already said it), and a button that disappears in 1.2 s is a button nobody
+ * can press — so that card gets four seconds. Typing dismisses either early,
+ * and the clock is paused throughout, so the extra time is not an advantage
+ * the player can farm beyond one turn.
+ */
+const SOFT_REJECT_MS = 1200
+const SOFT_REJECT_ACTIONABLE_MS = 4000
+
+function softRejectMs(r: Rejection | null): number {
+  return r?.kind === "already_used" ? SOFT_REJECT_ACTIONABLE_MS : SOFT_REJECT_MS
+}
+
 function schedule(s: DuelState): void {
   const key = entryKey(s)
   switch (s.phase) {
@@ -148,7 +165,7 @@ function schedule(s: DuelState): void {
     }
     case "rejected":
       if (needsAnswer(s.rejection)) return
-      later(1200, () => dispatch({ type: "RESOLVE", now: Date.now() }))
+      later(softRejectMs(s.rejection), () => dispatch({ type: "RESOLVE", now: Date.now() }))
       return
     case "penalising":
       later(5000, () => dispatch({ type: "RESOLVE", now: Date.now() }))

@@ -77,7 +77,32 @@ CREATE INDEX baits_hsadr ON baits(h_sadr);
 CREATE INDEX gb_pick ON game_baits(first_letter, fame, bucket);
 CREATE INDEX gb_facet ON game_baits(first_letter, era_id, meter_id, bucket);
 CREATE INDEX gb_rand ON game_baits(bucket, meter_id);
+CREATE INDEX gb_chain ON game_baits(rawiyy, era_id, meter_id, first_letter, fame, bait_id);
+CREATE INDEX gb_poem ON game_baits(poem_id);
+CREATE INDEX gb_bias ON game_baits(first_letter, fame, opens_conj, bucket);
 `
+
+/* Two indexes §5 does not list, both measured on the 1.76M-row artefact:
+ *
+ * `gb_chain` — the روي side of بيت-mode browse. §5 indexes `first_letter` three
+ *   ways and `rawiyy` none, so `/api/baits?rhyme=ر` (the قوافي door, and every
+ *   «قافية راء» chip) had to SCAN the whole table: 107 ms for the list and
+ *   144 ms once an عصر was added, against a 150 ms budget. Leading on `rawiyy`
+ *   and carrying `era_id, meter_id` next makes every browse combination a
+ *   prefix, and `fame, bait_id` at the tail makes the page's ORDER BY
+ *   index-only. ≈45 MB.
+ *
+ * `gb_poem` — `/api/game/reply` with a شاعر filter joins `poems` on
+ *   `gb.poem_id`, which had no index at all (p50 11 ms, p90 32 ms). It also
+ *   gives SQLite a narrow b-tree for the unfiltered `COUNT(*)`. ≈20 MB.
+ *
+ * `gb_bias` — amendment 5's tail bias. `gb_pick` cannot see `opens_conj`, so
+ *   the «فحل»/«سيف» passes («rare», then «no_conj») walked the WHOLE letter
+ *   filtering it out. On و that is 474,345 rows of which 1,038 have
+ *   `opens_conj = 0` and 26 are also on a rare روي: 78 ms per leg, ~150 ms per
+ *   reply, against a 150 ms budget. With `opens_conj` in the index the pass
+ *   reads the 1,038-row slice and stops. ≈32 MB.
+ */
 
 /**
  * Pass 1 writes the amendment-3 verdict and the amendment-4 sampling keys here;
@@ -91,7 +116,12 @@ CREATE TABLE _playable (bait_id INTEGER PRIMARY KEY, bucket INTEGER NOT NULL, ra
 /** The four difficulty tiers of design-server.md §8, as `combo_counts.tier`. */
 export const TIER_PREDICATES: ReadonlyArray<readonly [tier: string, sql: string]> = [
   ["easy", "gb.fame = 3 AND gb.position <= 6"],
-  ["normal", "gb.fame >= 2"],
+  // The position cap is what makes «شاعر» playable. `fame >= 2` alone admits
+  // بيت 300 of a 500-بيت ديوان — a line nobody has ever quoted — and measured
+  // play on the real corpus filled the tier with them. ≤ 12 keeps the مطلع and
+  // the شاهد, still leaves 769,337 أبيات (44% of the pool) and never fewer than
+  // 1,612 on the thinnest letter, ظ.
+  ["normal", "gb.fame >= 2 AND gb.position <= 12"],
   ["hard", "gb.fame <= 2"],
   ["brutal", "1 = 1"],
 ]

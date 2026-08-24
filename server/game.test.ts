@@ -27,6 +27,7 @@ import {
   MAX_EXCLUDES,
   type GameVerifyResponse,
 } from "../shared/schema.ts"
+import { TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
 import { ensureFixtureDb, FIXTURE_DB } from "../test/fixtureDb.ts"
 import { createApp } from "./app.ts"
 import { loadConfig } from "./config.ts"
@@ -417,6 +418,28 @@ describe("POST /api/game/verify — the chain letter", () => {
 
   it("judges only the بيت when neither a prev id nor a letter is sent", async () => {
     const res = await verify({ text: wardah.full })
+    expect(res.ok).toBe(true)
+  })
+
+  /**
+   * The prefix loophole. A fuzzy match is meant to forgive a misremembered
+   * WORD, not to move the chain: «وقِفا نبكِ» is one و away from «قِفا نبكِ»,
+   * and the بيت in the ديوان opens on ق. If the fuzzy branch accepted it on a
+   * و turn, any player could satisfy any روي by typing a letter in front of any
+   * بيت — which is not leniency, it is the letter rule switched off.
+   */
+  it("refuses a fuzzy match whose بيت does not itself open on the required letter", async () => {
+    const prefix = wardah.firstLetter === "و" ? "ف" : "و"
+    const res = await verify({ text: `${prefix}${wardah.full}`, requiredLetter: prefix })
+    expect(res.ok).toBe(false)
+    if (res.ok || res.reason !== "wrong_letter") throw new Error(`expected wrong_letter, got ${JSON.stringify(res)}`)
+    expect(res.expected).toBe(prefix)
+    // the letter reported is the one the MATCHED بيت starts on, not the typed one
+    expect(res.got).toBe(wardah.firstLetter)
+  })
+
+  it("still accepts the same بيت, unprefixed, on its own letter", async () => {
+    const res = await verify({ text: wardah.full, requiredLetter: wardah.firstLetter as "م" })
     expect(res.ok).toBe(true)
   })
 })
@@ -842,15 +865,16 @@ describe("GET /api/game/pool", () => {
     expect(body.byLetter.some((l) => l.count === 0)).toBe(true)
   })
 
+  // The predicates come from `scripts/ingest/ddl.ts`, never from a literal here:
+  // a tier retuned in one place and not the other is exactly the drift this
+  // test exists to catch, and a hard-coded copy would sail straight past it.
   it("agrees with a live count on each tier", async () => {
-    for (const [difficulty, predicate] of [
-      ["easy", "fame = 3 AND position <= 6"],
-      ["normal", "fame >= 2"],
-      ["hard", "fame <= 2"],
-    ] as const) {
+    for (const [difficulty, predicate] of TIER_PREDICATES) {
       const body = GamePoolResponseSchema.parse((await get(`/api/game/pool?difficulty=${difficulty}`)).body)
-      const n = Number((db.q(`SELECT COUNT(*) AS n FROM game_baits WHERE ${predicate}`).get() as { n: number }).n)
-      expect(body.total).toBe(n)
+      const n = Number(
+        (db.q(`SELECT COUNT(*) AS n FROM game_baits gb WHERE ${predicate}`).get() as { n: number }).n,
+      )
+      expect(body.total, difficulty).toBe(n)
     }
   })
 
