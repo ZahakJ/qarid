@@ -1,0 +1,14 @@
+[Unit]
+PartOf=avicenna-suite.target
+Description=Qarid (قريض — Arabic poetry corpus + مساجلة duel)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/Documents/side/qarid
+ExecStart=/usr/bin/node --env-file-if-exists=.env server/index.ts
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

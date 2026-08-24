@@ -24,7 +24,7 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 
 - `npm run dev:server` + `npm run dev` — dev pair (vite 5751 proxies `/api`, `/healthz` → 127.0.0.1:5750)
 - `npm run typecheck` / `npm test` / `npm run build` / `npm run smoke` — the done bar
-- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet`. **Measured: 156 s, peak RSS 617 MB, 1.62 GB out** (§5 estimated 15–30 min; hyparquet made it two and a half minutes). Stop any server on the artefact first — it is replaced, not updated.
+- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet`. **Measured: 162 s (3 passes), peak RSS 739 MB, 1.49 GiB out** (§5 estimated 15–30 min; hyparquet made it two and a half minutes). Stop any server on the artefact first — it is replaced, not updated. If one is running anyway (another agent, the prod unit), build to a side path and `mv`: `node scripts/ingest/index.ts build data/raw/*.parquet data/qarid.build.db && mv -f data/qarid.build.db data/qarid.db`, then restart the server — a live process keeps the old, deleted inode open.
 - `npm run ingest:fixture` — same `build.ts` over `test/fixtures/ashaar-sample.jsonl` → `data/fixture.db` (tests use the real ingest path)
 - `node scripts/ingest/profile.ts` — re-run the corpus profiler → `data/profile.json` + `data/sample-2000.jsonl` (~3 s)
 - `npm start` — prod server (reads `.env`, defaults PORT 8010)
@@ -334,17 +334,103 @@ stall every other visitor.
 
 ## Deploy
 
-systemd user unit will live in `deploy/qarid.service` (mirrors
+**Live since 2026-08-24.** systemd user unit `deploy/qarid.service` (mirrors
 `mimema/deploy/meme.service`: `PartOf=avicenna-suite.target`,
 `WorkingDirectory=%h/Documents/side/qarid`,
 `ExecStart=/usr/bin/node --env-file-if-exists=.env server/index.ts`,
-`Restart=always`, `NODE_ENV=production`), symlinked from
-`~/.config/systemd/user/` + `avicenna-suite.target.wants/`. Cloudflared block
-`cf-qarid` (network_mode host, token `${TOKEN_QARID}`) in
-`~/containers/tunnels/docker-compose.yml`; CF-dashboard ingress →
-localhost:8010 is the user's job. After changing client code:
-`npm run build && systemctl --user restart qarid.service`.
+`Restart=always`, `RestartSec=5`, `NODE_ENV=production`, `WantedBy=default.target`),
+symlinked into `~/.config/systemd/user/qarid.service` **and**
+`~/.config/systemd/user/avicenna-suite.target.wants/qarid.service` (enabling it
+also linked `default.target.wants/`). `.env` is gitignored and carries
+`HOST=127.0.0.1`, `PORT=8010`, `PUBLIC_ORIGIN=https://qarid.avicenna.space`,
+`DB_PATH=/home/avicenna/Documents/side/qarid/data/qarid.db`.
 
-Done bar: `npm run typecheck && npm test && npm run build && npm run smoke`
-all green, plus `curl http://127.0.0.1:8010/healthz` **and**
-`curl http://[::1]:8010/healthz` after deploy.
+Cloudflared block `cf-qarid` (network_mode host, token `${TOKEN_QARID}`) is in
+`~/containers/tunnels/docker-compose.yml` and `docker compose config` accepts
+it. **`TOKEN_QARID` is still a commented placeholder in that directory's
+`.env`** — the tunnel and its public hostname (`qarid.avicenna.space` →
+`http://localhost:8010`) are created by hand in the CF Zero Trust dashboard,
+then the token is pasted in and `docker compose up -d cf-qarid` starts it. Until
+that happens the site answers on localhost only, and a blanket
+`docker compose up -d` in that directory would start `cf-qarid` with an empty
+token and crash-loop it — bring it up by name.
+
+Operating it:
+
+- After changing client code: `npm run build && systemctl --user restart
+  qarid.service`. The server reads `dist/index.html` ONCE at boot; skip the
+  restart and every hashed asset 404s.
+- After a re-ingest: build to a side path and `mv` (a running server holds the
+  old inode), then restart the unit. See the ingest note in §Commands.
+- `journalctl --user -u qarid.service -f` — a healthy boot is exactly two
+  lines, `listening on http://127.0.0.1:8010` and `listening on http://[::1]:8010`.
+
+Done bar, all four green before any commit that ships:
+
+```
+npm run typecheck && npm test && npm run build && npm run smoke
+```
+
+plus, after deploy, `curl http://127.0.0.1:8010/healthz` **and**
+`curl 'http://[::1]:8010/healthz'` (both `ok`) and `curl
+http://127.0.0.1:8010/api/meta` (counts, not `meta_unavailable`). Verified at
+v1: 857 tests / 39 files, 17 smoke routes, both healthz, `/api/meta` at
+239,411 · 3,393,887 · 6,997 · 1,712,395, `/` serving the built index.html with
+the current asset hash, `/assets/<stale-hash>` a 404, `Cache-Control` intact
+under `Accept-Encoding: gzip` (the compress invariant, checked on the wire).
+
+## Backlog
+
+Known and deliberate, in rough order of what a next pass should take:
+
+- **Poet alias merge.** «المتنبي» (`mutanabi`, 519 قصائد) and «أبو الطيب
+  المتنبي» are two `poets` rows, and there is a long tail behind them: the
+  sources index the same شاعر twice and `name_key` normalizes the two names
+  apart. Search «الخيل» shows one مطلع under two poet names for that reason.
+  The fix is an alias table in ingest (a rebuild), never a patch in a view.
+- **Poet honorifics break the شعراء index.** «أ.د/ مصطفى الشليح» and
+  «أ.عبدالله بن يحي علي البت» sort under ألف. The fix belongs in `sortName()`
+  in `shared/arabic.ts` — but `poets.letter` is DERIVED from that function at
+  ingest, so changing it without a rebuild desyncs the letter column from the
+  sort. Stripping the honorific client-side is worse: the card would read
+  «مصطفى الشليح» under an «ألف» heading.
+- **SQLite is synchronous on the one event loop.** The latency containment is
+  built (five indexes, narrow-subquery sorts); the structural answer — a worker
+  thread holding the handle, `server/dto.ts` callers async — is not. Any NEW
+  route that can run long is a route that can stall every other visitor.
+- **Filtered `/api/facets` is 100–230 ms on its first call per combination**,
+  memoised for the life of the process afterwards. Not UI-reachable beyond
+  era/meter/theme/rhyme/first.
+- **`usedPoemIds` is a no-op for 27% of قصائد.** `machine.ts`'s
+  `internalPoemId` sends the raw number for a poem whose public id came from
+  aldiwan — those are not internal poem ids, so poem-level exclusion silently
+  misses and can collide with an unrelated poem. Client-side fix.
+- **`incomplete_bait` still costs a life.** The server now avoids the rejection
+  where a complete copy exists, but `COSTS_LIFE` in `client/duel/RejectionCard.tsx`
+  + `penalise` in `machine.ts` still charge for it; it should be a soft rejection.
+- **Two additive server fields the client does not read**: `relaxed: true` on a
+  reply that left the «القيود» (worth a note on the opponent's card) and
+  `effectiveTotal` on `/api/game/pool` (DuelSetupView still computes `thin` from
+  `pool.total`, which understates the pool).
+- **«الشعراء الذين لقيتهم» is chips, not the PoetCard grid** design-ux.md §4
+  specifies. The summary holds only `{slug, name}` per exchange; a real card
+  needs era, poemCount, baitCount and a ترجمة — i.e. a `/api/poets?slugs=`
+  batch route.
+- **A duel summary that survived a reload degrades its headline** — `outcome`
+  and `endedAt` are not persisted. Needs a `DuelSessionSlice` + a
+  `PERSIST_VERSION` bump.
+- **`dist` ships 445 KB of `.woff`** no released browser fetches, alongside the
+  `.woff2` it actually uses. The fix is an `assetFileNames`/`generateBundle`
+  filter in `vite.config.ts`.
+- **`tools/screenshot.mjs --mobile` sets only a 390 viewport, not `hasTouch`**,
+  so `@media (hover:none),(pointer:coarse)` never matches in the smoke run: the
+  mobile shots still show the `/` badge and the Shift+Enter line that a real
+  phone will not.
+- **Cosmetic**: the omnibox placeholder truncates at 390px;
+  `.train-arsenal-card__body` leaves slack on the far end of the hub panel at
+  1440px.
+- **«الأحدث» browse sort does not exist and cannot** — the corpus carries no
+  date on a قصيدة. Struck from design-ux.md §3 (amendment 20).
+- The drill's «هذا في ترسانتي» can double-count a بيت also answered with in a
+  duel. Deliberate: `used` is a claim count, not a distinct-أبيات count, and it
+  is monotone.
