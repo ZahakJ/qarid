@@ -541,7 +541,10 @@ function fallbackFor(poet: PoetAcc): string {
 
 /** design-server.md §6's fame ladder, in order — the first rung that fires wins. */
 function fameOf(poet: PoetAcc): number {
-  if (FAMOUS_POET_KEYS.has(poet.nameKey) || poet.poemCount >= 300) return 3
+  // Curated canon only at the top rung: raw poem count promoted obscure prolific
+  // modern poets (3,000+ poems) into the «مبتدئ» duel tier, which must quote
+  // abyat a player could plausibly know.
+  if (FAMOUS_POET_KEYS.has(poet.nameKey)) return 3
   if (poet.poemCount >= 60 || poet.description !== null) return 2
   if (poet.poemCount >= 5) return 1
   return 0
