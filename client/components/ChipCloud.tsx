@@ -45,7 +45,10 @@ export function ChipCloud({
             variant={variant}
             slug={variant === "bahr" ? it.slug : undefined}
             label={it.label}
-            count={showCounts && !isActive ? it.count : undefined}
+            /* the ACTIVE chip keeps its count too. Hiding it dropped the number
+               exactly when it mattered most — the one facet constraining the
+               result set was the one whose share the reader could not see. */
+            count={showCounts ? it.count : undefined}
             active={isActive}
             title={it.title}
             onClick={() => onPick(isActive ? undefined : it.slug)}

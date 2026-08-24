@@ -64,6 +64,9 @@ export function shareText({ dayKey, letters, chainLength, score, stumped = false
   if (letters.length) lines.push(letterRibbon(letters))
   const tail = `سلسلة من ${formatBaits(chainLength)} · ${formatCount(score)} نقطة`
   lines.push(stumped ? `${tail} · أفحمتُ الخصم` : tail)
-  // the block lands in Latin-first chat apps; open it the way a بيت is copied
-  return RLM + lines.join("\n")
+  // The block lands in Latin-first chat apps, so EVERY line opens with U+200F,
+  // exactly as client/bayt/copy.ts requires of every copy path — one prefix for
+  // the whole block leaves lines two and three unprotected the moment one of
+  // them starts with a neutral character.
+  return RLM + lines.join(`\n${RLM}`)
 }

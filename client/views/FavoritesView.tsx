@@ -95,6 +95,12 @@ export function FavoritesView({ collection }: { collection?: string }) {
             className="fav-new__input"
             dir="rtl"
             lang="ar"
+            /* same set as the omnibox and the duel field: iOS otherwise
+               autocapitalises and red-underlines an Arabic collection name */
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             value={newName}
             placeholder="مجموعة جديدة"
             aria-label="اسم المجموعة الجديدة"
@@ -219,8 +225,12 @@ function SavedRow({
           <span className="bcard__poet">بلا نسبة</span>
         )}
         {bait.meter ? <Chip variant="bahr" slug={bait.meter.slug} label={bait.meter.name} /> : null}
+        {/* A CONTROL, not a fact. These are the same pill shape as the بحر chip
+            beside them and were told apart only by a gold ring; the label and
+            the dashed rest-state say which of the two a reader is looking at. */}
         {collections.length > 0 ? (
-          <span className="fav-chips">
+          <span className="fav-chips" role="group" aria-label="المجموعات">
+            <span className="fav-chips__label">في</span>
             {collections.map((c) => (
               <Chip
                 key={c.id}
@@ -237,6 +247,11 @@ function SavedRow({
             القصيدة ←
           </a>
         ) : null}
+        {/* the ♥ on the plate is hover-only (bayt.css), so on a touch device it
+            was the ONLY way out of المختارات and it was invisible */}
+        <button type="button" className="fav-remove" onClick={onRemove} aria-label="أزِل من المختارات">
+          أزِل
+        </button>
       </div>
     </article>
   )

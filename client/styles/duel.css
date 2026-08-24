@@ -145,7 +145,6 @@
 }
 
 .setup-pool__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
@@ -206,7 +205,6 @@
 }
 
 .setup-record__val {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--accent-soft);
 }
@@ -354,8 +352,8 @@ a.exchange__who:hover {
   color: var(--accent);
 }
 
+/* sits after the exchange's own metadata, not 700px away at the far edge */
 .exchange__award {
-  margin-inline-start: auto;
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--accent);
@@ -637,6 +635,28 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   border-radius: var(--r-2);
 }
 
+/* The primary action must not read as the disabled one: a 118px ghost beside a
+ * 250px field did. Full height of the field, real gold fill, verse-scale label. */
+.answer__send {
+  align-self: stretch;
+  padding-inline: var(--sp-5);
+  font-size: var(--fs-ui-3);
+  background: rgba(var(--accent-rgb), 0.22);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.answer__send:hover:not([disabled]) {
+  background: rgba(var(--accent-rgb), 0.32);
+  box-shadow: var(--accent-glow);
+}
+
+/* هَمْس is a PRICED game mechanic; it gets button chrome, not bare text */
+.duel-acts__hint-btn {
+  border-color: var(--accent-hair);
+  color: var(--accent-soft);
+}
+
 .answer__field:focus-visible {
   outline: none;
   border-color: var(--accent);
@@ -915,29 +935,43 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 }
 
 .summary-flavor {
-  font-family: var(--font-verse);
-  font-size: var(--fs-bayt-sm);
-  color: var(--text-2);
-  text-align: center;
+  inline-size: min(44rem, 100%);
+  display: grid;
+  gap: var(--sp-2);
 }
 
 .summary-flavor__poet {
-  display: block;
+  text-align: center;
   font-family: var(--font-ui);
   font-size: var(--fs-ui-0);
   color: var(--text-3);
-  margin-block-start: var(--sp-1);
 }
 
+/* ONE axis on this page. The headline and the four big numbers are centred, so
+ * the sections under them are too — they used to be right-aligned with their
+ * content hugging the inline-start edge, two competing axes on one 4,100px
+ * results screen. */
 .summary-sect {
   inline-size: 100%;
   display: grid;
+  justify-items: center;
   gap: var(--sp-3);
+}
+
+.summary-sect .section-title,
+.summary-sect .met-total {
+  text-align: center;
+}
+
+.summary-sect .exchange-log,
+.summary-sect .met-grid {
+  inline-size: 100%;
 }
 
 .ribbon {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-2);
   list-style: none;
 }
@@ -974,16 +1008,20 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   list-style: none;
 }
 
+/* closer to a poet card than to a chip: the شعراء met are the retention
+ * mechanic, and «جديد عليك» has to be readable at a glance */
 .met {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3);
   border: 1px solid var(--line-1);
   border-radius: var(--r-2);
-  background: var(--bg-1);
+  background: var(--panel);
   color: var(--text-1);
-  font-size: var(--fs-ui-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
 }
 
 .met:hover {
@@ -1007,6 +1045,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 .gained {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-2);
   list-style: none;
 }
@@ -1042,6 +1081,40 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 
 /* ═════════════════════════════ daily ═════════════════════════════════ */
 
+/* The opening panel is a hero CARD (~34rem, centred), not a full-width frame:
+ * at 1440px every child sat in the rightmost 300px of a 1,730px box and the
+ * illumination corners marked out 1,400px of nothing. */
+.daily-open {
+  inline-size: min(38rem, 100%);
+  margin-inline: auto;
+}
+
+.daily-open__inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  text-align: center;
+}
+
+.daily-open__inner .bayt-plate {
+  inline-size: 100%;
+}
+
+.daily-open__terms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+.daily-open__attrib {
+  margin-block-start: calc(-1 * var(--sp-3));
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
 .daily-result {
   display: grid;
   gap: var(--sp-3);
@@ -1049,7 +1122,6 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 }
 
 .daily-result__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-5);
   color: var(--accent);

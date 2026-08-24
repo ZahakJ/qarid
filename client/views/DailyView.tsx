@@ -12,18 +12,22 @@
  */
 import { useMemo, useState } from "react"
 import { formatBaits, formatCount } from "../../shared/format.ts"
+import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { writeClipboard } from "../bayt/copy.ts"
+import { FLAVOR } from "../data/flavor.ts"
 import { Rule } from "../components/Ornaments.tsx"
 import { Panel } from "../components/Panel.tsx"
 import { DuelPlayView } from "../duel/DuelPlayView.tsx"
 import { dailyConfig, playedToday, riyadhDay } from "../duel/daily.ts"
 import { arabicDay, letterRibbon, shareText } from "../duel/share.ts"
 import { loadProfile, startDuel, useDuel } from "../store/duelStore.ts"
+import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { routeHash } from "../router.ts"
 
 export function DailyView() {
   const session = useDuel((s) => s.session)
+  const settings = useSettings()
   const [tick, setTick] = useState(0)
   const day = useMemo(() => riyadhDay(), [])
   const profile = useMemo(() => loadProfile(), [tick, session?.phase])
@@ -88,15 +92,38 @@ export function DailyView() {
           </div>
         </Panel>
       ) : (
-        <Panel illuminated title="ابدأ التحدّي" note="روحٌ واحدة · بلا وقت · مطلعٌ واحد للجميع">
-          <div className="daily-acts">
+        /* A hero card, not a 1,730px frame with 300px of content huddled in
+           one corner and the illumination stranded at corners nothing reaches.
+           One call to action, not two: the panel used to head itself «ابدأ
+           التحدّي» and then repeat it on the button 100px below. */
+        <Panel illuminated className="daily-open">
+          <div className="daily-open__inner">
+            <p className="daily-open__terms">
+              <span>روحٌ واحدة</span>
+              <span aria-hidden="true">·</span>
+              <span>بلا وقت</span>
+              <span aria-hidden="true">·</span>
+              <span>مطلعٌ واحد للجميع</span>
+            </p>
+            <BaytPlate
+              variant="plate"
+              size="sm"
+              sadr={FLAVOR["search-none"].sadr}
+              ajuz={FLAVOR["search-none"].ajuz}
+              tashkeel={settings.tashkeel}
+              numerals={settings.numerals}
+              label="بيت التحدّي"
+            />
+            <p className="daily-open__attrib">{FLAVOR["search-none"].poet}</p>
             <button type="button" className="btn btn--primary btn--lg" onClick={begin}>
               ابدأ تحدّي اليوم
             </button>
+            <p className="panel__note">
+              {playedToday(profile, day)
+                ? "لعبتَ اليوم."
+                : "المحاولة واحدة، والحساب على شرفك — التحدّي محفوظ في متصفحك وحده."}
+            </p>
           </div>
-          <p className="panel__note">
-            {playedToday(profile, day) ? "لعبتَ اليوم." : "المحاولة واحدة، والحساب على شرفك — التحدّي محفوظ في متصفحك وحده."}
-          </p>
         </Panel>
       )}
     </div>

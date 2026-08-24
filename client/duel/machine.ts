@@ -19,7 +19,11 @@
  *     laptop and a re-render all read the same remaining time.
  *  2. **The timer is PAUSED while verifying** and the paused span is ADDED
  *     BACK to the deadline when the answer comes home (`resumeClock`). A slow
- *     server never eats the player's thinking time.
+ *     server never eats the player's thinking time — but the credit is capped
+ *     at `MAX_PAUSE_CREDIT_MS`, because a card the player simply leaves up is
+ *     not a slow server, and an uncapped pause was a free pause button.
+ *     `RESUME` obeys the same idea: a reload carries the STORED deadline
+ *     forward plus `RESUME_GRACE_MS`, never a whole fresh turn.
  *  3. **A network error never costs a life.** `VERIFY_ERROR` lands in
  *     `rejected`, the soft branch, exactly like a wrong letter.
  *  4. **Hints are charged once.** design-ux.md §4.3 both deducts the price on
@@ -112,6 +116,8 @@ export type DuelAction =
   | { type: "SKIP"; now: number }
   | { type: "TICK"; now: number }
   | { type: "TIMEOUT"; now: number; bait?: BaitDto | null }
+  /** the consolation بيت for a timeout card, fetched after the fact */
+  | { type: "TIMEOUT_BAIT"; bait: BaitDto }
   | { type: "DRAFT"; text: string }
   | { type: "SUBMIT"; text: string; now: number }
   | { type: "VERIFIED"; response: GameVerifyResponse; now: number }
@@ -201,7 +207,9 @@ export function toSlice(s: DuelState): DuelSessionSlice {
 /**
  * Rehydrate a persisted session. Phases that were mid-flight when the tab
  * closed are normalized by `RESUME`, so a reload can never strand the player
- * in `verifying` waiting for a response that will never arrive.
+ * in `verifying` waiting for a response that will never arrive. What a reload
+ * does NOT do is refill the clock: the stored deadline is carried forward, and
+ * one that expired while the tab was shut lands as an ordinary timeout.
  */
 export function fromSlice(slice: DuelSessionSlice, now: number): DuelState {
   const parsed = DuelSessionSliceSchema.parse(slice)
@@ -212,11 +220,39 @@ export function fromSlice(slice: DuelSessionSlice, now: number): DuelState {
 // Derived reads (pure; the views use these instead of re-deriving)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** ms left on the turn, or null when the timer is off. Paused clocks freeze. */
+/**
+ * ms left on the turn, or null when the timer is off.
+ *
+ * A clock paused by the SERVER (`verifying`) freezes outright — amendments.md
+ * §7. A clock paused by a CARD the player controls (`rejected`,
+ * `disambiguating`) freezes for `MAX_PAUSE_CREDIT_MS` and then runs again: a
+ * `near_miss` card sits there until «لا، سأعيد» is pressed, so an uncapped
+ * pause was an unlimited pause button on every tier, سيف included (review
+ * finding). `resumeClock` credits back exactly what this shows.
+ */
 export function timeLeft(s: DuelState, now: number): number | null {
   if (!s.config.timer || s.deadline === null) return null
-  const at = s.pausedAt ?? now
-  return Math.max(0, s.deadline - at)
+  return liveRemaining(s, now)
+}
+
+/**
+ * Whose pause is it?
+ *
+ * `verifying` is the SERVER's — amendments.md §7 gives every ms of it back,
+ * whatever it costs. `rejected` and `disambiguating` are the PLAYER's: those
+ * cards sit there until they are answered or dismissed, so their span is
+ * credited only up to `MAX_PAUSE_CREDIT_MS` and the clock runs again after it.
+ */
+function pauseIsPlayers(s: DuelState): boolean {
+  return s.phase === "rejected" || s.phase === "disambiguating"
+}
+
+/** The honest remaining ms, with the player's own pause capped. */
+function liveRemaining(s: DuelState, now: number): number {
+  if (s.deadline === null) return 0
+  if (s.pausedAt === null) return Math.max(0, s.deadline - now)
+  const overrun = pauseIsPlayers(s) ? Math.max(0, now - s.pausedAt - MAX_PAUSE_CREDIT_MS) : 0
+  return Math.max(0, s.deadline - s.pausedAt - overrun)
 }
 
 /** Score as the HUD shows it: committed hint spend is deducted immediately. */
@@ -273,11 +309,27 @@ function startClock(s: DuelState, now: number): Pick<DuelState, "deadline" | "pa
   }
 }
 
-/** amendments.md §7 — give back every ms spent waiting on the server. */
+/**
+ * The most a single pause may credit back. Every honest pause is short — the
+ * verify round-trip is ~11 ms on the real corpus and the longest soft card is
+ * the four-second «أرِني أين قيل» — so five seconds covers all of them and
+ * refuses the one that is not honest: parking on a `near_miss` card.
+ */
+export const MAX_PAUSE_CREDIT_MS = 5_000
+
+/**
+ * A reload is worth a few seconds of grace — the tab has to boot, the fonts
+ * have to land — but never a whole new turn. `RESUME` adds this to whatever was
+ * left and never exceeds the tier's own `turnSeconds`.
+ */
+export const RESUME_GRACE_MS = 3_000
+
+/** amendments.md §7 — give back the ms spent waiting (see `pauseIsPlayers`). */
 function resumeClock(s: DuelState, now: number): Pick<DuelState, "deadline" | "pausedAt"> {
   if (s.pausedAt === null) return { deadline: s.deadline, pausedAt: null }
-  const paused = Math.max(0, now - s.pausedAt)
-  return { deadline: s.deadline === null ? null : s.deadline + paused, pausedAt: null }
+  const span = Math.max(0, now - s.pausedAt)
+  const credited = pauseIsPlayers(s) ? Math.min(span, MAX_PAUSE_CREDIT_MS) : span
+  return { deadline: s.deadline === null ? null : s.deadline + credited, pausedAt: null }
 }
 
 function exchangeOf(served: ServedBait, side: "player" | "opponent", now: number, extra: Partial<Exchange> = {}): Exchange {
@@ -388,7 +440,7 @@ function softReject(s: DuelState, rejection: Rejection, kind: ResultKind, now: n
 /** The player's بيت is in the ديوان and chains: score it and push it. */
 function accept(s: DuelState, served: ServedBait, now: number): DuelState {
   const streak = s.streak + 1
-  const remaining = s.config.timer && s.deadline !== null ? Math.max(0, s.deadline - (s.pausedAt ?? now)) : 0
+  const remaining = s.config.timer && s.deadline !== null ? liveRemaining(s, now) : 0
   const award = awardFor({
     streak,
     msRemaining: remaining,
@@ -467,6 +519,16 @@ export function reduce(s: DuelState, a: DuelAction): DuelState {
       return penalise(s, { kind: "timeout", bait: a.bait ?? null }, "timeout", a.now)
     }
 
+    /**
+     * The بيت that would have worked arrives after the card does: asking the
+     * ديوان for it takes a round-trip, and «انقضى الوقت» must be on screen the
+     * instant the clock hits zero. Nothing else about the state moves.
+     */
+    case "TIMEOUT_BAIT": {
+      if (s.rejection?.kind !== "timeout" || s.rejection.bait) return s
+      return { ...s, rejection: { ...s.rejection, bait: a.bait } }
+    }
+
     case "DRAFT":
       return s.draft === a.text ? s : { ...s, draft: a.text }
 
@@ -477,14 +539,18 @@ export function reduce(s: DuelState, a: DuelAction): DuelState {
 
     case "RESUBMIT": {
       if (s.phase !== "rejected" && s.phase !== "disambiguating") return s
+      // The card's pause was the PLAYER's: settle it (capped) before opening
+      // the server's own pause, or parking on «أهذا ما أردتَ؟» for a minute and
+      // then pressing «اقبل هذا البيت» would pay a full-time bonus.
+      const settled = resumeClock(s, a.now)
       return {
         ...s,
         phase: "verifying",
         draft: a.text,
         hintSpend: s.hintSpend + Math.max(0, a.penalty),
         rejection: null,
-        // the clock has been paused since SUBMIT; keep it that way
-        pausedAt: s.pausedAt ?? a.now,
+        deadline: settled.deadline,
+        pausedAt: a.now,
       }
     }
 
@@ -625,8 +691,22 @@ export function reduce(s: DuelState, a: DuelAction): DuelState {
         endedAt: phase === "summary" ? (s.endedAt ?? s.startedAt) : null,
       }
       if (phase === "awaiting") {
-        // give back everything the interruption cost, then hand back a whole turn
-        return { ...base, ...startClock(base, a.now) }
+        // The clock is the whole difficulty lever of فحل and سيف — tiers that
+        // client/duel/tiers.ts only offers while `timer` is on. Handing back a
+        // fresh `turnSeconds` here made F5 an unlimited timer reset, at no life
+        // and with the opponent's بيت still on the table (review finding). So:
+        // carry the STORED deadline forward, plus a small fixed grace for the
+        // reload itself, and never past a full turn.
+        if (!s.config.timer || s.deadline === null) {
+          return { ...base, ...startClock(base, a.now), deadline: null }
+        }
+        const left = liveRemaining(s, a.now)
+        if (left <= 0) {
+          // it ran out while the tab was shut: an ordinary timeout, not a gift
+          return reduce({ ...base, turnStartedAt: a.now }, { type: "TIMEOUT", now: a.now })
+        }
+        const granted = Math.min(left + RESUME_GRACE_MS, s.config.turnSeconds * 1000)
+        return { ...base, deadline: a.now + granted, pausedAt: null, turnStartedAt: a.now }
       }
       return { ...base, deadline: null, pausedAt: null }
     }

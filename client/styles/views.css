@@ -1,4 +1,11 @@
-/* قريض — Phase 2, "the browser": home, poets, poet, browse, search, favorites,
+/* NUMERALS (design-ux.md §2, as amended): a number inside Arabic prose —
+ * counts, verse numbers, corpus statistics — is Arabic-Indic in the UI face.
+ * `--font-mono` is Plex Mono's LATIN subset only, so it is kept for the game's
+ * read-outs (clock, score, hint price, award) and for `kbd`, and never put on
+ * Arabic-Indic digits, whose glyphs would then come from an unspecified OS
+ * fallback with a different thousands separator.
+ *
+ * قريض — Phase 2, "the browser": home, poets, poet, browse, search, favorites,
  * rules, stats, plus the four components they own (Omnibox, LetterRail,
  * LetterGrid, the windowed list shell).
  *
@@ -151,17 +158,44 @@
   text-overflow: ellipsis;
 }
 
+/* NOT `margin-inline-start: auto`. On a 1,248px browse row the title, the شاعر
+ * and the chips all cluster in the rightmost fifth, and an auto margin threw
+ * «٩٥١ بيتًا» 1,295px away to the opposite edge — one grey numeral alone at the
+ * end of an empty line, on four of the eleven routes. The count belongs to the
+ * metadata it counts, so it sits at the end of it. */
 .prow__n {
-  margin-inline-start: auto;
   color: var(--text-3);
   white-space: nowrap;
 }
 
+/* A route whose data did not arrive. Loud enough that a corpus-less deploy
+ * cannot pass for an empty one — «الديوان غير متاح الآن» in a framed block,
+ * not a grey lede under a heading. */
+.view-error {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 1px solid var(--danger);
+  border-radius: var(--r-2);
+  background: var(--danger-dim);
+}
+
+.view-error__msg {
+  color: var(--text-1);
+  font-size: var(--fs-ui-3);
+}
+
 /* ══ PoetCard ══════════════════════════════════════════════════════════ */
 
+/* Rows of these are a FIXED height (ROW_POET in ./shared.tsx), so the card's
+ * own tracks are declared rather than left to the content: name, meta, bio. A
+ * poet with no عصر and a one-line ترجمة then sits in the same shape as one with
+ * both, instead of leaving a ~60px void at the bottom of its cell. */
 .pcard {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto auto 1fr;
+  align-content: stretch;
   gap: var(--sp-2);
   block-size: 100%;
   padding: var(--sp-4);
@@ -212,14 +246,16 @@
   color: var(--text-3);
 }
 
+/* TWO lines, which is what design-ux.md §3 asks for — one clamped «…من أهل»
+ * mid-word and told the reader nothing about the شاعر. */
 .pcard__bio {
   font-size: var(--fs-ui-1);
   line-height: 1.65;
   color: var(--text-2);
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
 }
 
@@ -285,9 +321,17 @@
   display: none;
 }
 
+/* `/` is a key that does not exist on a phone. bayt.css makes the same call
+ * for the hover-only action rails; `.keys-only` (base.css) is the shared rule. */
 .omnibox__key {
   flex: none;
   opacity: 0.55;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .omnibox__key {
+    display: none;
+  }
 }
 
 .omnibox__field:focus-within .omnibox__key {
@@ -310,6 +354,16 @@
     var(--bg-0);
   box-shadow: var(--shadow-2);
   text-align: start;
+}
+
+/* The panel is as wide as the field — 1,290px on home — and the rows' content
+ * clustered in the rightmost 250px of it. Cap the dropdown at a reading width
+ * and hang it off the field's inline-start (right) edge. */
+@media (min-width: 861px) {
+  .omnibox__drop {
+    inset-inline-end: auto;
+    inline-size: min(38rem, 100%);
+  }
 }
 
 .omnibox__group + .omnibox__group {
@@ -446,12 +500,9 @@
 }
 
 .letter-rail__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 /* ══ LetterGrid — the 7×4 روي / حرف البداية wells ═══════════════════════ */
@@ -530,14 +581,11 @@
 }
 
 .letter-well__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 0.62rem;
   color: var(--text-3);
   max-inline-size: 100%;
   overflow: hidden;
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 /* ══ HOME ══════════════════════════════════════════════════════════════ */
@@ -693,12 +741,9 @@
 }
 
 .door__count {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 .door__more {
@@ -780,12 +825,9 @@
 }
 
 .ring__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-2);
   color: var(--text-1);
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 .ring__cap {
@@ -822,7 +864,7 @@
 }
 
 .daily-row__date {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1069,12 +1111,9 @@
 }
 
 .section-title__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-1);
   color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
   margin-inline-start: var(--sp-2);
 }
 
@@ -1132,18 +1171,20 @@
   opacity: 0.7;
 }
 
+/* A ghost button at the end of the chip row it clears — it was the ONE
+ * underlined link in the app, and it sat at the far inline-end of the bar. */
 .applied__clear {
-  padding: 0.25em 0.6em;
-  border: 0;
+  padding: 0.25em 0.7em;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-pill);
   background: none;
   font-size: var(--fs-ui-1);
   color: var(--text-3);
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 .applied__clear:hover {
   color: var(--text-1);
+  border-color: var(--accent-line);
 }
 
 .browse-shell {
@@ -1196,12 +1237,9 @@
 }
 
 .facet__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 .facet__caret {
@@ -1264,6 +1302,14 @@
 
 .search-count__n {
   color: var(--text-2);
+}
+
+/* the build hash is genuinely Latin — an LTR run of its own inside Arabic */
+.build-id {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  direction: ltr;
+  unicode-bidi: isolate;
 }
 
 .search-ms {
@@ -1330,6 +1376,8 @@
 }
 
 .search-poet__name {
+  flex: 0 1 auto;
+  min-inline-size: 0;
   font-family: var(--font-display);
   font-size: var(--fs-ui-3);
   line-height: 1.9;
@@ -1340,7 +1388,6 @@
 }
 
 .search-poet__n {
-  margin-inline-start: auto;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
   white-space: nowrap;
@@ -1371,6 +1418,11 @@
 
 .bcard__poet:hover {
   color: var(--accent);
+}
+
+/* a separator nobody can see separates nothing — --text-3, like the row */
+.bcard__dot {
+  color: var(--text-3);
 }
 
 .bcard__poem {
@@ -1429,16 +1481,13 @@
 }
 
 .fav-tab__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-0);
   opacity: 0.75;
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
+/* next to the tabs it creates siblings for, not 1,200px away at the far edge */
 .fav-new {
-  margin-inline-start: auto;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -1455,15 +1504,49 @@
   font-size: var(--fs-ui-1);
 }
 
-.fav-new__input:focus {
+/* `--accent-line` is 2.05:1 on the field it sits on — below the 3:1 SC 2.4.11
+ * asks of a focus indicator, and half a point from the unfocused border. Copy
+ * what `.answer__field:focus-visible` already does: solid accent + the glow.
+ * `:focus-visible`, like the other two overrides in the codebase. */
+.fav-new__input:focus-visible {
   outline: none;
-  border-color: var(--accent-line);
+  border-color: var(--accent);
+  box-shadow: var(--accent-glow);
 }
 
 .fav-chips {
   display: inline-flex;
+  align-items: center;
   gap: var(--sp-1);
   flex-wrap: wrap;
+}
+
+.fav-chips__label {
+  color: var(--text-3);
+  font-size: var(--fs-ui-0);
+}
+
+/* a toggle at rest is dashed; a fact (the بحر chip beside it) never is */
+.fav-chips .chip {
+  border-style: dashed;
+}
+
+.fav-chips .chip[data-active="1"] {
+  border-style: solid;
+}
+
+.fav-remove {
+  margin-inline-start: var(--sp-2);
+  padding: 0.1em 0.6em;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.fav-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .fav-note {
@@ -1584,9 +1667,13 @@
   gap: var(--sp-3);
 }
 
+/* Both lines on ONE axis. The number used to carry `direction: ltr`, which
+ * left-aligned it inside a 269px tile while the «قصيدة» under it stayed
+ * right-aligned — the two lines of every tile hanging off opposite edges. */
 .stat-tile {
   display: grid;
   gap: var(--sp-1);
+  justify-items: start;
   padding: var(--sp-4);
   border: 1px solid var(--line-1);
   border-radius: var(--r-2);
@@ -1594,13 +1681,10 @@
 }
 
 .stat-tile__n {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-6);
   line-height: 1.2;
   color: var(--accent);
-  direction: ltr;
-  unicode-bidi: isolate;
 }
 
 .stat-tile__cap {
@@ -1614,12 +1698,23 @@
   gap: var(--sp-2);
 }
 
+/* The value used to be pinned to the far edge of a full-width track, which
+ * reads fine for الطويل (bar tip and number nearly adjacent) and left «٦٠٢» for
+ * العصر الإسلامي about 1,400px from the 6px dot it labels. The bar and its
+ * number are one flex run now, so the number is always AT the tip. */
 .bar {
   display: grid;
-  grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
   align-items: center;
   gap: var(--sp-3);
   font-size: var(--fs-ui-1);
+}
+
+.bar__meter {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-inline-size: 0;
 }
 
 .bar__label {
@@ -1633,7 +1728,12 @@
   color: var(--accent);
 }
 
+/* the track IS the bar: its width is the row's share, so what follows it in the
+ * flex run lands exactly at the tip. Shrinkable, so a wide number never pushes
+ * itself out of the row. */
 .bar__track {
+  flex: 0 1 auto;
+  min-inline-size: 2px;
   block-size: 8px;
   border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.05);
@@ -1649,13 +1749,11 @@
 }
 
 .bar__n {
-  font-family: var(--font-mono);
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
-  text-align: end;
-  direction: ltr;
-  unicode-bidi: isolate;
+  white-space: nowrap;
 }
 
 /* ══ HelpOverlay body ══════════════════════════════════════════════════ */
@@ -1731,6 +1829,25 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The wide layout PLACES both children explicitly (rail in column 2, main in
+   * column 1) so auto-placement cannot put the 6,997 شعراء in the 6.5rem rail.
+   * Collapsing to one track is therefore not enough: `grid-column: 2` on the
+   * rail creates an IMPLICIT second track sized to the rail's max-content, and
+   * the single explicit `minmax(0, 1fr)` track that `.poets-main` lives in
+   * collapses to ZERO — a black page of correct height and no visible poet, on
+   * every phone and every tablet in portrait. Re-place both children here.
+   * (`order` is inert on explicitly-placed items, which is why the `order: -1`
+   * below never moved anything either.) */
+  .poets-shell .letter-rail {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .poets-main {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
   /* The alphabet becomes a horizontal strip under the era chips. NOT sticky:
    * the masthead is two rows tall here and owns the top of the viewport, so a
    * sticky rail would slide underneath it and disappear. */
@@ -1741,9 +1858,14 @@
     overflow-x: auto;
     overflow-y: hidden;
     max-block-size: none;
-    order: -1;
     gap: var(--sp-1);
     scrollbar-width: thin;
+    /* Eight of twenty-eight letters fit at 390px and a touch device draws no
+     * scrollbar, so the strip has to say for itself that it continues: both
+     * edges dissolve, and `LetterRail` scrolls the active key into view. */
+    mask-image: linear-gradient(to left, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+    scroll-padding-inline: 1.5rem;
+    min-inline-size: 0;
   }
 
   .letter-rail__key {
@@ -1764,7 +1886,7 @@
   }
 
   .bar {
-    grid-template-columns: 6.5rem minmax(0, 1fr) 3.5rem;
+    grid-template-columns: 6.5rem minmax(0, 1fr);
   }
 
   .bcard__meta {

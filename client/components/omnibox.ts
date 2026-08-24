@@ -7,8 +7,10 @@
  * pressing ↓ expects. Both facts come out of `groupSuggestions`: the groups for
  * rendering, and `flatten` for the cursor.
  */
+import { formatPoems } from "../../shared/format.ts"
 import type { BaitHit, PoemHit, PoetHit, SearchResponse } from "../../shared/schema.ts"
 import { routeHash, type Route } from "../router.ts"
+import { headingOf } from "../views/shared.tsx"
 
 /** Max rows per group in the dropdown (design-ux.md §3 Home). */
 export const OMNIBOX_GROUP_LIMIT = 4
@@ -105,7 +107,15 @@ export function suggestionHref(s: Suggestion): string {
   return routeHash(s.route)
 }
 
-/** The one line of text a row shows as its title. */
+/**
+ * The one line of text a row shows as its title.
+ *
+ * An untitled قصيدة goes through `headingOf` — the app's one rule for them,
+ * which every other surface (PoemRow, the poet's ديوان, browse) already
+ * follows. The dropdown used to print the raw title, so a search for «المتنبي»
+ * answered with «بلا عنوان» twice: useless as a result and inconsistent with
+ * every list in the product.
+ */
 export function suggestionTitle(s: Suggestion): string {
   switch (s.kind) {
     case "poet":
@@ -113,7 +123,7 @@ export function suggestionTitle(s: Suggestion): string {
     case "bait":
       return s.hit.sadr
     case "poem":
-      return s.hit.title
+      return headingOf(s.hit).text
   }
 }
 
@@ -121,7 +131,9 @@ export function suggestionTitle(s: Suggestion): string {
 export function suggestionNote(s: Suggestion): string {
   switch (s.kind) {
     case "poet":
-      return s.hit.era?.name ?? (s.hit.location ?? "")
+      // …and never nothing: a شاعر with neither عصر nor location left the row
+      // an item shorter than its neighbours, so the list's heights alternated
+      return s.hit.era?.name ?? s.hit.location ?? formatPoems(s.hit.poemCount)
     case "bait":
       return s.hit.ajuz ?? s.hit.poet.name
     case "poem":

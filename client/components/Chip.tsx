@@ -9,6 +9,7 @@
  *   rawiyy  circular 1.9em letter well in Amiri behind a lapis hairline
  */
 import type { ReactNode } from "react"
+import { formatCount } from "../../shared/format.ts"
 import { bahrGlyph } from "../data/buhur.ts"
 
 export type ChipVariant = "bahr" | "gharad" | "asr" | "rawiyy"
@@ -44,7 +45,11 @@ export function Chip({
         </span>
       ) : null}
       <span className="chip__label">{label}</span>
-      {count !== undefined ? <span className="chip__count">{count.toLocaleString("ar-EG")}</span> : null}
+      {/* `toLocaleString('ar-EG')` is the one thing shared/format.ts forbids:
+          its separator and grouping vary by ICU build, and a reduced-ICU
+          runtime renders «65,398» in Latin inside a chip while every other
+          count on the page stays Arabic-Indic. */}
+      {count !== undefined ? <span className="chip__count">{formatCount(count)}</span> : null}
     </>
   )
   const className = `chip chip--${variant}`
@@ -63,7 +68,9 @@ export function Chip({
       data-zero={zero ? "1" : undefined}
       title={title}
       onClick={onClick}
-      disabled={disabled || zero}
+      /* a zero-count chip is dead — unless it is the ACTIVE one, which must
+         stay clickable or the reader cannot undo the facet that emptied it */
+      disabled={disabled || (zero && !active)}
       aria-pressed={active}
     >
       {inner}

@@ -180,7 +180,12 @@ export function PoetsView({ era, letter }: { era?: string; letter?: string }) {
 
         <div className="poets-main">
           {error ? (
-            <p className="view__lede">{error.message}</p>
+            <div className="view-error" role="alert">
+              <p className="view-error__msg">{error.message}</p>
+              <button type="button" className="btn" onClick={() => navigate({ view: "poets" })}>
+                أعد المحاولة
+              </button>
+            </div>
           ) : loading && items.length === 0 ? (
             <RowSkeleton rows={6} height={rowHeight} />
           ) : items.length === 0 ? (

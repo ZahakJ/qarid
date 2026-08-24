@@ -96,7 +96,12 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
     const ac = new AbortController()
     loadFacets(facetParams(query), ac.signal)
       .then((f) => !ac.signal.aborted && setFacets(f))
-      .catch(() => {})
+      .catch((e: unknown) => {
+        // a corpus-less box answers 503 to everything: say so rather than
+        // painting five empty accordions and calling the route green
+        if (ac.signal.aborted) return
+        if (e instanceof ApiError && e.kind === "corpus_unavailable") setError(e)
+      })
     return () => ac.abort()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- facetKey IS the query's facet identity
   }, [facetKey])
@@ -237,8 +242,21 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
               options={BROWSE_SORTS}
             />
           )}
-          <button type="button" className="btn btn--ghost browse-rail-toggle" onClick={() => setRailOpen((v) => !v)}>
-            {railOpen ? "إخفاء القيود" : "القيود"}
+          {/* At ≤860px this is the ONLY entrance to the facet system, so it is
+              shaped like a control — chrome, a caret, and a count of what is
+              already applied. As bare ghost text it read as a label belonging
+              to the segmented control beside it. */}
+          <button
+            type="button"
+            className="btn browse-rail-toggle facet-toggle"
+            aria-expanded={railOpen}
+            onClick={() => setRailOpen((v) => !v)}
+          >
+            القيود
+            {chips.length > 0 ? <span className="facet-toggle__n">{formatCount(chips.length)}</span> : null}
+            <span className="facet-toggle__caret" aria-hidden="true">
+              {railOpen ? "−" : "+"}
+            </span>
           </button>
         </div>
       </header>
@@ -269,7 +287,7 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
       <div className="browse-shell" data-rail-open={railOpen ? "1" : undefined}>
         {/* ── the facet rail ───────────────────────────────────────────── */}
         <aside className="facet-rail" aria-label="القيود">
-          <Accordion label={FACET_LABEL.era} open count={facets?.eras.filter((e) => e.count > 0).length}>
+          <Accordion label={FACET_LABEL.era} open count={facets?.eras.filter((e) => e.count > 0).length} total={facets?.eras.length}>
             <ChipCloud
               variant="asr"
               items={(facets?.eras ?? meta?.eras.map((e) => ({ slug: e.slug, name: e.name, count: e.poemCount })) ?? []).map((e) => ({
@@ -282,7 +300,7 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
             />
           </Accordion>
 
-          <Accordion label={FACET_LABEL.meter} open count={facets?.meters.filter((m) => m.count > 0).length}>
+          <Accordion label={FACET_LABEL.meter} open count={facets?.meters.filter((m) => m.count > 0).length} total={facets?.meters.length}>
             <ChipCloud
               variant="bahr"
               items={(facets?.meters ?? []).map((m) => ({ slug: m.slug, label: m.name, count: m.count }))}
@@ -321,7 +339,12 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
         {/* ── results ──────────────────────────────────────────────────── */}
         <div className="browse-main">
           {error ? (
-            <p className="view__lede">{error.message}</p>
+            <div className="view-error" role="alert">
+              <p className="view-error__msg">{error.message}</p>
+              <button type="button" className="btn" onClick={() => go({ ...query })}>
+                أعد المحاولة
+              </button>
+            </div>
           ) : loading && loaded === 0 ? (
             baytMode ? (
               <BaytSkeleton rows={6} size={settings.verseSize} />
@@ -426,15 +449,23 @@ function Accordion({
   label,
   open,
   count,
+  total,
   children,
 }: {
   label: string
   open: boolean
+  /** values that still have results under the current query */
   count?: number
+  /** values the facet has at all */
+  total?: number
   children: React.ReactNode
 }) {
   const [manual, setManual] = useState<boolean | null>(null)
   const isOpen = manual ?? open
+  /* «العصر ٨» read as a wrong count: eight is how many of the twelve values
+     still have أبيات under the current query, not how many values there are.
+     Say both when they differ, and say which is which in the title. */
+  const shows = count !== undefined && total !== undefined && count < total ? `${formatCount(count)} من ${formatCount(total)}` : count !== undefined ? formatCount(count) : null
   return (
     <section className="facet" data-open={isOpen ? "1" : undefined}>
       <button
@@ -444,7 +475,11 @@ function Accordion({
         onClick={() => setManual(!isOpen)}
       >
         <span className="facet__label">{label}</span>
-        {count !== undefined ? <span className="facet__n">{formatCount(count)}</span> : null}
+        {shows ? (
+          <span className="facet__n" title="القيم التي بقيت لها نتائج على هذه القيود">
+            {shows}
+          </span>
+        ) : null}
         <span className="facet__caret" aria-hidden="true">
           {isOpen ? "−" : "+"}
         </span>

@@ -82,6 +82,9 @@ export function AnswerInput({
         lang="ar"
         rows={1}
         enterKeyHint="send"
+        /* the same hardening the omnibox carries — a timed answer field must
+           not be offered form-history suggestions */
+        autoComplete="off"
         autoCorrect="off"
         autoCapitalize="off"
         spellCheck={false}

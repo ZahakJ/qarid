@@ -534,8 +534,24 @@ describe("disambiguation", () => {
     const again = reduce(dis, { type: "RESUBMIT", text: "الصدر … العجز", penalty: 0, now: T0 + 6_000 })
     expect(again.phase).toBe("verifying")
     expect(again.draft).toBe("الصدر … العجز")
-    expect(again.pausedAt).toBe(T0 + 4_000)
     expect(again.rejection).toBeNull()
+    // the card's own pause is SETTLED and the server's re-opened, so a short
+    // deliberation costs nothing but a long one cannot be banked (see below)
+    expect(again.pausedAt).toBe(T0 + 6_000)
+    expect(timeLeft(again, T0 + 6_000)).toBe(timeLeft(dis, T0 + 6_000))
+  })
+
+  it("a card the player parks on stops freezing the clock after the cap", () => {
+    const v = reduce(awaiting(), { type: "SUBMIT", text: "x", now: T0 + 4_000 })
+    const dis = reduce(v, { type: "VERIFIED", response: ambiguous, now: T0 + 4_200 })
+    // 38s were left at SUBMIT; the first five seconds of card are free…
+    expect(timeLeft(dis, T0 + 9_000)).toBe(38_000)
+    // …and after that the clock runs again, whether it is read or resubmitted
+    expect(timeLeft(dis, T0 + 29_000)).toBe(18_000)
+    const again = reduce(dis, { type: "RESUBMIT", text: "الصدر", penalty: 0, now: T0 + 29_000 })
+    expect(timeLeft(again, T0 + 29_000)).toBe(18_000)
+    // a card left up past the whole turn is a timeout, not a pause button
+    expect(timeLeft(dis, T0 + 120_000)).toBe(0)
   })
 
   it("«اقبل هذا البيت» resubmits with the near-miss cost attached", () => {
@@ -647,13 +663,40 @@ describe("persistence", () => {
     expect(Object.keys(slice)).not.toContain("draft")
   })
 
-  it("a reload mid-turn hands back a whole fresh turn", () => {
+  it("a reload mid-turn carries the stored deadline forward, plus a small grace", () => {
     const s = awaiting()
-    const back = fromSlice(toSlice(s), T0 + 600_000)
+    // the turn opened at T0+2s and is 40s long, so it is due at T0+42s
+    expect(s.deadline).toBe(T0 + 42_000)
+    const back = fromSlice(toSlice(s), T0 + 12_000)
     expect(back.phase).toBe("awaiting")
     expect(back.required.letter).toBe("ن")
-    expect(back.deadline).toBe(T0 + 600_000 + 40_000)
+    // the SAME deadline, moved only by the reload's grace
+    expect(back.deadline).toBe(T0 + 42_000 + 3_000)
     expect(back.exchanges).toHaveLength(1)
+    expect(back.lives).toBe(3)
+  })
+
+  it("the grace never exceeds a whole turn", () => {
+    const back = fromSlice(toSlice(awaiting()), T0 + 2_100)
+    expect(back.deadline).toBe(T0 + 2_100 + 40_000)
+  })
+
+  /**
+   * The clock IS the difficulty of فحل and سيف — `clampTier` only offers them
+   * while the timer is on — so F5 must not be a timer reset. A turn that ran
+   * out while the tab was shut lands as an ordinary timeout: a life, not a gift.
+   */
+  it("a reload after the turn ran out is a timeout, not a free turn", () => {
+    const back = fromSlice(toSlice(awaiting()), T0 + 600_000)
+    expect(back.phase).toBe("penalising")
+    expect(back.lives).toBe(2)
+    expect(back.rejection?.kind).toBe("timeout")
+  })
+
+  it("with the timer off a reload still opens the turn", () => {
+    const back = fromSlice(toSlice(awaiting(config({ timer: false }))), T0 + 600_000)
+    expect(back.phase).toBe("awaiting")
+    expect(back.deadline).toBeNull()
   })
 
   it("a reload while verifying never strands the player and never costs a life", () => {

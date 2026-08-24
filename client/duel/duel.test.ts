@@ -355,12 +355,15 @@ describe("the share block", () => {
     expect(letterRibbon(["ن", "م", "ب"])).toBe("ن ← م ← ب")
   })
 
-  it("opens with an RLM and names the challenge on a daily block", () => {
+  it("opens EVERY line with an RLM and names the challenge on a daily block", () => {
     const text = shareText({ dayKey: "2026-08-23", letters: ["ن", "م"], chainLength: 6, score: 740 })
     expect(text.startsWith(RLM)).toBe(true)
     expect(text).toContain("قريض — تحدّي ٢٣ آب")
     expect(text).toContain("ن ← م")
     expect(text).toContain("٧٤٠")
+    // client/bayt/copy.ts states the rule and formatPoem obeys it: one prefix
+    // for the whole block leaves lines two and three to a Latin-first editor
+    for (const line of text.split("\n")) expect(line.startsWith(RLM)).toBe(true)
   })
 
   it("says أفحمتُ الخصم only when the opponent actually ran dry", () => {

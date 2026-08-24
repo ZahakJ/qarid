@@ -126,6 +126,27 @@
   cursor: not-allowed;
 }
 
+/* The drawer trigger for a facet rail — on a phone this is the ONE way into
+ * the whole facet system, so it carries chrome, its applied count and a caret. */
+.facet-toggle {
+  gap: var(--sp-2);
+}
+
+.facet-toggle__n {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 1.35em;
+  padding-inline: 0.3em;
+  border-radius: var(--r-pill);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: var(--fs-ui-0);
+}
+
+.facet-toggle__caret {
+  color: var(--text-3);
+}
+
 /* ── Chip — one component, four shapes ──────────────────────────────── */
 .chip {
   display: inline-flex;
@@ -198,7 +219,6 @@ button.chip {
 }
 
 .chip__count {
-  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 0.78em;
   color: var(--text-3);

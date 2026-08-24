@@ -47,6 +47,29 @@ const ARABIC_MESSAGE: Record<ApiErrorKind, string> = {
   aborted: "أُلغي الطلب",
 }
 
+/**
+ * Arabic for the server's machine codes.
+ *
+ * `server/query.ts` answers a 404 as `{error:'not_found', message:'poem'}` —
+ * `message` there is the internal RESOURCE NAME, for a log, not for a reader.
+ * Rendered straight it put a lone Latin «poem» in the middle of an all-Arabic
+ * page. Any `message` that is not Arabic is dropped on the floor
+ * (`arabicOnly`) and the code's own Arabic stands in for it.
+ */
+const ARABIC_CODE: Record<string, string> = {
+  not_found: "لا شيء بهذا المعرّف في الديوان",
+  bad_request: "طلب غير مفهوم",
+  bad_query: "قيد غير مقبول في الطلب",
+  corpus_unavailable: "الديوان غير متاح الآن",
+}
+
+const ARABIC_RE = /[\u0600-\u06ff]/
+
+/** The server's own `message`, but only when it is written for a reader. */
+function arabicOnly(detail: string | undefined): string | undefined {
+  return detail && ARABIC_RE.test(detail) ? detail : undefined
+}
+
 /** In-flight GETs keyed by method+path — a second caller joins the first. */
 const inflight = new Map<string, Promise<unknown>>()
 
@@ -87,7 +110,10 @@ async function run<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): P
       /* non-JSON error body — status alone has to do */
     }
     const kind: ApiErrorKind = res.status === 503 ? "corpus_unavailable" : "http"
-    throw new ApiError(kind, detail ?? ARABIC_MESSAGE[kind], path, res.status, code)
+    // the server's own text wins when it was written for a reader; otherwise
+    // the code's Arabic, and only then the generic line for the kind
+    const message = arabicOnly(detail) ?? (code ? ARABIC_CODE[code] : undefined) ?? ARABIC_MESSAGE[kind]
+    throw new ApiError(kind, message, path, res.status, code)
   }
 
   let body: unknown

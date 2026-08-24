@@ -153,6 +153,36 @@ hr {
   -moz-font-feature-settings: normal;
 }
 
+/* Affordances that name a physical key. A phone has no `/` and no Shift, so a
+ * badge or a hint that mentions one is furniture on a touch device — the same
+ * call bayt.css already makes for the hover-only action rails. */
+@media (hover: none), (pointer: coarse) {
+  .keys-only {
+    display: none;
+  }
+}
+
+/* Skip link: the first thing in the tab order, invisible until it is focused.
+ * Not a real `#main` navigation — the app is hash-ROUTED, so writing the hash
+ * would change the page; it moves focus instead. */
+.skip-link {
+  position: absolute;
+  inset-block-start: -4rem;
+  inset-inline-start: var(--sp-4);
+  z-index: calc(var(--z-overlay) + 1);
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  color: var(--accent);
+  font-size: var(--fs-ui-2);
+  transition: inset-block-start var(--dur-2) var(--ease);
+}
+
+.skip-link:focus-visible {
+  inset-block-start: var(--sp-2);
+}
+
 .sr-only {
   position: absolute;
   inline-size: 1px;

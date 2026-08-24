@@ -15,6 +15,7 @@
  */
 import type { ReactNode } from "react"
 import { findFolded, foldedIndex, type FoldMatch } from "../../shared/arabic.ts"
+import { isMark } from "./tashkeel.ts"
 
 /** The snippet delimiters the server passes to `snippet(baits_fts, …)`. */
 export const SNIPPET_OPEN = "»"
@@ -46,7 +47,7 @@ export function markRanges(text: string, terms: readonly string[]): FoldMatch[] 
   const idx = foldedIndex(text)
   const hits: FoldMatch[] = []
   for (const term of terms) {
-    for (const hit of findFolded(idx, term, 40)) hits.push(hit)
+    for (const hit of findFolded(idx, term, 40)) hits.push({ ...hit, end: withMarks(text, hit.end) })
   }
   hits.sort((a, b) => a.start - b.start || b.end - a.end)
 
@@ -58,6 +59,22 @@ export function markRanges(text: string, terms: readonly string[]): FoldMatch[] 
     cursor = h.end
   }
   return out
+}
+
+/**
+ * Extend an end offset over the تشكيل that belongs to the letter before it.
+ *
+ * The fold DELETES marks, so an offset that came back from `findFolded` points
+ * just past the BASE letter and any trailing حركة falls OUTSIDE the match:
+ * React then renders `<mark>لَيل</mark>َ دانِ`, the fatha becomes the first
+ * character of a separate text node, detaches from its ل and floats up and to
+ * the left of the letter it belongs to. `splitRawiyy` in ./rawiyy.ts does
+ * exactly this for the روي underline, and for exactly this reason.
+ */
+function withMarks(text: string, end: number): number {
+  let at = end
+  while (at < text.length && isMark(text[at]!)) at++
+  return at
 }
 
 /**

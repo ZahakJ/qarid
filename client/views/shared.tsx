@@ -104,7 +104,14 @@ export function PoemRow({
   )
 }
 
-/** One شاعر in the index grid: name, عصر, ديوان size, and a clamped ترجمة. */
+/**
+ * One شاعر in the index grid: name, عصر, ديوان size, and a two-line ترجمة.
+ *
+ * Every card renders all three rows even when the corpus has neither an عصر
+ * (`era` is null for 107,209 rows) nor a ترجمة (only 791 شعراء carry one), so
+ * the grid's fixed-height cells hold the same shape whatever the source knew.
+ * The عصر slot falls back to the ديوان's size, which is always true.
+ */
 export function PoetCard({ poet }: { poet: PoetSummary }) {
   return (
     <a className="pcard" href={routeHash({ view: "poet", slug: poet.slug })}>
@@ -231,10 +238,18 @@ export function BaytCard({
         {/* Most قصائد are untitled, and printing «بلا عنوان» after every بيت
             says nothing four times a screen — the «القصيدة ←» link already
             says where the line came from. */}
+        {/* the شاعر and the عنوان used to run together into one phrase —
+            «محمود درويش أيقونات من بلور المكان» — at the same size and colour.
+            A middot, and one step down in colour, separates them for nothing. */}
         {title ? (
-          <a className="bcard__poem" href={poemHref}>
-            <bdi>{title}</bdi>
-          </a>
+          <>
+            <span className="bcard__dot" aria-hidden="true">
+              ·
+            </span>
+            <a className="bcard__poem" href={poemHref}>
+              <bdi>{title}</bdi>
+            </a>
+          </>
         ) : null}
         <a className="bcard__go" href={poemHref}>
           القصيدة ←

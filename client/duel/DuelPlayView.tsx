@@ -4,8 +4,9 @@
  * This view owns NO game state. `machine.ts` decides what the next state is,
  * `duelStore.ts` decides when and talks to the server, and everything here
  * either renders `session` or calls one of the store's verbs. The only local
- * state is the wall clock (a ticking `now`, so the arc moves) and the
- * pre-check flash, neither of which the game may depend on.
+ * state is a 200 ms tick (so the arc redraws — the remaining time itself is
+ * read off `Date.now()` at render) and the pre-check flash, neither of which
+ * the game may depend on.
  *
  * The beats, in the order the player experiences them:
  *
@@ -14,14 +15,15 @@
  *   awaiting          the clock starts here, the field takes focus, and the
  *                     letter indicator judges every keystroke locally through
  *                     the SAME `firstLetterOf` the server uses.
- *   verifying         the clock is paused; whatever the wait costs is given
- *                     back to the deadline (amendments.md §7).
+ *   verifying         the clock is paused; the wait is given back to the
+ *                     deadline, capped at `MAX_PAUSE_CREDIT_MS` so a card left
+ *                     up is not a pause button (amendments.md §7).
  *   rejected/penalising  RejectionCard, and only the two rejections that cost
  *                     a life ever say so.
  *   computerThinking  a 700–1400ms floor so the reply reads as thought.
  *   summary           the route changes; this view never renders it.
  */
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { MUBARAZA_EXCHANGES } from "../../shared/constants.ts"
 import { formatClock, formatNumber } from "../../shared/format.ts"
 import type { BaitDto, HintKind } from "../../shared/schema.ts"
@@ -34,6 +36,7 @@ import {
   dispatch,
   resolveRejection,
   resubmitBait,
+  resumeSchedule,
   retryDeal,
   retryReply,
   setDraft,
@@ -58,7 +61,12 @@ export function DuelPlayView() {
   const session = useDuel((s) => s.session)
   const settings = useSettings()
   const reduced = motionReduced(settings)
-  const [now, setNow] = useState(() => Date.now())
+  // A tick counter, NOT a clock: the remaining time is read off `Date.now()`
+  // at render. Holding the wall clock in state meant the first paint of a new
+  // turn used the `now` captured before the accept animation, the thinking
+  // floor and the recitation — so the countdown briefly showed MORE than the
+  // turn is long (review finding).
+  const [, tock] = useReducer((n: number) => n + 1, 0)
   const [hintsOpen, setHintsOpen] = useState(false)
   const [precheck, setPrecheck] = useState<string | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -75,15 +83,25 @@ export function DuelPlayView() {
     if (session && phase === "summary") navigate({ view: "duel-summary" }, true)
   }, [session, phase])
 
-  // The clock: one interval for the whole view, only while a turn is running.
+  // The clock: one interval for the whole view, for as long as the clock is
+  // actually running. That is the turn itself AND the two card phases, whose
+  // pause is credited only up to `MAX_PAUSE_CREDIT_MS` — past it the arc has to
+  // be seen moving again, or the card still LOOKS like a pause button even
+  // though it no longer is. `tick()` is a no-op outside `awaiting`.
   useEffect(() => {
-    if (phase !== "awaiting") return
+    if (phase !== "awaiting" && phase !== "rejected" && phase !== "disambiguating") return
     const id = setInterval(() => {
-      setNow(Date.now())
+      tock()
       tick()
     }, TICK_MS)
     return () => clearInterval(id)
   }, [phase])
+
+  // A reloaded session is rehydrated but unscheduled — re-arm whatever beat the
+  // dead tab owed (the deal, the opponent's reply, a card's dismissal).
+  useEffect(() => {
+    resumeSchedule()
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -98,7 +116,7 @@ export function DuelPlayView() {
 
   if (!session) return null
 
-  const ms = timeLeft(session, now)
+  const ms = timeLeft(session, Date.now())
   const turnMs = session.config.turnSeconds * 1000
   const busy = phase === "verifying" || phase === "computerThinking" || phase === "reciting" || phase === "dealing"
   const pricing = hintPricing(session.config.tier)
@@ -220,7 +238,10 @@ export function DuelPlayView() {
             setDraft(v)
           }}
           onSubmit={() => submitAnswer()}
-          disabled={busy || phase === "penalising" || phase === "summary" || phase === "failed"}
+          /* NOT disabled while a card is up: the «هل تقصد؟» chips fill this
+             field, and a greyed-out field makes them look decorative. Answering
+             under a card dismisses it (duelStore.submitAnswer). */
+          disabled={busy || phase === "summary" || phase === "failed"}
           placeholder={placeholderFor(session.seed, session.exchanges.length, session.config.tier)}
           required={session.required.letter}
           alsoAccepted={session.required.alsoAccepted}
@@ -232,7 +253,7 @@ export function DuelPlayView() {
           <div className="duel-acts__hint">
             <button
               type="button"
-              className="btn btn--ghost"
+              className="btn duel-acts__hint-btn"
               onClick={() => setHintsOpen((v) => !v)}
               disabled={!pricing.allowed || phase !== "awaiting"}
               aria-expanded={hintsOpen}
@@ -249,7 +270,12 @@ export function DuelPlayView() {
               onClose={() => setHintsOpen(false)}
             />
           </div>
-          <span className="duel-acts__note">أدخِل ليُرسَل · Shift+Enter لسطر جديد · يُقبل الصدر وحده</span>
+          {/* the two key names are keyboard-only; a thumb gets the one line
+              that is true on every device (bayt.css's `@media (hover: none)`
+              pattern, applied here through `.keys-only`) */}
+          <span className="duel-acts__note">
+            <span className="keys-only">أدخِل ليُرسَل · Shift+Enter لسطر جديد · </span>يُقبل الصدر وحده
+          </span>
         </div>
       </section>
     </div>

@@ -42,7 +42,12 @@ export function StatsView() {
     return (
       <div className="view stats-view">
         <h1 className="view__title">إحصاءات الديوان</h1>
-        <p className="view__lede">{error.message}</p>
+        <div className="view-error" role="alert">
+          <p className="view-error__msg">{error.message}</p>
+          <a className="btn" href={routeHash({ view: "home" })}>
+            إلى الديوان
+          </a>
+        </div>
       </div>
     )
   }
@@ -138,7 +143,7 @@ export function StatsView() {
       </section>
 
       <p className="fav-note">
-        بناء الديوان <span className="search-ms">{stats.buildId}</span>
+        بناء الديوان <span className="build-id">{stats.buildId}</span>
       </p>
     </div>
   )
@@ -180,13 +185,19 @@ function Bars({ title, rows }: { title: string; rows: BarRow[] }) {
       <Rule />
       <div className="bars">
         {rows.map((r) => {
+          // The track is scaled into 82% of the meter so its own number always
+          // has room at the tip; the proportions are linear through zero, so
+          // the bars still read against one another exactly as before.
+          const share = `${Math.max(0.8, (r.n / max) * 82)}%`
           const bar = (
             <>
               <span className="bar__label">{r.ltr ? <bdi dir="ltr">{r.label}</bdi> : r.label}</span>
-              <span className="bar__track">
-                <span className="bar__fill" style={{ inlineSize: `${Math.max(1, (r.n / max) * 100)}%` }} />
+              <span className="bar__meter">
+                <span className="bar__track" style={{ inlineSize: share }}>
+                  <span className="bar__fill" style={{ inlineSize: "100%" }} />
+                </span>
+                <span className="bar__n">{formatCount(r.n)}</span>
               </span>
-              <span className="bar__n">{formatCount(r.n)}</span>
             </>
           )
           return r.query ? (

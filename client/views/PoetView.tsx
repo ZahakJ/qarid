@@ -146,7 +146,7 @@ export function PoetView({ slug }: { slug: string }) {
     return (
       <div className="view">
         <h1 className="view__title">{error.status === 404 ? "لا شاعر بهذا الاسم" : "تعذّر جلب الشاعر"}</h1>
-        <p className="view__lede">{error.message}</p>
+        {error.status === 404 ? null : <p className="view__lede">{error.message}</p>}
         <a className="btn" href={routeHash({ view: "poets" })}>
           إلى فهرس الشعراء
         </a>

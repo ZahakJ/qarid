@@ -7,6 +7,7 @@
  * leading ال and folds, which is exactly how `poets.letter` was computed at
  * ingest. The client never recomputes it; it renders `PoetSummary.letter`.
  */
+import { useEffect, useRef } from "react"
 import { formatCount } from "../../shared/format.ts"
 import { HIJAI_LETTERS, LETTER_NAMES } from "../../shared/letters.ts"
 
@@ -22,8 +23,22 @@ export function LetterRail({
   onPick: (letter: string | undefined) => void
   label?: string
 }) {
+  const railRef = useRef<HTMLElement | null>(null)
+
+  /**
+   * On a phone the rail is a horizontal strip that shows eight of its
+   * twenty-eight keys, so a reader who arrived on ?letter=م must be shown where
+   * م is rather than left to guess that the strip scrolls. Harmless on the wide
+   * layout, where the whole alphabet is already in view.
+   */
+  useEffect(() => {
+    if (!active) return
+    const key = railRef.current?.querySelector<HTMLElement>('[data-active="1"]')
+    key?.scrollIntoView({ block: "nearest", inline: "center" })
+  }, [active])
+
   return (
-    <nav className="letter-rail" aria-label={label}>
+    <nav className="letter-rail" aria-label={label} ref={railRef}>
       {HIJAI_LETTERS.map((letter) => {
         const n = counts?.get(letter)
         const empty = counts != null && !n

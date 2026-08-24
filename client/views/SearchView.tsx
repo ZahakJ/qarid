@@ -170,7 +170,8 @@ export function SearchView({ q, page }: { q: string; page: number }) {
     [meta],
   )
 
-  const anyFilter = Boolean(filters.era || filters.meter || filters.rhyme)
+  const appliedCount = [filters.era, filters.meter, filters.rhyme].filter(Boolean).length
+  const anyFilter = appliedCount > 0
   const terms = (hit: { highlight: string | null }) => markedTerms(hit.highlight)
 
   return (
@@ -197,13 +198,20 @@ export function SearchView({ q, page }: { q: string; page: number }) {
           />
 
           <div className="search-modes__side">
+            {/* a control, so it is shaped like one: chrome, a caret, and the
+                number of constraints it is hiding — it used to be bare text
+                sitting beside the segmented control and reading as its label */}
             <button
               type="button"
-              className="btn btn--ghost"
+              className="btn facet-toggle"
               aria-expanded={facetsOpen}
               onClick={() => setFacetsOpen((v) => !v)}
             >
-              {facetsOpen ? "إخفاء القيود" : anyFilter ? "القيود ✓" : "القيود"}
+              القيود
+              {appliedCount > 0 ? <span className="facet-toggle__n">{formatCount(appliedCount)}</span> : null}
+              <span className="facet-toggle__caret" aria-hidden="true">
+                {facetsOpen ? "−" : "+"}
+              </span>
             </button>
             {res ? (
               <p className="search-count">
@@ -211,11 +219,10 @@ export function SearchView({ q, page }: { q: string; page: number }) {
                 {res.ms > 0 ? (
                   <>
                     {" · "}
-                    {/* every string in قريض is Arabic — «ms» is not a numeral,
-                        it is an English word standing in an Arabic sentence */}
-                    <span className="search-ms">
-                      {res.ms.toFixed(res.ms < 10 ? 1 : 0)} مِلّي ثانية
-                    </span>
+                    {/* ONLY the number gets the LTR isolate. Wrapping the whole
+                        phrase in it made the Arabic words an LTR run too, so
+                        they reordered and the reader got «مِلّي ثانية 6.1». */}
+                    <span className="search-ms">{res.ms.toFixed(res.ms < 10 ? 1 : 0)}</span> مِلّي ثانية
                   </>
                 ) : null}
               </p>
@@ -270,7 +277,9 @@ export function SearchView({ q, page }: { q: string; page: number }) {
       ) : null}
 
       {error ? (
-        <p className="view__lede">{error.message}</p>
+        <div className="view-error" role="alert">
+          <p className="view-error__msg">{error.message}</p>
+        </div>
       ) : !sent ? (
         <p className="view__lede">اكتب بيتًا، أو شطرًا منه، أو اسم شاعر. وضَعْ «…» حول العبارة لتُطلب كما هي.</p>
       ) : loading && baits.length === 0 ? (

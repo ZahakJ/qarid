@@ -70,9 +70,15 @@ export function DuelSetupView() {
   // Live «العدد المتاح». Debounced: the setup screen must not eat the duel's
   // rate-limit budget (12 requests / 10 s across all of /api/game/*).
   const seq = useRef(0)
+  // …but NOT the first one. Debouncing the initial request meant the setup
+  // screen always painted «…يُحسب العدد المتاح» before the number — including
+  // in the smoke shot, which shipped a loading string as the state of the route.
+  const firstPool = useRef(true)
   useEffect(() => {
     const mine = ++seq.current
     setPool((p) => (p ? { ...p, stale: true } : null))
+    const wait = firstPool.current ? 0 : 260
+    firstPool.current = false
     const t = setTimeout(() => {
       getGamePool({ difficulty: preset.difficulty, ...filters })
         .then((res) => {
@@ -81,7 +87,7 @@ export function DuelSetupView() {
         .catch(() => {
           if (mine === seq.current) setPool(null)
         })
-    }, 260)
+    }, wait)
     return () => clearTimeout(t)
   }, [preset.difficulty, filters])
 

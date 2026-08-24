@@ -18,7 +18,9 @@
   --lapis-rgb: 92, 124, 200;    /* second ink — three uses only */
   --ok-rgb: 111, 174, 125;
   --warn-rgb: 224, 145, 58;
-  --danger-rgb: 210, 86, 75;
+  /* raised from 210,86,75: that red was 4.24:1 on the composited --bg-2,
+     just under AA for the small text the duel's «−روح» is set in */
+  --danger-rgb: 221, 106, 94;
 
   /* ── surfaces ─────────────────────────────────────────────────────── */
   --bg-0: #07080c;
@@ -29,7 +31,12 @@
   --line-2: rgba(255, 255, 255, 0.15);
   --text-1: #ece6da;
   --text-2: #9d9689;
-  --text-3: #6a6459;
+  /* #6a6459 measured 3.41:1 on --bg-0 and 2.93:1 on the composited --bg-2 —
+     below even the large-text floor, and --text-3 is used in ~70 places at
+     12–13px (counts, captions, notes). #8a8478 clears 4.5:1 on every surface
+     in this palette (bg-0 5.39, bg-1 5.08, bg-2 4.63, panel 5.26) and still
+     sits a clear step below --text-2's 6.82. */
+  --text-3: #8a8478;
 
   /* ── type families ────────────────────────────────────────────────── */
   --font-ui: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
