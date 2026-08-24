@@ -29,7 +29,7 @@
 import { HIJAI_LETTERS, type HijaiLetter } from "../../shared/letters.ts"
 import type { Arsenal, ArsenalCell, LetterInfo, TrainingCard } from "../../shared/schema.ts"
 
-/** The denominator of «١ − supply/٨» — أبيات past this stop reducing weakness. */
+/** The denominator of «1 − supply/8» — أبيات past this stop reducing weakness. */
 export const SUPPLY_TARGET = 8
 
 /** Under this many أبيات a letter is a hole the new-card intake aims at. */
@@ -159,7 +159,7 @@ export function weakestLetters(stats: readonly LetterStat[], n = 3): LetterStat[
     .slice(0, n)
 }
 
-/** «تغطية ٢١ من ٢٨ حرفًا» — a letter counts as covered at one بيت. */
+/** «تغطية 21 من 28 حرفًا» — a letter counts as covered at one بيت. */
 export function coverageOf(stats: readonly LetterStat[]): { covered: number; total: number; ratio: number } {
   const total = stats.length
   const covered = stats.filter((s) => s.supply > 0).length

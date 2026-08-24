@@ -550,7 +550,7 @@ let recorded: string | null = null
 
 /**
  * Written once per finished duel, straight through `persist.ts`: the profile
- * slice powers «لقيت ٤٧ شاعرًا من ٢٤٠٠» on the summary, and the training
+ * slice powers «لقيت 47 شاعرًا من 2400» on the summary, and the training
  * slice's arsenal counts the letters this مساجلة actually used (مستعمَل).
  */
 function recordProfile(s: DuelState): void {

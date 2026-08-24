@@ -101,14 +101,14 @@ describe("BaytPlate — الروي", () => {
 })
 
 describe("BaytPlate — the margins", () => {
-  it("numbers the بيت in Arabic-Indic digits", () => {
-    expect(render({ number: 7 })).toContain("٧")
-    expect(render({ number: 12 })).toContain("١٢")
+  it("numbers the بيت in Western digits", () => {
+    expect(render({ number: 7 })).toContain(">7<")
+    expect(render({ number: 12 })).toContain(">12<")
+    expect(render({ number: 1200 })).toContain(">1,200<")
   })
 
-  it("honours the Latin numerals setting", () => {
-    const html = render({ number: 12, numerals: "latin" })
-    expect(html).toContain(">12<")
+  it("puts no Arabic-Indic digit in the margin", () => {
+    expect(render({ number: 7 })).not.toMatch(/[٠-٩]/)
   })
 
   it("reserves both margin columns even with nothing in them", () => {

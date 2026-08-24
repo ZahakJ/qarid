@@ -5,7 +5,7 @@
  * A row of a قصيدة is three columns:
  *
  *     ┌ num ┬──────────────── the بيت ────────────────┬ rail ┐
- *     │  ٧  │  صدر ……      ·شمسة·      …… عجز        │  ⁚⁚  │
+ *     │  7  │  صدر ……      ·شمسة·      …… عجز        │  ⁚⁚  │
  *     └─────┴─────────────────────────────────────────┴──────┘
  *
  * and the بيت itself is `1fr | gutter | 1fr` in DOM order sadr, gutter, ajuz.
@@ -94,15 +94,21 @@
   }
 }
 
-/* Verse numbers are Arabic-Indic, quiet, and in the reading font. */
+/* Verse numbers are quiet, Western (owner's call, 2026-08-24) and MONO.
+ * Not the reading font: the Amiri we ship is the `arabic` subset, which has no
+ * Latin figures at all, so `--font-verse` here fell through to whatever serif
+ * the machine happens to have — Times on this box, something else on the next.
+ * Plex Mono is already bundled for exactly these digits, and its tabular
+ * figures keep the margin column straight from بيت 1 to بيت 1,000. */
 .bayt-num {
-  font-family: var(--font-verse);
-  font-size: var(--fs-ui-2);
+  font-family: var(--font-mono);
+  /* one step down: Plex Mono sets larger on the em than Amiri did */
+  font-size: var(--fs-ui-1);
   color: var(--text-3);
   text-align: end;
   padding-inline-end: var(--sp-3);
   user-select: none;
-  font-variant-numeric: normal;
+  font-variant-numeric: tabular-nums;
 }
 
 .bayt-row:hover .bayt-num,

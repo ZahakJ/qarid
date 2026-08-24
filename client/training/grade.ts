@@ -153,7 +153,7 @@ export function wordDiff(typed: string | null | undefined, expected: string | nu
   return out.reverse()
 }
 
-/** «أصبتَ ٧ من ٩ كلمات» — the one line that sits over the diff. */
+/** «أصبتَ 7 من 9 كلمات» — the one line that sits over the diff. */
 export function diffScore(tokens: readonly DiffToken[]): { ok: number; total: number } {
   return { ok: tokens.filter((t) => t.state === "ok").length, total: tokens.length }
 }

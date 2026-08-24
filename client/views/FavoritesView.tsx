@@ -163,7 +163,6 @@ export function FavoritesView({ collection }: { collection?: string }) {
               collections={collections}
               tashkeel={settings.tashkeel}
               showRawiyy={settings.showRawiyy}
-              numerals={settings.numerals}
               size={settings.verseSize}
               onRemove={() => {
                 remove(f.baytKey)
@@ -183,7 +182,6 @@ function SavedRow({
   collections,
   tashkeel,
   showRawiyy,
-  numerals,
   size,
   onRemove,
   onToggleIn,
@@ -192,7 +190,6 @@ function SavedRow({
   collections: { id: string; name: string; baytKeys: string[] }[]
   tashkeel: boolean
   showRawiyy: boolean
-  numerals: "arabic" | "latin"
   size: "sm" | "md" | "lg"
   onRemove: () => void
   onToggleIn: (id: string) => void
@@ -211,7 +208,6 @@ function SavedRow({
         rawiyy={null}
         showRawiyy={showRawiyy}
         tashkeel={tashkeel}
-        numerals={numerals}
         favorite
         onFavorite={onRemove}
         label={`بيت ${bait.poet?.name ?? ""}`}

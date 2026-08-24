@@ -19,6 +19,12 @@ ink, with a single second ink, lapis `--lapis-rgb: 92, 124, 200`, reserved for
 exactly three things (opponent's بيت card, روي underline, search »« markers).
 Verse font **Amiri**, display **Aref Ruqaa**, UI **IBM Plex Sans Arabic**,
 numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
+**Numerals are WESTERN 0-9 everywhere** — owner's decision, 2026-08-24
+(amendments §25): «239,411 قصيدة», «951 بيتًا», verse number «12», «×2».
+`shared/format.ts` is the only formatter, it takes no numeral scale, there is
+no `numerals` setting, and `toArabicDigits` no longer exists. Adding an
+Arabic-Indic digit to a rendered string is a regression — `toLatinDigits`
+exists only to PARSE what a reader types.
 
 ## Commands
 
@@ -127,6 +133,16 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 - localStorage keys are namespaced `qarid:v1:*`; the 255K-poem corpus never
   goes near localStorage (in-memory LRU only).
 - Never letter-space or italicise Arabic; logical properties only.
+- **Western digits, and two traps that come with them** (amendments §25). The
+  Amiri we ship is the `arabic` subset and carries NO Latin figures, so any
+  number set in `--font-verse` falls through to whatever serif the OS has —
+  `.bayt-num` is `--font-mono` for that reason. And a NEUTRAL character glued
+  to a number flips to the wrong side under RTL: «×2», «1200 × 630» and «2–3»
+  each need their own LTR run (`dir="ltr"`), while a leading LRM is what keeps
+  «+152» / «−40» correct (rule W7 turns the digits L). The أطوال القصائد bin
+  captions are derived by `histogramLabel()` from `min`/`max`, NOT read from
+  `meta.stats_json`, because the artefact still holds «٢–٣» from before the
+  decision and re-deriving them costs no re-ingest.
 - **`.gitignore` anchors `/data/`.** Unanchored, it also swallows
   `client/data/` — buhur tables, flavour أبيات, the keymap — and four source
   files sat outside the repo for three commits. Anchor every ignore rule that

@@ -35,7 +35,7 @@ import {
   type Suggestion,
 } from "./omnibox.ts"
 
-export const OMNIBOX_PLACEHOLDER = "ابحث في ٢٤٥ ألف قصيدة… بيتٍ، أو شاعرٍ، أو قافية"
+export const OMNIBOX_PLACEHOLDER = "ابحث في 239 ألف قصيدة… بيتٍ، أو شاعرٍ، أو قافية"
 
 /** The mounted omnibox's input, so `/` can reach it from the shell. */
 let mounted: HTMLInputElement | null = null

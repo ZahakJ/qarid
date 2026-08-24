@@ -59,7 +59,6 @@ export type RecitationRevealProps = {
   rawiyy?: string | null
   showRawiyy?: boolean
   tashkeel?: boolean
-  numerals?: "arabic" | "latin"
   /** false → render finished, fire nothing (a transcript line, not a recital) */
   animate?: boolean
   /** system/user reduced-motion: the whole بيت lands at once */
@@ -78,7 +77,6 @@ export function RecitationReveal({
   rawiyy = null,
   showRawiyy = false,
   tashkeel = true,
-  numerals = "arabic",
   animate = true,
   reduced = false,
   onDone,
@@ -147,7 +145,6 @@ export function RecitationReveal({
         rawiyy={rawiyy}
         showRawiyy={showRawiyy}
         tashkeel={tashkeel}
-        numerals={numerals}
         meta={meta}
       />
     </div>

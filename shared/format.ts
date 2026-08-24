@@ -1,37 +1,40 @@
 /**
  * Numbers, the way this product writes them.
  *
- * Two scales, deliberately (design-ux.md §2): verse numbers, poem counts and
- * anything a reader reads as part of the Arabic page use ARABIC-INDIC digits
- * with U+066C as the thousands separator — «٢٥٤٬٦٣٠ قصيدة». Timers, scores and
- * stats use Latin digits with `tabular-nums`, because a countdown whose digits
- * change width jitters, and Plex Mono only carries Latin figures anyway.
+ * **One scale: WESTERN (Latin) digits with a comma every three, everywhere** —
+ * «239,411 قصيدة», verse number «12», «×7», «951 بيتًا», the daily share text,
+ * stats, timers. Owner decision, 2026-08-24 (design-ux.md §2): the app used to
+ * split its numbers in two — Arabic-Indic ٠١٢٣ for anything a reader read as
+ * part of the Arabic page, Latin for timers and scores — and the split is gone.
+ * There is no `numerals` setting any more; there is nothing to choose between.
  *
- * Nothing here touches `Intl` on a hot path: `toLocaleString('ar-EG')` produces
- * the right glyphs but its separator and grouping vary by ICU build, and a
- * count that renders differently on the server than in the browser is a
- * hydration bug hunting for somewhere to happen.
+ * Nothing here touches `Intl`: `toLocaleString()` produces the right glyphs but
+ * its separator and grouping vary by ICU build, and a count that renders
+ * differently on the server than in the browser is a hydration bug hunting for
+ * somewhere to happen.
+ *
+ * Bidi: a bare Latin number inside an Arabic run needs no mark — the bidi
+ * algorithm gives European digits a weak LTR direction and resolves them
+ * against the paragraph, so «951 بيتًا» and «×7» order correctly on their own.
+ * Two shapes DO need help and get it at their call site, not here: a number
+ * with a NEUTRAL character glued to it that must stay on its left (the hint
+ * price `‎−40`), and a numeric RANGE around a neutral dash (`2–3` in the stats
+ * histogram), which needs its own LTR run or it reads back to front.
  */
 
-const ARABIC_INDIC = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"] as const
+/**
+ * U+200E LEFT-TO-RIGHT MARK — the minus in front of a Latin number is a
+ * NEUTRAL character, so in an RTL paragraph it resolves to the paragraph's
+ * direction and lands on the wrong side («42-»). An LRM in front of it opens an
+ * LTR run and the sign stays where a reader expects it.
+ */
+const LRM = "‎"
 
-/** U+066C ARABIC THOUSANDS SEPARATOR — not a comma, not an apostrophe. */
-export const ARABIC_THOUSANDS = "٬"
-
-/** U+066B ARABIC DECIMAL SEPARATOR. */
-export const ARABIC_DECIMAL = "٫"
-
-/** U+061C ARABIC LETTER MARK — keeps a leading minus on the correct side. */
-const ALM = "؜"
-
-export type Numerals = "arabic" | "latin"
-
-/** Every ASCII digit in the string becomes its Arabic-Indic twin. Nothing else moves. */
-export function toArabicDigits(s: string | number): string {
-  return String(s).replace(/[0-9]/g, (d) => ARABIC_INDIC[Number(d)]!)
-}
-
-/** The inverse — for parsing what a reader typed into a number field. */
+/**
+ * Arabic-Indic (and Persian) digits → ASCII, for parsing what a reader typed
+ * or pasted into a field. Nothing in the UI emits those digits any more, but
+ * readers still type them.
+ */
 export function toLatinDigits(s: string): string {
   return s.replace(/[٠-٩۰-۹]/g, (d) => {
     const cp = d.codePointAt(0)!
@@ -40,36 +43,29 @@ export function toLatinDigits(s: string): string {
   })
 }
 
-/** `1234567` becomes `"1,234,567"` in Latin, `"١٬٢٣٤٬٥٦٧"` in Arabic. */
-export function formatNumber(n: number, numerals: Numerals = "arabic"): string {
-  if (!Number.isFinite(n)) return numerals === "arabic" ? ARABIC_INDIC[0] : "0"
+/** `1234567` becomes `"1,234,567"`. */
+export function formatNumber(n: number): string {
+  if (!Number.isFinite(n)) return "0"
   const negative = n < 0
   const parts = Math.abs(n).toString().split(".")
   const intPart = parts[0] ?? "0"
   const fracPart = parts[1]
-  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ")
-
-  if (numerals === "latin") {
-    const latin = grouped.replace(/ /g, ",") + (fracPart ? `.${fracPart}` : "")
-    return negative ? `-${latin}` : latin
-  }
-  const arabic =
-    toArabicDigits(grouped).replace(/ /g, ARABIC_THOUSANDS) +
-    (fracPart ? ARABIC_DECIMAL + toArabicDigits(fracPart) : "")
-  return negative ? `${ALM}-${arabic}` : arabic
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+  const out = grouped + (fracPart ? `.${fracPart}` : "")
+  return negative ? `${LRM}-${out}` : out
 }
 
-/** Verse numbers, page numbers, letter-grid counts. Always Arabic-Indic. */
+/** Verse numbers, page numbers, letter-grid counts — reading scale. */
 export function formatCount(n: number): string {
-  return formatNumber(n, "arabic")
+  return formatNumber(n)
 }
 
-/** Scores and timers: Latin, so `tabular-nums` can hold the column steady. */
+/** Scores and timers: rounded, so `tabular-nums` can hold the column steady. */
 export function formatScore(n: number): string {
-  return formatNumber(Math.round(n), "latin")
+  return formatNumber(Math.round(n))
 }
 
-/** `72000` becomes `"1:12"`. Latin digits, no leading zero on the minutes. */
+/** `72000` becomes `"1:12"`. No leading zero on the minutes. */
 export function formatClock(ms: number): string {
   const total = Math.max(0, Math.round(ms / 1000))
   const m = Math.floor(total / 60)
@@ -84,27 +80,23 @@ export interface CountedNounForms {
   one: string
   /** المثنى — «بيتان» */
   two: string
-  /** ٣ إلى ١٠ — «أبيات» */
+  /** 3 إلى 10 — «أبيات» */
   few: string
-  /** ١١ فأكثر — «بيتًا» */
+  /** 11 فأكثر — «بيتًا» */
   many: string
 }
 
 /**
- * Arabic counted nouns, properly. «بيت واحد», «بيتان», «٥ أبيات», «١١ بيتًا» —
+ * Arabic counted nouns, properly. «بيت واحد», «بيتان», «5 أبيات», «11 بيتًا» —
  * getting this wrong is the single most obvious way an Arabic interface
  * announces that it was translated rather than written.
  */
-export function countedNoun(
-  n: number,
-  forms: CountedNounForms,
-  numerals: Numerals = "arabic",
-): string {
+export function countedNoun(n: number, forms: CountedNounForms): string {
   const k = Math.abs(Math.trunc(n))
   if (k === 0) return forms.zero
   if (k === 1) return forms.one
   if (k === 2) return forms.two
-  const num = formatNumber(k, numerals)
+  const num = formatNumber(k)
   const mod100 = k % 100
   if (mod100 >= 3 && mod100 <= 10) return `${num} ${forms.few}`
   return `${num} ${forms.many}`
@@ -147,9 +139,29 @@ export function formatPoets(n: number): string {
 }
 
 /**
+ * «2–3», «128+» — the caption on an أطوال القصائد histogram bin.
+ *
+ * The client derives it from `min`/`max` instead of reading the `label` the
+ * artefact carries, because a `data/qarid.db` built before 2026-08-24 baked
+ * that label with Arabic-Indic digits («٢–٣») into `meta.stats_json`. Deriving
+ * it needs no re-ingest; `scripts/ingest/build.ts` calls the same function so a
+ * rebuilt artefact agrees with what is on screen.
+ *
+ * The range dash is NEUTRAL, so a bare «2–3» inside an RTL paragraph renders
+ * back to front. StatsView puts the caption in its own LTR run (`<bdi dir="ltr">`).
+ */
+export function histogramLabel(bin: { min: number; max: number | null }): string {
+  if (bin.max === null) return `${formatNumber(bin.min)}+`
+  if (bin.max === bin.min) return formatNumber(bin.min)
+  return `${formatNumber(bin.min)}–${formatNumber(bin.max)}`
+}
+
+/**
  * Copying a بيت into a Latin-first chat app scrambles its punctuation unless
  * the clipboard text opens with a RIGHT-TO-LEFT MARK. design-ux.md §3 makes
  * this prefix mandatory on every copy path, so it lives next to the formatter.
+ * It matters MORE now that the numbers are Latin: an RTL paragraph that opens
+ * on a digit is otherwise typed as an LTR paragraph by the receiving app.
  */
 export const RLM = "‏"
 

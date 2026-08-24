@@ -482,7 +482,6 @@ describe("persisted client slices", () => {
       tashkeel: true,
       showRawiyy: false,
       verseSize: "md",
-      numerals: "arabic",
       sound: false,
       reduceMotion: "system",
     })

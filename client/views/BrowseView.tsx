@@ -382,7 +382,6 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
                   size={settings.verseSize}
                   tashkeel={settings.tashkeel}
                   showRawiyy={settings.showRawiyy}
-                  numerals={settings.numerals}
                   favorite={isFavorite(b.baytKey)}
                   onFavorite={() => {
                     const now = toggleFavorite(savedFromBait(b))
@@ -462,7 +461,7 @@ function Accordion({
 }) {
   const [manual, setManual] = useState<boolean | null>(null)
   const isOpen = manual ?? open
-  /* «العصر ٨» read as a wrong count: eight is how many of the twelve values
+  /* «العصر 8» read as a wrong count: eight is how many of the twelve values
      still have أبيات under the current query, not how many values there are.
      Say both when they differ, and say which is which in the title. */
   const shows = count !== undefined && total !== undefined && count < total ? `${formatCount(count)} من ${formatCount(total)}` : count !== undefined ? formatCount(count) : null

@@ -22,7 +22,7 @@ import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { BaytSkeleton } from "../bayt/BaytSkeleton.tsx"
 import { COPY_MODES, formatBayt, formatBaytWithPoet, formatPoem, writeClipboard, type CopyMode } from "../bayt/copy.ts"
-import { formatBaits, toArabicDigits } from "../../shared/format.ts"
+import { formatBaits, formatCount } from "../../shared/format.ts"
 import { displayText, displayTextOrNull } from "../bayt/tashkeel.ts"
 import { Breadcrumbs, type Crumb } from "../components/Breadcrumbs.tsx"
 import { Chip } from "../components/Chip.tsx"
@@ -449,13 +449,12 @@ export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
             ajuz={b.ajuz}
             rawiyy={b.rawiyy}
             number={b.position}
-            numerals={settings.numerals}
             size={settings.verseSize}
             tashkeel={settings.tashkeel}
             showRawiyy={settings.showRawiyy}
             anchorId={anchorId(b.position)}
             pulse={pulse === b.position}
-            label={`البيت ${toArabicDigits(b.position)}`}
+            label={`البيت ${formatCount(b.position)}`}
             favorite={isFavorite(b.baytKey)}
             onFavorite={() => toggleFavorite(b)}
             onCard={() => runCard(b)}

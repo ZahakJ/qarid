@@ -133,7 +133,7 @@ CREATE TABLE _playable (bait_id INTEGER PRIMARY KEY, bucket INTEGER NOT NULL, ra
 export const TIER_PREDICATES: ReadonlyArray<readonly [tier: string, sql: string]> = [
   // «مبتدئ» promises «أبيات مشهورة لشعراء يعرفهم كل قارئ» and «مطالع القصائد»,
   // but fame is a property of the شاعر (shared/famousPoets.ts), never of the
-  // line — so `position <= 6` filled the tier with بيت ٦ of a قصيدة nobody
+  // line — so `position <= 6` filled the tier with بيت 6 of a قصيدة nobody
   // quotes: measured play at مبتدئ across 15 letters returned البحتري «ظَعائِنُ
   // أَظعَنَّ الكَرى», الوأواء الدمشقي, الشريف العقيلي, ابن عربي… one of the
   // fifteen was a بيت a general reader could chain from memory. ≤ 2 is the

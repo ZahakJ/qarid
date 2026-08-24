@@ -8,7 +8,7 @@
  * fills the rest; the API is complete here so the duel never has to reach into
  * localStorage itself.
  *
- * `poetsMet` is the retention mechanic — «لقيت ٤٧ شاعرًا من ٦٬٩٩٧» — and is a
+ * `poetsMet` is the retention mechanic — «لقيت 47 شاعرًا من 6,997» — and is a
  * SET of poet slugs kept sorted so two sessions that met the same شعراء persist
  * byte-identical payloads.
  */

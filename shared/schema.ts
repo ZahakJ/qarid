@@ -706,7 +706,7 @@ export const LetterFacetSchema = letterFacetSchema
 /**
  * GET /api/facets. EVERY value of every facet appears, INCLUDING zeros — the
  * browse letter grids disable a letter at 0 rather than hiding it, and the
- * "جرّب إزالة: X (٠ نتيجة)" empty state needs to know which chip zeroed the
+ * "جرّب إزالة: X (0 نتيجة)" empty state needs to know which chip zeroed the
  * combination (design-ux.md §3).
  */
 export const FacetsResponseSchema = z.object({
@@ -1144,7 +1144,6 @@ export const MIGRATIONS: Record<number, (data: unknown) => unknown> = {}
 // ── settings ──────────────────────────────────────────────────────────────
 
 export const VerseSizeSchema = z.enum(["sm", "md", "lg"])
-export const NumeralsSchema = z.enum(["arabic", "latin"])
 export const ReduceMotionSchema = z.enum(["system", "on", "off"])
 
 export const SettingsSliceSchema = z.object({
@@ -1153,7 +1152,6 @@ export const SettingsSliceSchema = z.object({
   /** lapis underline under the روي */
   showRawiyy: z.boolean().default(false),
   verseSize: VerseSizeSchema.default("md"),
-  numerals: NumeralsSchema.default("arabic"),
   sound: z.boolean().default(false),
   reduceMotion: ReduceMotionSchema.default("system"),
 })
@@ -1365,7 +1363,7 @@ export const ProfileSliceSchema = z.object({
   abyatPlayed: z.number().int().nonnegative().default(0),
   bestStreak: z.number().int().nonnegative().default(0),
   bestScore: z.number().int().default(0),
-  /** poet slugs met in duels — «لقيت ٤٧ شاعرًا من ٢٤٠٠» retention mechanic */
+  /** poet slugs met in duels — «لقيت 47 شاعرًا من 2400» retention mechanic */
   poetsMet: z.array(PoetSlugSchema).default([]),
   dailyResults: z.record(DayKeySchema, DailyResultSchema).default({}),
   reviewStreak: z.number().int().nonnegative().default(0),

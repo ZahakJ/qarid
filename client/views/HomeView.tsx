@@ -126,7 +126,6 @@ export function HomeView() {
               rawiyy={bait.rawiyy}
               showRawiyy={settings.showRawiyy}
               tashkeel={settings.tashkeel}
-              numerals={settings.numerals}
               label="بيت اليوم"
               favorite={isSaved}
               onFavorite={() => {
@@ -346,7 +345,7 @@ function doors(meta: MetaResponse | null, facets: FacetsResponse | null): Door[]
   ]
 }
 
-/** «تغطية ٢١ من ٢٨ حرفًا» — the ترسانة at a glance (design-ux.md §5). */
+/** «تغطية 21 من 28 حرفًا» — the ترسانة at a glance (design-ux.md §5). */
 function ArsenalRing({ covered, total }: { covered: number; total: number }) {
   const r = 22
   const c = 2 * Math.PI * r

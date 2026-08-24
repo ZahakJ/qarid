@@ -1,9 +1,9 @@
 /**
  * The shareable block (design-ux.md §5 Daily):
  *
- *     قريض — تحدّي ٢٣ آب
+ *     قريض — تحدّي 23 آب
  *     ن ← م ← ب ← ر
- *     سلسلة من ٦ أبيات · ٧٤٠ نقطة
+ *     سلسلة من 6 أبيات · 740 نقطة
  *
  * Pure text, pure functions: no clipboard, no DOM, no clock. The caller
  * supplies the day and the exchanges; this file only decides what the block
@@ -14,7 +14,7 @@
 import { formatBaits, formatCount, RLM } from "../../shared/format.ts"
 
 /**
- * Levantine month names, which is what design-ux.md's «٢٣ آب» is written in.
+ * Levantine month names, which is what design-ux.md's «23 آب» is written in.
  * `Intl` would answer أغسطس under `ar` and آب only under some regional
  * locales, so the names are stated here rather than left to the runtime.
  */
@@ -33,7 +33,7 @@ export const MONTHS_AR: readonly string[] = [
   "كانون الأول",
 ]
 
-/** `2026-08-23` → «٢٣ آب». Returns the raw key back if it is not a day key. */
+/** `2026-08-23` → «23 آب». Returns the raw key back if it is not a day key. */
 export function arabicDay(dayKey: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey)
   if (!m) return dayKey

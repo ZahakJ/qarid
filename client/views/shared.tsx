@@ -9,7 +9,7 @@
  * change one and the other must follow.
  */
 import type { BaitDto, MetaResponse, PoemSummary, PoetSummary } from "../../shared/schema.ts"
-import { formatBaits, formatCount, formatPoems, type Numerals } from "../../shared/format.ts"
+import { formatBaits, formatCount, formatPoems } from "../../shared/format.ts"
 import { BaytPlate, type BaytSize } from "../bayt/BaytPlate.tsx"
 import { Chip } from "../components/Chip.tsx"
 import { routeHash } from "../router.ts"
@@ -190,7 +190,6 @@ export function BaytCard({
   size,
   tashkeel,
   showRawiyy,
-  numerals,
   highlight,
   favorite,
   onFavorite,
@@ -200,7 +199,6 @@ export function BaytCard({
   size: BaytSize
   tashkeel: boolean
   showRawiyy: boolean
-  numerals: Numerals
   /** »« terms already extracted from a search snippet */
   highlight?: readonly string[] | null
   favorite?: boolean
@@ -219,7 +217,6 @@ export function BaytCard({
         ajuz={bait.ajuz}
         rawiyy={bait.rawiyy}
         number={bait.position}
-        numerals={numerals}
         tashkeel={tashkeel}
         showRawiyy={showRawiyy}
         highlight={highlight}

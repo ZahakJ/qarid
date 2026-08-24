@@ -4,7 +4,7 @@
  * The order is the order the doc puts it in, because it is an argument: the
  * headline says what happened, the four numbers say how well, the ribbon shows
  * the SHAPE of the chain, the أبيات are re-read with their شعراء finally named,
- * and only then comes the retention mechanic — «لقيت ٤٧ شاعرًا من ٢٤٠٠», with
+ * and only then comes the retention mechanic — «لقيت 47 شاعرًا من 2400», with
  * the شعراء you met for the first time marked with a gold نِيب.
  *
  * A شاعر counts as new against the snapshot `duelStore` took BEFORE the duel
@@ -211,7 +211,6 @@ export function DuelSummaryView() {
             sadr={FLAVOR.defeat.sadr}
             ajuz={FLAVOR.defeat.ajuz}
             tashkeel={settings.tashkeel}
-            numerals={settings.numerals}
             label="بيت الخسارة"
           />
           {FLAVOR.defeat.poet ? <p className="summary-flavor__poet">{FLAVOR.defeat.poet}</p> : null}
@@ -253,7 +252,6 @@ export function DuelSummaryView() {
             reduced={reduced}
             tashkeel={settings.tashkeel}
             showRawiyy={settings.showRawiyy}
-            numerals={settings.numerals}
             isFavorite={(k) => favorites.some((f) => f.baytKey === k)}
             onFavorite={(e) => {
               const on = toggleFavorite(savedFromBait2(e))

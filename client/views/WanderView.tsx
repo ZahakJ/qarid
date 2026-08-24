@@ -132,7 +132,6 @@ export function WanderView() {
             rawiyy={current.bait.rawiyy}
             tashkeel={settings.tashkeel}
             showRawiyy={settings.showRawiyy}
-            numerals={settings.numerals}
             label="بيت التجوال"
             className={busy ? "is-walking" : undefined}
             favorite={saved}

@@ -174,7 +174,6 @@ export function DuelPlayView() {
         ended={false}
         tashkeel={settings.tashkeel}
         showRawiyy={settings.showRawiyy}
-        numerals={settings.numerals}
       />
 
       {phase === "computerThinking" ? (

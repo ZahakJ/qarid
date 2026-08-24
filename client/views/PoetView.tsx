@@ -214,7 +214,6 @@ export function PoetView({ slug }: { slug: string }) {
             rawiyy={data.signatureBait.rawiyy}
             showRawiyy={settings.showRawiyy}
             tashkeel={settings.tashkeel}
-            numerals={settings.numerals}
             label="البيت المختار"
             meta={
               <a

@@ -1,6 +1,6 @@
 /**
  * Read-only view of `qarid:v1:training.arsenal` — the 28 letters you have
- * actually played, for the home screen's coverage ring («تغطية ٢١ من ٢٨ حرفًا»,
+ * actually played, for the home screen's coverage ring («تغطية 21 من 28 حرفًا»,
  * design-ux.md §5).
  *
  * It reads the persisted slice rather than the training store because the

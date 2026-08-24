@@ -31,7 +31,7 @@ import { useCallback, useMemo, useRef, type KeyboardEvent, type MouseEvent, type
 import { Shamsa } from "../components/Ornaments.tsx"
 import { BaytActions } from "./BaytActions.tsx"
 import { formatBayt, writeClipboard } from "./copy.ts"
-import { formatNumber, type Numerals } from "../../shared/format.ts"
+import { formatNumber } from "../../shared/format.ts"
 import { markedText } from "./highlight.tsx"
 import { splitRawiyy } from "./rawiyy.ts"
 import { displayText, displayTextOrNull, hasMarks } from "./tashkeel.ts"
@@ -43,9 +43,8 @@ export type BaytPlateProps = {
   /** null for the final بيت of an odd hemistich count (`isPartial`) */
   ajuz?: string | null
   size?: BaytSize
-  /** 1-based بيت number, rendered Arabic-Indic in the inline-start margin */
+  /** 1-based بيت number, rendered in Western digits in the inline-start margin */
   number?: number | null
-  numerals?: Numerals
   /** render the lapis underline under the روي */
   showRawiyy?: boolean
   /** the peeled روي from the API — BaytPlate never derives it */
@@ -84,7 +83,7 @@ export type BaytPlateProps = {
   onFavorite?: () => void
   duelHref?: string
   onDuel?: () => void
-  /** accessible name for the action group ("البيت ٧") */
+  /** accessible name for the action group ("البيت 7") */
   label?: string
   /** fired after a successful clipboard write, for the toast */
   onCopied?: (text: string) => void
@@ -136,7 +135,6 @@ export function BaytPlate({
   ajuz = null,
   size = "md",
   number = null,
-  numerals = "arabic",
   showRawiyy = false,
   rawiyy = null,
   highlight = null,
@@ -298,7 +296,7 @@ export function BaytPlate({
       onKeyDown={onKeyDown}
     >
       <span className="bayt-num" aria-hidden="true">
-        {number === null ? "" : formatNumber(number, numerals)}
+        {number === null ? "" : formatNumber(number)}
       </span>
       {bayt}
       <div className="bayt-rail">{rail}</div>

@@ -27,18 +27,18 @@ export interface EraRow {
 }
 
 export const ERAS: readonly EraRow[] = [
-  { slug: "jahili", name: "العصر الجاهلي", sort: 1, kind: "period", span: "قبل ٦٢٢ م" },
-  { slug: "mukhadram", name: "المخضرمون", sort: 2, kind: "period", span: "٦٢٢ – ٦٦١ م" },
-  { slug: "islami", name: "العصر الإسلامي", sort: 3, kind: "period", span: "٦٢٢ – ٦٦١ م" },
-  { slug: "umawi", name: "العصر الأموي", sort: 4, kind: "period", span: "٦٦١ – ٧٥٠ م" },
-  { slug: "abbasi", name: "العصر العباسي", sort: 5, kind: "period", span: "٧٥٠ – ١٢٥٨ م" },
+  { slug: "jahili", name: "العصر الجاهلي", sort: 1, kind: "period", span: "قبل 622 م" },
+  { slug: "mukhadram", name: "المخضرمون", sort: 2, kind: "period", span: "622 – 661 م" },
+  { slug: "islami", name: "العصر الإسلامي", sort: 3, kind: "period", span: "622 – 661 م" },
+  { slug: "umawi", name: "العصر الأموي", sort: 4, kind: "period", span: "661 – 750 م" },
+  { slug: "abbasi", name: "العصر العباسي", sort: 5, kind: "period", span: "750 – 1258 م" },
   { slug: "andalus", name: "الأندلس والمغرب", sort: 6, kind: "region", span: null },
-  { slug: "fatimi", name: "العصر الفاطمي", sort: 7, kind: "period", span: "٩٠٩ – ١١٧١ م" },
-  { slug: "ayyubi", name: "العصر الأيوبي", sort: 8, kind: "period", span: "١١٧١ – ١٢٦٠ م" },
-  { slug: "mamluki", name: "العصر المملوكي", sort: 9, kind: "period", span: "١٢٥٠ – ١٥١٧ م" },
-  { slug: "baynadawlatayn", name: "عصر بين الدولتين", sort: 10, kind: "period", span: "١٢٥٨ – ١٥١٧ م" },
-  { slug: "uthmani", name: "العصر العثماني", sort: 11, kind: "period", span: "١٥١٧ – ١٩١٨ م" },
-  { slug: "hadith", name: "العصر الحديث", sort: 12, kind: "period", span: "بعد ١٧٩٨ م" },
+  { slug: "fatimi", name: "العصر الفاطمي", sort: 7, kind: "period", span: "909 – 1171 م" },
+  { slug: "ayyubi", name: "العصر الأيوبي", sort: 8, kind: "period", span: "1171 – 1260 م" },
+  { slug: "mamluki", name: "العصر المملوكي", sort: 9, kind: "period", span: "1250 – 1517 م" },
+  { slug: "baynadawlatayn", name: "عصر بين الدولتين", sort: 10, kind: "period", span: "1258 – 1517 م" },
+  { slug: "uthmani", name: "العصر العثماني", sort: 11, kind: "period", span: "1517 – 1918 م" },
+  { slug: "hadith", name: "العصر الحديث", sort: 12, kind: "period", span: "بعد 1798 م" },
 ]
 
 export const ERAS_BY_SLUG: ReadonlyMap<string, EraRow> = new Map(

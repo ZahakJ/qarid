@@ -40,8 +40,8 @@ export function closeShareCard(): void {
 }
 
 const SHAPES: { value: CardShape; label: string; note: string }[] = [
-  { value: "wide", label: "عريضة", note: "١٢٠٠ × ٦٣٠" },
-  { value: "square", label: "مربّعة", note: "١٠٨٠ × ١٠٨٠" },
+  { value: "wide", label: "عريضة", note: "1200 × 630" },
+  { value: "square", label: "مربّعة", note: "1080 × 1080" },
 ]
 
 export function ShareCardHost() {
@@ -148,7 +148,9 @@ export function ShareDialog({ bayt, onClose }: { bayt: CardBayt; onClose: () => 
                 onClick={() => setShape(s.value)}
               >
                 {s.label}
-                <span className="sharecard__dim num"> {s.note}</span>
+                {" "}
+                {/* «1200 × 630» would reverse under RTL — `.num` isolates it LTR */}
+                <span className="sharecard__dim num">{s.note}</span>
               </button>
             ))}
           </div>

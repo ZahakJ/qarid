@@ -314,7 +314,6 @@ export function SearchView({ q, page }: { q: string; page: number }) {
                     size={settings.verseSize}
                     tashkeel={settings.tashkeel}
                     showRawiyy={settings.showRawiyy}
-                    numerals={settings.numerals}
                     highlight={terms(b)}
                     favorite={favorites.some((f) => f.baytKey === b.baytKey)}
                     onFavorite={() => {

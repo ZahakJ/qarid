@@ -111,7 +111,6 @@ export function DailyView() {
               sadr={FLAVOR["search-none"].sadr}
               ajuz={FLAVOR["search-none"].ajuz}
               tashkeel={settings.tashkeel}
-              numerals={settings.numerals}
               label="بيت التحدّي"
             />
             <p className="daily-open__attrib">{FLAVOR["search-none"].poet}</p>

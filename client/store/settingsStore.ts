@@ -23,7 +23,6 @@ function data(s: SettingsSlice): SettingsSlice {
     tashkeel: s.tashkeel,
     showRawiyy: s.showRawiyy,
     verseSize: s.verseSize,
-    numerals: s.numerals,
     sound: s.sound,
     reduceMotion: s.reduceMotion,
   }

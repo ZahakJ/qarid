@@ -179,6 +179,8 @@ export function TrainHubView() {
                 </span>
                 <span className="leech__meta">
                   {card.poet ? <bdi className="leech__poet">{card.poet.name}</bdi> : null}
+                  {/* `.num` is already `direction: ltr; unicode-bidi: isolate`,
+                      which is what keeps the neutral × on the left of the count */}
                   <span className="leech__n num" title="مرّات النسيان">
                     ×{card.lapses}
                   </span>
@@ -208,7 +210,7 @@ export function TrainHubView() {
   )
 }
 
-/** «تغطية ٢١ من ٢٨ حرفًا» — the same ring the home screen shows. */
+/** «تغطية 21 من 28 حرفًا» — the same ring the home screen shows. */
 function CoverageRing({ covered, total }: { covered: number; total: number }) {
   const r = 26
   const c = 2 * Math.PI * r

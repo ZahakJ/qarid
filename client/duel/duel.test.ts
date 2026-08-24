@@ -347,7 +347,7 @@ describe("the summary's reads", () => {
 describe("the share block", () => {
   it("writes the day in the Levantine month names the doc uses", () => {
     expect(MONTHS_AR).toHaveLength(12)
-    expect(arabicDay("2026-08-23")).toBe("٢٣ آب")
+    expect(arabicDay("2026-08-23")).toBe("23 آب")
     expect(arabicDay("not-a-day")).toBe("not-a-day")
   })
 
@@ -358,9 +358,13 @@ describe("the share block", () => {
   it("opens EVERY line with an RLM and names the challenge on a daily block", () => {
     const text = shareText({ dayKey: "2026-08-23", letters: ["ن", "م"], chainLength: 6, score: 740 })
     expect(text.startsWith(RLM)).toBe(true)
-    expect(text).toContain("قريض — تحدّي ٢٣ آب")
+    expect(text).toContain("قريض — تحدّي 23 آب")
     expect(text).toContain("ن ← م")
-    expect(text).toContain("٧٤٠")
+    expect(text).toContain("740")
+    expect(text).toContain("6 أبيات")
+    // the owner's numeral call reaches the clipboard too — no Arabic-Indic
+    // digit may ride out of the app in shared text
+    expect(text).not.toMatch(/[٠-٩]/)
     // client/bayt/copy.ts states the rule and formatPoem obeys it: one prefix
     // for the whole block leaves lines two and three to a Latin-first editor
     for (const line of text.split("\n")) expect(line.startsWith(RLM)).toBe(true)

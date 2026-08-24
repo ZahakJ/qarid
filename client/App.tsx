@@ -53,7 +53,7 @@ const NAV: { route: Route; label: string }[] = [
 
 /** One line of Arabic per route, so a placeholder still says what it is for. */
 const LEDE: Record<Route["view"], string> = {
-  home: "ديوان الشعر العربي: ٢٤٥٬٦٧٥ قصيدة لـ٦٬٩٩٧ شاعرًا، تُتصفَّح وتُساجَل.",
+  home: "ديوان الشعر العربي: 239,411 قصيدة لـ6,997 شاعرًا، تُتصفَّح وتُساجَل.",
   poets: "فهرس الشعراء مرتّبًا على حروف الشهرة، مع أعصرهم وعدد قصائدهم.",
   poet: "صفحة الشاعر: ترجمته، وبيته المختار، وديوانه كاملًا.",
   poem: "القصيدة كاملة، بيتًا بيتًا، ببحرها وقافيتها وتشكيلها.",
@@ -74,23 +74,23 @@ const LEDE: Record<Route["view"], string> = {
 
 /** Phase-0 body: says plainly which phase fills this view in. */
 const PHASE: Record<Route["view"], string> = {
-  home: "المرحلة ٢",
-  poets: "المرحلة ٢",
-  poet: "المرحلة ٢",
-  poem: "المرحلة ١",
-  browse: "المرحلة ٢",
-  search: "المرحلة ٢",
-  wander: "المرحلة ٤",
-  duel: "المرحلة ٣",
-  "duel-play": "المرحلة ٣",
-  "duel-summary": "المرحلة ٣",
-  daily: "المرحلة ٤",
-  train: "المرحلة ٤",
-  "train-drill": "المرحلة ٤",
-  "train-arsenal": "المرحلة ٤",
-  stats: "المرحلة ٤",
-  favorites: "المرحلة ٢",
-  rules: "المرحلة ٤",
+  home: "المرحلة 2",
+  poets: "المرحلة 2",
+  poet: "المرحلة 2",
+  poem: "المرحلة 1",
+  browse: "المرحلة 2",
+  search: "المرحلة 2",
+  wander: "المرحلة 4",
+  duel: "المرحلة 3",
+  "duel-play": "المرحلة 3",
+  "duel-summary": "المرحلة 3",
+  daily: "المرحلة 4",
+  train: "المرحلة 4",
+  "train-drill": "المرحلة 4",
+  "train-arsenal": "المرحلة 4",
+  stats: "المرحلة 4",
+  favorites: "المرحلة 2",
+  rules: "المرحلة 4",
 }
 
 function Wordmark({ hero = false }: { hero?: boolean }) {
@@ -251,7 +251,6 @@ export function App() {
     const b = document.body
     b.dataset.reduceMotion = motionReduced(settings) ? "1" : "0"
     b.dataset.verseSize = settings.verseSize
-    b.dataset.numerals = settings.numerals
   }, [settings])
 
   useEffect(() => {

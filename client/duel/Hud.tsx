@@ -3,20 +3,19 @@
  * drops to 18% opacity rather than disappearing, so the row never reflows —
  * plus the streak, the score and the count of أبيات said.
  *
- * ONE numeral scale in this strip. It used to carry three — «×٢» Arabic-Indic,
- * «320» Latin and «٥ أبيات» a counted noun — inside 400px, and the same score
- * the player watched as «320» all duel was then shown as «٥٣٤» on the summary.
- * design-ux.md §2 draws the line at «stats/timers Latin tabular-nums», and the
- * HUD, the clock and the summary's big numbers are exactly that: the game's
- * instruments, not prose. Everything that is prose — chip counts, verse
- * numbers, corpus statistics — stays Arabic-Indic through `formatCount`.
+ * ONE numeral scale in this strip — and, since the owner's 2026-08-24 call,
+ * one in the whole app: Western digits everywhere («×7», «320», «5 أبيات»).
+ * The strip once carried three scales inside 400px, and the same score the
+ * player watched as «320» all duel was shown as «٥٣٤» on the summary. What is
+ * left of that rule is only the FONT: the HUD, the clock and the summary's big
+ * numbers are the game's instruments, so they are mono and `tabular-nums`.
  *
  * The score shown is `displayScore`: hints are deducted the instant they are
  * bought even though they are only settled against the award later, so the
  * number a player watches always tells the truth about what they have spent.
  */
 import { Nib } from "../components/Ornaments.tsx"
-import { formatScore, toArabicDigits } from "../../shared/format.ts"
+import { formatScore } from "../../shared/format.ts"
 
 export function Hud({
   lives,
@@ -35,7 +34,7 @@ export function Hud({
 }) {
   return (
     <div className="duel-hud">
-      <div className="duel-hud__lives" role="img" aria-label={`${toArabicDigits(lives)} من ${toArabicDigits(maxLives)} أرواح`}>
+      <div className="duel-hud__lives" role="img" aria-label={`${formatScore(lives)} من ${formatScore(maxLives)} أرواح`}>
         {Array.from({ length: maxLives }, (_, i) => (
           <span key={i} className="duel-hud__nib" data-spent={i >= lives ? "1" : undefined}>
             <Nib size={20} />
@@ -45,7 +44,12 @@ export function Hud({
 
       <div className="duel-hud__stat" data-hot={streak >= 3 ? "1" : undefined}>
         <span className="duel-hud__label">السلسلة</span>
-        <span className="duel-hud__streak">×{formatScore(streak)}</span>
+        {/* «×7» is a NEUTRAL × in front of a number: in this RTL strip the bidi
+            algorithm hands it the paragraph direction and it lands on the wrong
+            side («7×»). `dir="ltr"` makes the pair its own LTR isolate. */}
+        <span className="duel-hud__streak" dir="ltr">
+          ×{formatScore(streak)}
+        </span>
       </div>
 
       <div className="duel-hud__stat">

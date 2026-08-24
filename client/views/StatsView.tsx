@@ -15,7 +15,7 @@ import { ApiError } from "../api/client.ts"
 import { getStats } from "../api/queries.ts"
 import { Rule } from "../components/Ornaments.tsx"
 import { routeHash, type BrowseQuery } from "../router.ts"
-import { formatCount, formatNumber } from "../../shared/format.ts"
+import { formatCount, formatNumber, histogramLabel } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import { themeBySlug } from "../../shared/themes.ts"
 import type { StatsResponse } from "../../shared/schema.ts"
@@ -124,7 +124,7 @@ export function StatsView() {
       />
       <Bars
         title="أطوال القصائد"
-        rows={stats.poemLengths.map((b) => ({ key: b.label, label: b.label, n: b.count, ltr: true }))}
+        rows={stats.poemLengths.map((b) => ({ key: b.label, label: histogramLabel(b), n: b.count, ltr: true }))}
       />
 
       <section className="rule-sec">
@@ -152,7 +152,7 @@ export function StatsView() {
 function Tile({ n, cap }: { n: number; cap: string }) {
   return (
     <div className="stat-tile">
-      <span className="stat-tile__n">{formatNumber(n, "arabic")}</span>
+      <span className="stat-tile__n">{formatNumber(n)}</span>
       <span className="stat-tile__cap">{cap}</span>
     </div>
   )
@@ -164,9 +164,10 @@ type BarRow = {
   n: number
   query?: BrowseQuery
   /**
-   * `٢–٣` is two Arabic-Indic numbers around a NEUTRAL dash: in an RTL
-   * paragraph the dash takes the paragraph direction and the range renders
-   * back to front («٣–٢»). Its own LTR run is the fix (amendments §15).
+   * `2–3` is two numbers around a NEUTRAL dash: in an RTL paragraph the dash
+   * takes the paragraph direction and the range renders back to front («3–2»).
+   * Its own LTR run is the fix (amendments §15) — and it is still the fix with
+   * Western digits, because it is the DASH that is neutral, not the digits.
    */
   ltr?: boolean
 }

@@ -160,7 +160,7 @@
 
 /* NOT `margin-inline-start: auto`. On a 1,248px browse row the title, the شاعر
  * and the chips all cluster in the rightmost fifth, and an auto margin threw
- * «٩٥١ بيتًا» 1,295px away to the opposite edge — one grey numeral alone at the
+ * «951 بيتًا» 1,295px away to the opposite edge — one grey numeral alone at the
  * end of an empty line, on four of the eleven routes. The count belongs to the
  * metadata it counts, so it sits at the end of it. */
 .prow__n {
@@ -1699,7 +1699,7 @@
 }
 
 /* The value used to be pinned to the far edge of a full-width track, which
- * reads fine for الطويل (bar tip and number nearly adjacent) and left «٦٠٢» for
+ * reads fine for الطويل (bar tip and number nearly adjacent) and left «602» for
  * العصر الإسلامي about 1,400px from the 6px dot it labels. The bar and its
  * number are one flex run now, so the number is always AT the tip. */
 .bar {

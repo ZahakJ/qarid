@@ -310,7 +310,6 @@ export function DrillView({ letter }: { letter?: string }) {
               ajuz={card.ajuz}
               blankAjuz
               tashkeel={settings.tashkeel}
-              numerals={settings.numerals}
               label="بطاقة المذاكرة"
               meta={
                 <span className="drill-tag">
@@ -359,7 +358,6 @@ export function DrillView({ letter }: { letter?: string }) {
               rawiyy={card.rawiyy}
               tashkeel={settings.tashkeel}
               showRawiyy={settings.showRawiyy}
-              numerals={settings.numerals}
               label="البيت كاملًا"
               favorite={saved}
               onFavorite={() => {

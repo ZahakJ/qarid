@@ -138,8 +138,13 @@ hr {
   outline: none;
 }
 
-/* Latin numerals in stats / timers are tabular; verse numbering is
- * Arabic-Indic and set in bayt.css. */
+/* Every number in this app is Western 0-9 (amendments §25); `.num` is the
+ * INSTRUMENT face — mono, tabular, and its own LTR isolate, which is what keeps
+ * a neutral character glued to a number («×2», «1200 × 630», «185,356 / 2») on
+ * the side a reader expects inside an RTL line. A number in prose needs none of
+ * that: bare digits resolve correctly on their own. The بيت's margin number is
+ * set in bayt.css, and is mono for a second reason — the Amiri subset we ship
+ * has no Latin figures. */
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

@@ -86,7 +86,6 @@ export type ExchangeLogProps = {
   ended?: boolean
   tashkeel?: boolean
   showRawiyy?: boolean
-  numerals?: "arabic" | "latin"
   /** the summary shows every شاعر and never animates */
   variant?: "play" | "summary"
   /**
@@ -109,7 +108,6 @@ export function ExchangeLog({
   ended = false,
   tashkeel = true,
   showRawiyy = false,
-  numerals = "arabic",
   variant = "play",
   isFavorite,
   onFavorite,
@@ -141,7 +139,6 @@ export function ExchangeLog({
                 reduced={reduced}
                 tashkeel={tashkeel}
                 showRawiyy={showRawiyy}
-                numerals={numerals}
                 onDone={onRevealDone}
               />
             ) : (
@@ -153,7 +150,6 @@ export function ExchangeLog({
                 meta={meta}
                 tashkeel={tashkeel}
                 showRawiyy={showRawiyy}
-                numerals={numerals}
                 label={ex.poet ? ex.poet.name : undefined}
                 favorite={isFavorite ? isFavorite(ex.baytKey) : false}
                 onFavorite={onFavorite ? () => onFavorite(ex) : undefined}

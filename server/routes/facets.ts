@@ -5,7 +5,7 @@
  * Two things make this route the interesting one.
  *
  * **Zeros are the point.** The browse rail's letter grids DISABLE a حرف at
- * zero rather than hiding it, and the empty state «جرّب إزالة: X (٠ نتيجة)»
+ * zero rather than hiding it, and the empty state «جرّب إزالة: X (0 نتيجة)»
  * has to name the chip that emptied the combination. So the response always
  * carries all 12 عصور, all 16+ بحور, all 18 أغراض, both لغة values and both
  * 28-letter grids, whatever the filter says.

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  ARABIC_THOUSANDS,
   copyableBayt,
   countedNoun,
   formatBaits,
@@ -11,45 +10,50 @@ import {
   formatPoems,
   formatPoets,
   formatScore,
-  toArabicDigits,
   toLatinDigits,
 } from "./format.ts"
 
 describe("digits", () => {
-  it("converts to Arabic-Indic and back", () => {
-    expect(toArabicDigits("2026-08-23")).toBe("٢٠٢٦-٠٨-٢٣")
+  it("parses Arabic-Indic and Persian digits back to ASCII", () => {
     expect(toLatinDigits("٢٠٢٦")).toBe("2026")
-    expect(toLatinDigits(toArabicDigits("1234567890"))).toBe("1234567890")
+    expect(toLatinDigits("۲۰۲۶")).toBe("2026")
+    expect(toLatinDigits("١٢٣٤٥٦٧٨٩٠")).toBe("1234567890")
   })
 
   it("leaves Arabic letters alone", () => {
-    expect(toArabicDigits("البيت 12")).toBe("البيت ١٢")
+    expect(toLatinDigits("البيت ١٢")).toBe("البيت 12")
   })
 })
 
 describe("formatNumber", () => {
-  it("groups thousands with U+066C, not with a comma", () => {
-    expect(formatNumber(254630)).toBe("٢٥٤٬٦٣٠")
-    expect(formatNumber(254630)).toContain(ARABIC_THOUSANDS)
-    expect(formatNumber(1000)).toBe("١٬٠٠٠")
-    expect(formatNumber(999)).toBe("٩٩٩")
+  it("is Western digits with a comma every three — the owner's one scale", () => {
+    expect(formatNumber(239411)).toBe("239,411")
+    expect(formatNumber(254630)).toBe("254,630")
+    expect(formatNumber(1000)).toBe("1,000")
+    expect(formatNumber(999)).toBe("999")
+    expect(formatNumber(3393887)).toBe("3,393,887")
   })
 
-  it("uses Latin digits and commas for the mono scale", () => {
-    expect(formatNumber(254630, "latin")).toBe("254,630")
+  it("emits no Arabic-Indic digit and no U+066C anywhere", () => {
+    for (const n of [0, 7, 42, 999, 1000, 239411, 3393887, 3.5]) {
+      expect(formatNumber(n)).not.toMatch(/[٠-٩٬٫]/)
+    }
+  })
+
+  it("rounds the score scale", () => {
     expect(formatScore(1234.6)).toBe("1,235")
   })
 
-  it("keeps a fraction on the right separator", () => {
-    expect(formatNumber(3.5)).toBe("٣٫٥")
-    expect(formatNumber(3.5, "latin")).toBe("3.5")
+  it("keeps a fraction on a decimal point", () => {
+    expect(formatNumber(3.5)).toBe("3.5")
   })
 
   it("survives the degenerate inputs", () => {
-    expect(formatCount(0)).toBe("٠")
-    expect(formatNumber(Number.NaN)).toBe("٠")
-    expect(formatNumber(Number.POSITIVE_INFINITY, "latin")).toBe("0")
-    expect(formatNumber(-42, "latin")).toBe("-42")
+    expect(formatCount(0)).toBe("0")
+    expect(formatNumber(Number.NaN)).toBe("0")
+    expect(formatNumber(Number.POSITIVE_INFINITY)).toBe("0")
+    // an LRM opens the run so the minus does not flip to the far side in RTL
+    expect(formatNumber(-42)).toBe("\u200E-42")
   })
 })
 
@@ -71,26 +75,28 @@ describe("counted nouns", () => {
     expect(formatBaits(0)).toBe("لا أبيات")
     expect(formatBaits(1)).toBe("بيت واحد")
     expect(formatBaits(2)).toBe("بيتان")
-    expect(formatBaits(3)).toBe("٣ أبيات")
-    expect(formatBaits(10)).toBe("١٠ أبيات")
-    expect(formatBaits(11)).toBe("١١ بيتًا")
-    expect(formatBaits(100)).toBe("١٠٠ بيتًا")
-    // ١٠٣ takes جمع القلة again — the rule is on the last two digits.
-    expect(formatBaits(103)).toBe("١٠٣ أبيات")
+    expect(formatBaits(3)).toBe("3 أبيات")
+    expect(formatBaits(10)).toBe("10 أبيات")
+    expect(formatBaits(11)).toBe("11 بيتًا")
+    expect(formatBaits(100)).toBe("100 بيتًا")
+    // 103 takes جمع القلة again — the rule is on the last two digits.
+    expect(formatBaits(103)).toBe("103 أبيات")
+    expect(formatBaits(951)).toBe("951 بيتًا")
   })
 
   it("does the same for قصائد and شعراء", () => {
     expect(formatPoems(1)).toBe("قصيدة واحدة")
-    expect(formatPoems(5)).toBe("٥ قصائد")
-    expect(formatPoems(30)).toBe("٣٠ قصيدة")
+    expect(formatPoems(5)).toBe("5 قصائد")
+    expect(formatPoems(30)).toBe("30 قصيدة")
     expect(formatPoets(2)).toBe("شاعران")
-    expect(formatPoets(7167)).toBe("٧٬١٦٧ شاعرًا")
+    expect(formatPoets(6997)).toBe("6,997 شاعرًا")
   })
 
-  it("takes a custom form set and a numeral scale", () => {
+  it("takes a custom form set", () => {
     const forms = { zero: "none", one: "one", two: "two", few: "few", many: "many" }
-    expect(countedNoun(4, forms, "latin")).toBe("4 few")
-    expect(countedNoun(40, forms, "latin")).toBe("40 many")
+    expect(countedNoun(4, forms)).toBe("4 few")
+    expect(countedNoun(40, forms)).toBe("40 many")
+    expect(countedNoun(1400, forms)).toBe("1,400 many")
   })
 })
 
