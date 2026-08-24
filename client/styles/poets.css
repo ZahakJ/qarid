@@ -619,7 +619,12 @@
 
 .poet-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The id block takes only the width it needs, so the seal sits BESIDE the
+   * name rather than at the far edge of a 64rem column with a hand's width of
+   * nothing between them (visible at 1024, where the page is barely wider than
+   * its own measure). The tiles and the ترجمة span both tracks. */
+  grid-template-columns: minmax(0, max-content) auto;
+  justify-content: start;
   align-items: center;
   column-gap: var(--sp-5);
   row-gap: var(--sp-4);
