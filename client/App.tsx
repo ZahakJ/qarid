@@ -24,7 +24,10 @@ import { useKeyboard } from "./hooks/useKeyboard.ts"
 import { DuelPlayView } from "./duel/DuelPlayView.tsx"
 import { DuelSetupView } from "./duel/DuelSetupView.tsx"
 import { DuelSummaryView } from "./duel/DuelSummaryView.tsx"
+import { ShareCardHost } from "./share/ShareDialog.tsx"
+import { ArsenalView } from "./views/ArsenalView.tsx"
 import { BrowseView } from "./views/BrowseView.tsx"
+import { DrillView } from "./views/DrillView.tsx"
 import { FavoritesView } from "./views/FavoritesView.tsx"
 import { DailyView } from "./views/DailyView.tsx"
 import { HomeView } from "./views/HomeView.tsx"
@@ -34,6 +37,8 @@ import { PoetsView } from "./views/PoetsView.tsx"
 import { RulesView } from "./views/RulesView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { StatsView } from "./views/StatsView.tsx"
+import { TrainHubView } from "./views/TrainHubView.tsx"
+import { WanderView } from "./views/WanderView.tsx"
 
 /** Masthead nav — the doors that exist from day one. */
 const NAV: { route: Route; label: string }[] = [
@@ -42,6 +47,7 @@ const NAV: { route: Route; label: string }[] = [
   { route: { view: "browse", query: {} }, label: "التصفح" },
   { route: { view: "search", q: "", page: 1 }, label: "البحث" },
   { route: { view: "duel" }, label: "المساجلة" },
+  { route: { view: "train" }, label: "التحفيظ" },
   { route: { view: "favorites" }, label: "المختارات" },
 ]
 
@@ -171,6 +177,16 @@ function Body({ route }: { route: Route }) {
       return <RulesView />
     case "stats":
       return <StatsView />
+    case "train":
+      return <TrainHubView />
+    case "train-drill":
+      // Keyed on the حرف: «تدرّب على ظ» from another letter's drill is a new
+      // session, not a re-render of the old queue.
+      return <DrillView key={route.letter ?? "all"} letter={route.letter} />
+    case "train-arsenal":
+      return <ArsenalView />
+    case "wander":
+      return <WanderView />
     default:
       return <ViewStub route={route} />
   }
@@ -209,6 +225,8 @@ export function App() {
   // `/` prefers the omnibox already on screen — home and search both mount one
   // — and only navigates when there is none to focus, because moving the reader
   // to another page to give them a text field they already had is rude.
+  // `useKeyboard` matches the LOGICAL key, so these entries fire on an Arabic
+  // layout too — the physical `/` reports «؟» there, and `g`/`p` report «ل»/«ح».
   useKeyboard({
     keys: {
       "?": () => setHelp((v) => !v),
@@ -223,6 +241,8 @@ export function App() {
       d: () => navigate({ view: "duel" }),
       f: () => navigate({ view: "favorites" }),
       s: () => navigate({ view: "stats" }),
+      t: () => navigate({ view: "train" }),
+      w: () => navigate({ view: "wander" }),
     },
   })
 
@@ -250,8 +270,23 @@ export function App() {
 
   return (
     <div className="app">
+      {/* First in the tab order on every route. `href` keeps it a link for
+          assistive tech; the click moves focus rather than writing the hash,
+          because the hash IS the router (writing `#main` would navigate). */}
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(e) => {
+          e.preventDefault()
+          const main = document.getElementById("main")
+          main?.focus()
+          main?.scrollIntoView({ block: "start" })
+        }}
+      >
+        تخطَّ إلى المحتوى
+      </a>
       <Masthead route={route} />
-      <main className={measure}>
+      <main className={measure} id="main" tabIndex={-1}>
         <Body route={route} />
       </main>
       <footer className="footer">
@@ -261,6 +296,7 @@ export function App() {
         </span>
       </footer>
       <Toasts />
+      <ShareCardHost />
       {help ? <HelpOverlay onClose={() => setHelp(false)} /> : null}
     </div>
   )

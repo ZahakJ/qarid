@@ -12,18 +12,56 @@ import { useEffect, useRef } from "react"
 import { SCOPE_LABEL, SHORTCUTS, type Shortcut } from "../data/shortcuts.ts"
 import { Rule } from "./Ornaments.tsx"
 
-const SCOPES: Shortcut["scope"][] = ["global", "browse", "poem", "duel"]
+const SCOPES: Shortcut["scope"][] = ["global", "browse", "poem", "duel", "train"]
+
+/** Everything inside the card that Tab can reach. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 export function HelpOverlay({ onClose }: { onClose: () => void }) {
   const cardRef = useRef<HTMLDivElement | null>(null)
 
+  /**
+   * `aria-modal="true"` tells assistive tech that nothing outside this card
+   * exists — so Tab must not walk out onto the masthead links behind the scrim,
+   * and focus must come back to whatever opened the overlay when it closes.
+   */
   useEffect(() => {
+    const restore = document.activeElement as HTMLElement | null
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key === "Escape") {
+        onClose()
+        return
+      }
+      if (e.key !== "Tab") return
+      const card = cardRef.current
+      if (!card) return
+      const items = [...card.querySelectorAll<HTMLElement>(FOCUSABLE)]
+      if (items.length === 0) {
+        e.preventDefault()
+        card.focus()
+        return
+      }
+      const first = items[0]!
+      const last = items[items.length - 1]!
+      const at = document.activeElement
+      if (e.shiftKey && (at === first || at === card)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && at === last) {
+        e.preventDefault()
+        first.focus()
+      } else if (!card.contains(at)) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener("keydown", onKey)
     cardRef.current?.focus()
-    return () => window.removeEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      restore?.focus?.()
+    }
   }, [onClose])
 
   return (
@@ -63,7 +101,8 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
 
         <p className="help__note">
           الأسهم معكوسة مع اتجاه الصفحة: <kbd>←</kbd> للتالي و<kbd>→</kbd> للسابق. أمّا <kbd>j</kbd> و<kbd>k</kbd>{" "}
-          فتمشيان مع ترتيب الأبيات لا مع اتجاه الكتابة، فلا تنعكسان.
+          فتمشيان مع ترتيب الأبيات لا مع اتجاه الكتابة، فلا تنعكسان. والحروف هنا مواضعُ مفاتيحَ لا حروفًا، فتعمل على
+          لوحة المفاتيح العربية كما تعمل على اللاتينية.
         </p>
       </div>
     </div>

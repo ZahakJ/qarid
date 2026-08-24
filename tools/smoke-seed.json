@@ -462,5 +462,932 @@
         "lastReviewDay": null
       }
     }
+  },
+  "train": {
+    "qarid:v1:training": {
+      "v": 1,
+      "data": {
+        "cards": {
+          "q101:1": {
+            "id": "q101:1",
+            "baitId": null,
+            "sadr": "عَلى قَدرِ أَهلِ العَزمِ تَأتي العَزائِمُ",
+            "ajuz": "وَتَأتي عَلى قَدرِ الكِرامِ المَكارِمُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q101",
+            "firstLetter": "ع",
+            "rawiyy": "م",
+            "ease": 2.5,
+            "interval": 40,
+            "due": 1756000000000,
+            "reps": 6,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q102:3": {
+            "id": "q102:3",
+            "baitId": null,
+            "sadr": "ما كُلُّ ما يَتَمَنّى المَرءُ يُدرِكُهُ",
+            "ajuz": "تَجري الرِياحُ بِما لا تَشتَهي السُفُنُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q102",
+            "firstLetter": "م",
+            "rawiyy": "ن",
+            "ease": 2.3,
+            "interval": 25,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q103:1": {
+            "id": "q103:1",
+            "baitId": null,
+            "sadr": "قِفا نَبكِ مِن ذِكرى حَبيبٍ وَمَنزِلِ",
+            "ajuz": "بِسِقطِ اللِوى بَينَ الدَخولِ فَحَومَلِ",
+            "poet": {
+              "slug": "imru-alqais",
+              "name": "امرؤ القيس"
+            },
+            "poemId": "q103",
+            "firstLetter": "ق",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q104:2": {
+            "id": "q104:2",
+            "baitId": null,
+            "sadr": "إِذا الشَعبُ يَوماً أَرادَ الحَياةَ",
+            "ajuz": "فَلا بُدَّ أَن يَستَجيبَ القَدَر",
+            "poet": {
+              "slug": "abu-alqasim-alshabi",
+              "name": "أبو القاسم الشابي"
+            },
+            "poemId": "q104",
+            "firstLetter": "ا",
+            "rawiyy": "ر",
+            "ease": 2.15,
+            "interval": 5,
+            "due": 1756000000000,
+            "reps": 3,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q105:1": {
+            "id": "q105:1",
+            "baitId": null,
+            "sadr": "السَيفُ أَصدَقُ أَنباءً مِنَ الكُتُبِ",
+            "ajuz": "في حَدِّهِ الحَدُّ بَينَ الجِدِّ وَاللَعِبِ",
+            "poet": {
+              "slug": "abu-tammam",
+              "name": "أبو تمام"
+            },
+            "poemId": "q105",
+            "firstLetter": "ا",
+            "rawiyy": "ب",
+            "ease": 2.6,
+            "interval": 21,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q106:4": {
+            "id": "q106:4",
+            "baitId": null,
+            "sadr": "وَمَن يَجعَلِ المَعروفَ مِن دونِ عِرضِهِ",
+            "ajuz": "يَفِرهُ وَمَن لا يَتَّقِ الشَتمَ يُشتَمِ",
+            "poet": {
+              "slug": "zuhair",
+              "name": "زهير بن أبي سلمى"
+            },
+            "poemId": "q106",
+            "firstLetter": "و",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 3,
+            "due": 1756000000000,
+            "reps": 2,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q107:1": {
+            "id": "q107:1",
+            "baitId": null,
+            "sadr": "وَإِذا أَتَتكَ مَذَمَّتي مِن ناقِصٍ",
+            "ajuz": "فَهيَ الشَهادَةُ لي بِأَنّي كامِلُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q107",
+            "firstLetter": "و",
+            "rawiyy": "ل",
+            "ease": 1.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 9,
+            "leech": true,
+            "addedAt": 1755222400000
+          },
+          "q108:2": {
+            "id": "q108:2",
+            "baitId": null,
+            "sadr": "لا تَنهَ عَن خُلُقٍ وَتَأتِيَ مِثلَهُ",
+            "ajuz": "عارٌ عَلَيكَ إِذا فَعَلتَ عَظيمُ",
+            "poet": {
+              "slug": "abu-alaswad",
+              "name": "أبو الأسود الدؤلي"
+            },
+            "poemId": "q108",
+            "firstLetter": "ل",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 12,
+            "due": 1756000000000,
+            "reps": 4,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q109:1": {
+            "id": "q109:1",
+            "baitId": null,
+            "sadr": "دَعِ المَقاديرَ تَجري في أَعِنَّتِها",
+            "ajuz": "وَلا تَبيتَنَّ إِلّا خالِيَ البالِ",
+            "poet": {
+              "slug": "ali-bin-abitalib",
+              "name": "علي بن أبي طالب"
+            },
+            "poemId": "q109",
+            "firstLetter": "د",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          }
+        },
+        "dayKey": "2026-08-24",
+        "newIntroducedToday": 2,
+        "arsenal": {
+          "م": {
+            "used": 9,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ن": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ل": {
+            "used": 6,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ر": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ب": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "د": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ع": {
+            "used": 5,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ق": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ا": {
+            "used": 7,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "س": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ح": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ك": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ي": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "و": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ت": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ف": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ج": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "خ": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ص": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          }
+        },
+        "session": null,
+        "reviewStreak": 5,
+        "lastReviewDay": "2026-08-24"
+      }
+    },
+    "qarid:v1:profile": {
+      "v": 1,
+      "data": {
+        "gamesPlayed": 4,
+        "abyatPlayed": 17,
+        "bestStreak": 6,
+        "bestScore": 1240,
+        "poetsMet": [
+          "mutanabi",
+          "ahmed-shawqi",
+          "al-khansa",
+          "antar-bin-shaddad"
+        ],
+        "dailyResults": {},
+        "reviewStreak": 5,
+        "firstSeenAt": 1755222400000
+      }
+    }
+  },
+  "train-drill": {
+    "qarid:v1:training": {
+      "v": 1,
+      "data": {
+        "cards": {
+          "q101:1": {
+            "id": "q101:1",
+            "baitId": null,
+            "sadr": "عَلى قَدرِ أَهلِ العَزمِ تَأتي العَزائِمُ",
+            "ajuz": "وَتَأتي عَلى قَدرِ الكِرامِ المَكارِمُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q101",
+            "firstLetter": "ع",
+            "rawiyy": "م",
+            "ease": 2.5,
+            "interval": 40,
+            "due": 1756000000000,
+            "reps": 6,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q102:3": {
+            "id": "q102:3",
+            "baitId": null,
+            "sadr": "ما كُلُّ ما يَتَمَنّى المَرءُ يُدرِكُهُ",
+            "ajuz": "تَجري الرِياحُ بِما لا تَشتَهي السُفُنُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q102",
+            "firstLetter": "م",
+            "rawiyy": "ن",
+            "ease": 2.3,
+            "interval": 25,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q103:1": {
+            "id": "q103:1",
+            "baitId": null,
+            "sadr": "قِفا نَبكِ مِن ذِكرى حَبيبٍ وَمَنزِلِ",
+            "ajuz": "بِسِقطِ اللِوى بَينَ الدَخولِ فَحَومَلِ",
+            "poet": {
+              "slug": "imru-alqais",
+              "name": "امرؤ القيس"
+            },
+            "poemId": "q103",
+            "firstLetter": "ق",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q104:2": {
+            "id": "q104:2",
+            "baitId": null,
+            "sadr": "إِذا الشَعبُ يَوماً أَرادَ الحَياةَ",
+            "ajuz": "فَلا بُدَّ أَن يَستَجيبَ القَدَر",
+            "poet": {
+              "slug": "abu-alqasim-alshabi",
+              "name": "أبو القاسم الشابي"
+            },
+            "poemId": "q104",
+            "firstLetter": "ا",
+            "rawiyy": "ر",
+            "ease": 2.15,
+            "interval": 5,
+            "due": 1756000000000,
+            "reps": 3,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q105:1": {
+            "id": "q105:1",
+            "baitId": null,
+            "sadr": "السَيفُ أَصدَقُ أَنباءً مِنَ الكُتُبِ",
+            "ajuz": "في حَدِّهِ الحَدُّ بَينَ الجِدِّ وَاللَعِبِ",
+            "poet": {
+              "slug": "abu-tammam",
+              "name": "أبو تمام"
+            },
+            "poemId": "q105",
+            "firstLetter": "ا",
+            "rawiyy": "ب",
+            "ease": 2.6,
+            "interval": 21,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q106:4": {
+            "id": "q106:4",
+            "baitId": null,
+            "sadr": "وَمَن يَجعَلِ المَعروفَ مِن دونِ عِرضِهِ",
+            "ajuz": "يَفِرهُ وَمَن لا يَتَّقِ الشَتمَ يُشتَمِ",
+            "poet": {
+              "slug": "zuhair",
+              "name": "زهير بن أبي سلمى"
+            },
+            "poemId": "q106",
+            "firstLetter": "و",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 3,
+            "due": 1756000000000,
+            "reps": 2,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q107:1": {
+            "id": "q107:1",
+            "baitId": null,
+            "sadr": "وَإِذا أَتَتكَ مَذَمَّتي مِن ناقِصٍ",
+            "ajuz": "فَهيَ الشَهادَةُ لي بِأَنّي كامِلُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q107",
+            "firstLetter": "و",
+            "rawiyy": "ل",
+            "ease": 1.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 9,
+            "leech": true,
+            "addedAt": 1755222400000
+          },
+          "q108:2": {
+            "id": "q108:2",
+            "baitId": null,
+            "sadr": "لا تَنهَ عَن خُلُقٍ وَتَأتِيَ مِثلَهُ",
+            "ajuz": "عارٌ عَلَيكَ إِذا فَعَلتَ عَظيمُ",
+            "poet": {
+              "slug": "abu-alaswad",
+              "name": "أبو الأسود الدؤلي"
+            },
+            "poemId": "q108",
+            "firstLetter": "ل",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 12,
+            "due": 1756000000000,
+            "reps": 4,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q109:1": {
+            "id": "q109:1",
+            "baitId": null,
+            "sadr": "دَعِ المَقاديرَ تَجري في أَعِنَّتِها",
+            "ajuz": "وَلا تَبيتَنَّ إِلّا خالِيَ البالِ",
+            "poet": {
+              "slug": "ali-bin-abitalib",
+              "name": "علي بن أبي طالب"
+            },
+            "poemId": "q109",
+            "firstLetter": "د",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          }
+        },
+        "dayKey": "2026-08-24",
+        "newIntroducedToday": 2,
+        "arsenal": {
+          "م": {
+            "used": 9,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ن": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ل": {
+            "used": 6,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ر": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ب": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "د": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ع": {
+            "used": 5,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ق": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ا": {
+            "used": 7,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "س": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ح": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ك": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ي": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "و": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ت": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ف": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ج": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "خ": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ص": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          }
+        },
+        "session": null,
+        "reviewStreak": 5,
+        "lastReviewDay": "2026-08-24"
+      }
+    },
+    "qarid:v1:profile": {
+      "v": 1,
+      "data": {
+        "gamesPlayed": 4,
+        "abyatPlayed": 17,
+        "bestStreak": 6,
+        "bestScore": 1240,
+        "poetsMet": [
+          "mutanabi",
+          "ahmed-shawqi",
+          "al-khansa",
+          "antar-bin-shaddad"
+        ],
+        "dailyResults": {},
+        "reviewStreak": 5,
+        "firstSeenAt": 1755222400000
+      }
+    }
+  },
+  "train-arsenal": {
+    "qarid:v1:training": {
+      "v": 1,
+      "data": {
+        "cards": {
+          "q101:1": {
+            "id": "q101:1",
+            "baitId": null,
+            "sadr": "عَلى قَدرِ أَهلِ العَزمِ تَأتي العَزائِمُ",
+            "ajuz": "وَتَأتي عَلى قَدرِ الكِرامِ المَكارِمُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q101",
+            "firstLetter": "ع",
+            "rawiyy": "م",
+            "ease": 2.5,
+            "interval": 40,
+            "due": 1756000000000,
+            "reps": 6,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q102:3": {
+            "id": "q102:3",
+            "baitId": null,
+            "sadr": "ما كُلُّ ما يَتَمَنّى المَرءُ يُدرِكُهُ",
+            "ajuz": "تَجري الرِياحُ بِما لا تَشتَهي السُفُنُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q102",
+            "firstLetter": "م",
+            "rawiyy": "ن",
+            "ease": 2.3,
+            "interval": 25,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q103:1": {
+            "id": "q103:1",
+            "baitId": null,
+            "sadr": "قِفا نَبكِ مِن ذِكرى حَبيبٍ وَمَنزِلِ",
+            "ajuz": "بِسِقطِ اللِوى بَينَ الدَخولِ فَحَومَلِ",
+            "poet": {
+              "slug": "imru-alqais",
+              "name": "امرؤ القيس"
+            },
+            "poemId": "q103",
+            "firstLetter": "ق",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q104:2": {
+            "id": "q104:2",
+            "baitId": null,
+            "sadr": "إِذا الشَعبُ يَوماً أَرادَ الحَياةَ",
+            "ajuz": "فَلا بُدَّ أَن يَستَجيبَ القَدَر",
+            "poet": {
+              "slug": "abu-alqasim-alshabi",
+              "name": "أبو القاسم الشابي"
+            },
+            "poemId": "q104",
+            "firstLetter": "ا",
+            "rawiyy": "ر",
+            "ease": 2.15,
+            "interval": 5,
+            "due": 1756000000000,
+            "reps": 3,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q105:1": {
+            "id": "q105:1",
+            "baitId": null,
+            "sadr": "السَيفُ أَصدَقُ أَنباءً مِنَ الكُتُبِ",
+            "ajuz": "في حَدِّهِ الحَدُّ بَينَ الجِدِّ وَاللَعِبِ",
+            "poet": {
+              "slug": "abu-tammam",
+              "name": "أبو تمام"
+            },
+            "poemId": "q105",
+            "firstLetter": "ا",
+            "rawiyy": "ب",
+            "ease": 2.6,
+            "interval": 21,
+            "due": 1790000000000,
+            "reps": 5,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q106:4": {
+            "id": "q106:4",
+            "baitId": null,
+            "sadr": "وَمَن يَجعَلِ المَعروفَ مِن دونِ عِرضِهِ",
+            "ajuz": "يَفِرهُ وَمَن لا يَتَّقِ الشَتمَ يُشتَمِ",
+            "poet": {
+              "slug": "zuhair",
+              "name": "زهير بن أبي سلمى"
+            },
+            "poemId": "q106",
+            "firstLetter": "و",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 3,
+            "due": 1756000000000,
+            "reps": 2,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q107:1": {
+            "id": "q107:1",
+            "baitId": null,
+            "sadr": "وَإِذا أَتَتكَ مَذَمَّتي مِن ناقِصٍ",
+            "ajuz": "فَهيَ الشَهادَةُ لي بِأَنّي كامِلُ",
+            "poet": {
+              "slug": "mutanabi",
+              "name": "المتنبي"
+            },
+            "poemId": "q107",
+            "firstLetter": "و",
+            "rawiyy": "ل",
+            "ease": 1.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 9,
+            "leech": true,
+            "addedAt": 1755222400000
+          },
+          "q108:2": {
+            "id": "q108:2",
+            "baitId": null,
+            "sadr": "لا تَنهَ عَن خُلُقٍ وَتَأتِيَ مِثلَهُ",
+            "ajuz": "عارٌ عَلَيكَ إِذا فَعَلتَ عَظيمُ",
+            "poet": {
+              "slug": "abu-alaswad",
+              "name": "أبو الأسود الدؤلي"
+            },
+            "poemId": "q108",
+            "firstLetter": "ل",
+            "rawiyy": "م",
+            "ease": 2.3,
+            "interval": 12,
+            "due": 1756000000000,
+            "reps": 4,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          },
+          "q109:1": {
+            "id": "q109:1",
+            "baitId": null,
+            "sadr": "دَعِ المَقاديرَ تَجري في أَعِنَّتِها",
+            "ajuz": "وَلا تَبيتَنَّ إِلّا خالِيَ البالِ",
+            "poet": {
+              "slug": "ali-bin-abitalib",
+              "name": "علي بن أبي طالب"
+            },
+            "poemId": "q109",
+            "firstLetter": "د",
+            "rawiyy": "ل",
+            "ease": 2.3,
+            "interval": 0,
+            "due": 1756000000000,
+            "reps": 0,
+            "lapses": 0,
+            "leech": false,
+            "addedAt": 1755222400000
+          }
+        },
+        "dayKey": "2026-08-24",
+        "newIntroducedToday": 2,
+        "arsenal": {
+          "م": {
+            "used": 9,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ن": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ل": {
+            "used": 6,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ر": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ب": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "د": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ع": {
+            "used": 5,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ق": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ا": {
+            "used": 7,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "س": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ح": {
+            "used": 3,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ك": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ي": {
+            "used": 4,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "و": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ت": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ف": {
+            "used": 2,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ج": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "خ": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          },
+          "ص": {
+            "used": 1,
+            "mastered": 0,
+            "lastAt": 1756000000000
+          }
+        },
+        "session": null,
+        "reviewStreak": 5,
+        "lastReviewDay": "2026-08-24"
+      }
+    },
+    "qarid:v1:profile": {
+      "v": 1,
+      "data": {
+        "gamesPlayed": 4,
+        "abyatPlayed": 17,
+        "bestStreak": 6,
+        "bestScore": 1240,
+        "poetsMet": [
+          "mutanabi",
+          "ahmed-shawqi",
+          "al-khansa",
+          "antar-bin-shaddad"
+        ],
+        "dailyResults": {},
+        "reviewStreak": 5,
+        "firstSeenAt": 1755222400000
+      }
+    }
   }
 }

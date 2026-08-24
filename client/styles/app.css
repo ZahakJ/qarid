@@ -1,9 +1,16 @@
 /* قريض — application shell: masthead, wordmark, nav, view scaffolding. */
 
+/* The column is PINNED, for the same reason `.view` pins its own (see
+ * app.css's `.view` and the CLAUDE.md invariant): an implicit `auto` grid track
+ * is sized to its widest item's MAX-content and is not clamped to the grid
+ * container, so one child that would rather be wider — the masthead's six nav
+ * links on a 390px phone — silently widens the shell, and every row under it,
+ * and drags the whole page off-centre under RTL. */
 .app {
   min-block-size: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* ── masthead ───────────────────────────────────────────────────────── */
@@ -233,18 +240,45 @@
   opacity: 0.6;
 }
 
+/* On a phone the six nav items wrapped to two rows under the wordmark and the
+ * masthead ate 290px — a third of an 844px viewport, permanently, with
+ * «المختارات» orphaned and centred on its own row. One row that SCROLLS, the
+ * way the شعراء letter rail already does, costs about a hundred. */
 @media (max-width: 640px) {
   .masthead__inner {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--sp-2);
+    gap: var(--sp-1);
+    padding-block: var(--sp-2);
   }
 
   .masthead__nav {
-    justify-content: center;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    /* A flex item's automatic minimum is its min-content width, and a nowrap
+     * row of seven navlinks is 490px of min-content. Without the explicit zero
+     * the nav refuses to shrink, `overflow-x: auto` never engages, and the
+     * whole DOCUMENT is dragged 100px wider than the phone — every view on the
+     * site, not just this bar. (Same family as the letter-well note in
+     * CLAUDE.md.) It is declared once, at the end of this rule. */
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* both edges dissolve, so the row says for itself that it continues */
+    mask-image: linear-gradient(to left, transparent 0, #000 1.25rem, #000 calc(100% - 1.25rem), transparent 100%);
+    scroll-padding-inline: 1.5rem;
+    min-inline-size: 0;
+  }
+
+  .masthead__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navlink {
+    white-space: nowrap;
   }
 
   .wordmark__word {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
+    line-height: 1.3;
   }
 }

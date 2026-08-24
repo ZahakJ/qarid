@@ -59,6 +59,13 @@ export type BaytPlateProps = {
   highlight?: readonly string[] | null
   /** false strips marks with the shared `stripTashkeel` */
   tashkeel?: boolean
+  /**
+   * The drill card (design-ux.md §5): keep the بيت's geometry but replace the
+   * عجز with a ruled blank of its own honest width. The عجز TEXT never reaches
+   * the DOM in this mode — the answer is not hidden behind a colour, it is
+   * simply not there to inspect.
+   */
+  blankAjuz?: boolean
   variant?: "row" | "plate"
   /** duel provenance: lapis hairline for the opponent, gold for you */
   side?: "you" | "them"
@@ -110,6 +117,20 @@ function Ajuz({
   )
 }
 
+/**
+ * The ruled blank's measure, as a PERCENTAGE of the شطر's own track.
+ *
+ * A percentage and not `em` on purpose. An `em` width is a definite size, so it
+ * feeds the grid track's automatic minimum — and a 38-character عجز then
+ * demanded 16em of a 340px phone and dragged the whole DOCUMENT sideways.
+ * A percentage resolves against the track and contributes nothing to intrinsic
+ * sizing, so the blank can never widen the page it sits on. The length is still
+ * honest: it rises with the عجز's own character count until it fills the track.
+ */
+function blankWidth(ajuz: string): number {
+  return Math.min(100, Math.max(18, ajuz.trim().length * 2.4))
+}
+
 export function BaytPlate({
   sadr,
   ajuz = null,
@@ -120,6 +141,7 @@ export function BaytPlate({
   rawiyy = null,
   highlight = null,
   tashkeel = true,
+  blankAjuz = false,
   variant = "row",
   side,
   anchorId,
@@ -215,7 +237,13 @@ export function BaytPlate({
       <span className="gutter" aria-hidden="true">
         <Shamsa size={12} />
       </span>
-      {partial ? null : (
+      {partial ? null : blankAjuz ? (
+        <span className="ajuz ajuz--blank" aria-label="العجز محجوب — اكتبه">
+          {/* Width in `em` off the عجز's own character count: a blank the same
+              length whatever the line is would be a lie the reader can lean on. */}
+          <span className="ajuz-blank" style={{ inlineSize: `${blankWidth(ajuzText)}%` }} />
+        </span>
+      ) : (
         <span className="ajuz">
           <Ajuz text={ajuzText} rawiyy={rawiyy} marked={showRawiyy} terms={highlight} />
         </span>

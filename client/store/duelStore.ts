@@ -9,10 +9,12 @@
  *
  * Persistence: the session is written to `qarid:v1:duel` (through the shared
  * `persist.ts`, so a corrupt payload is backed up rather than thrown at the
- * player) on every transition, and `resumeDuel()` rehydrates it via
+ * player) on every transition, and `initialSession()` rehydrates it via
  * `fromSlice`, which normalizes any phase that was mid-flight when the tab
- * closed. A refresh therefore resumes the مساجلة with a whole fresh turn and
- * never a lost life.
+ * closed and carries the STORED deadline forward — never a whole fresh turn,
+ * which made F5 a free timer reset. `resumeSchedule()` then re-arms whatever
+ * beat the dead tab owed: the deal that never landed, the opponent's reply, the
+ * five-second dismissal of a lost-life card.
  *
  * Scheduling rules (one place, so the beats are auditable):
  *   dealing          → POST /api/game/start, once per entry
@@ -22,7 +24,9 @@
  *                      carries a clickable «أرِني أين قيل»), except the cards
  *                      that need an answer (near_miss «اقبل هذا البيت», and
  *                      ambiguous, which is its own phase)
- *   penalising       → RESOLVE after 5s, or when the player dismisses the card
+ *   penalising       → RESOLVE after 5s, or when the player dismisses the card;
+ *                      a TIMEOUT card also asks /api/game/reply for the بيت
+ *                      that would have worked («كان يصلح هذا:»)
  */
 import { create } from "zustand"
 
@@ -124,7 +128,12 @@ function entryKey(s: DuelState): string {
   return `${s.startedAt}|${s.phase}|${s.exchanges.length}|${s.lives}|${s.lastResult?.at ?? 0}`
 }
 
-/** Rejections the player has to answer stay on screen until they do. */
+/**
+ * Rejections the player has to answer stay on screen until they do — no timer
+ * dismisses them. They are NOT a lock on the field: typing a fresh بيت and
+ * pressing «أجب» goes straight through `RESUBMIT` (see `submitAnswer`), and the
+ * clock they pause is credited back only up to `MAX_PAUSE_CREDIT_MS`.
+ */
 function needsAnswer(r: Rejection | null): boolean {
   return r?.kind === "near_miss"
 }
@@ -168,6 +177,9 @@ function schedule(s: DuelState): void {
       later(softRejectMs(s.rejection), () => dispatch({ type: "RESOLVE", now: Date.now() }))
       return
     case "penalising":
+      // «كان يصلح هذا:» — asked for once, from whichever path produced the
+      // timeout (the ticking clock, or a RESUME that found the turn expired)
+      if (s.rejection?.kind === "timeout" && !s.rejection.bait) void consolation(s)
       later(5000, () => dispatch({ type: "RESOLVE", now: Date.now() }))
       return
     case "summary":
@@ -301,11 +313,41 @@ export function setDraft(text: string): void {
   dispatch({ type: "DRAFT", text })
 }
 
+/**
+ * «أجب» / Enter, from whatever the last answer left on screen.
+ *
+ * The field is live under a card as well as without one, and this is where that
+ * is honoured: a `near_miss` or an ambiguity card is DISMISSED by answering
+ * again (`RESUBMIT`), and a lost-life card is resolved first and the fresh turn
+ * answered in the same gesture. Before this, retyping a perfectly good بيت
+ * under a near-miss card did nothing at all — no toast, no shake, no request.
+ */
 export function submitAnswer(text?: string): void {
   const s = useDuel.getState().session
-  if (!s || s.phase !== "awaiting") return
+  if (!s) return
   const answerText = (text ?? s.draft).trim()
   if (!answerText) return
+
+  // a card that needs an answer is up: answering again replaces it
+  if (s.phase === "rejected" || s.phase === "disambiguating") {
+    dispatch({ type: "RESUBMIT", text: answerText, penalty: 0, now: Date.now() })
+    const after = useDuel.getState().session
+    if (after && after.phase === "verifying") void verify(after, answerText)
+    return
+  }
+
+  // a life was just spent; the card is dismissible and the next turn is owed
+  if (s.phase === "penalising") {
+    dispatch({ type: "RESOLVE", now: Date.now() })
+    const opened = useDuel.getState().session
+    if (!opened || opened.phase !== "awaiting") return
+    dispatch({ type: "SUBMIT", text: answerText, now: Date.now() })
+    const after = useDuel.getState().session
+    if (after && after.phase === "verifying") void verify(after, answerText)
+    return
+  }
+
+  if (s.phase !== "awaiting") return
   dispatch({ type: "SUBMIT", text: answerText, now: Date.now() })
   const after = useDuel.getState().session
   if (after && after.phase === "verifying") void verify(after, answerText)
@@ -340,6 +382,35 @@ export function tick(): void {
   dispatch({ type: "TICK", now: Date.now() })
 }
 
+/**
+ * «كان يصلح هذا:» — the one thing a timeout can teach.
+ *
+ * The card must be on screen the instant the clock hits zero, so the بيت that
+ * would have worked is fetched AFTER the fact and folded in by `TIMEOUT_BAIT`.
+ * It is asked for exactly the way the opponent asks for its own reply, on the
+ * letter the player owed, and it is never marked used: it was never said.
+ */
+async function consolation(s: DuelState): Promise<void> {
+  const mine = epoch
+  const letter = s.required.letter
+  if (!letter) return
+  try {
+    const res = await gameReply({
+      letter: letter as ArabicLetter,
+      difficulty: s.config.difficulty,
+      mode: s.config.chainMode,
+      tailBias: s.config.tailBias,
+      excludeBaitIds: s.usedBaitIds,
+      excludePoemIds: s.usedPoemIds,
+      filters: s.config.filters,
+    })
+    if (mine !== epoch || !res.ok) return
+    dispatch({ type: "TIMEOUT_BAIT", bait: res.bait })
+  } catch {
+    /* a consolation that never arrived is simply not shown */
+  }
+}
+
 export function abandonDuel(): void {
   dispatch({ type: "ABANDON", now: Date.now() })
 }
@@ -356,6 +427,18 @@ export function playAgain(): void {
   useDuel.setState({ session: fresh })
   persist(fresh)
   schedule(fresh)
+}
+
+/**
+ * Re-arm the beat the dead tab owed. `initialSession()` rehydrates state but
+ * schedules nothing, so a session that died in `dealing`, `computerThinking` or
+ * `penalising` came back frozen: no request in flight and no timer to dismiss
+ * the card. The play view calls this once on mount.
+ */
+export function resumeSchedule(): void {
+  const s = useDuel.getState().session
+  if (!s) return
+  schedule(s)
 }
 
 export function exitDuel(): void {
@@ -515,6 +598,22 @@ function recordProfile(s: DuelState): void {
   const nextTraining: TrainingSlice = { ...training, arsenal }
   saveSlice("training", nextTraining)
   flushNow()
+}
+
+/**
+ * Record the finished مساجلة if it has not been recorded already.
+ *
+ * `schedule()` calls `recordProfile` on the TRANSITION into the summary, which
+ * covers a duel played through in one sitting. It does not cover a session
+ * REHYDRATED at the summary — a reload, or a tab reopened the next morning —
+ * because nothing dispatches on resume. The summary view therefore calls this
+ * on mount, and the `recorded` key makes the second call a no-op. Without it
+ * the ترسانة silently loses every duel the player did not watch land.
+ */
+export function recordFinishedDuel(): void {
+  const s = useDuel.getState().session
+  if (!s || s.phase !== "summary") return
+  recordProfile(s)
 }
 
 /** The letter the player's بيت actually opened on — the ONE normalizer. */

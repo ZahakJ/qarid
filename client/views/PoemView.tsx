@@ -34,7 +34,7 @@ import { getPoemBaits } from "../api/queries.ts"
 import { cachePoemBaits, loadPoem, loadSimilarPoems } from "../store/libraryStore.ts"
 import { savedFromBait, useCollections } from "../store/collectionsStore.ts"
 import { useKeyboard } from "../hooks/useKeyboard.ts"
-import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
+import { openShareCard } from "../share/ShareDialog.tsx"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { routeHash } from "../router.ts"
@@ -251,18 +251,16 @@ export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
     [poem],
   )
 
-  /** بطاقة البيت — the canvas card, delivered however the platform allows. */
+  /** بطاقة البيت — opens the card dialog: preview, shape, then save or share. */
   const runCard = useCallback(
     (b: BaitDto) => {
       if (!poet) return
-      void shareCard({
+      openShareCard({
         sadr: displayText(b.sadr, settings.tashkeel),
         ajuz: displayTextOrNull(b.ajuz, settings.tashkeel),
         poet: poet.name,
         poem: poem && !headingOf(poem).isMatla ? poem.title : null,
       })
-        .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
-        .catch(() => toast(CARD_MESSAGE.failed, "danger"))
     },
     [poem, poet, settings.tashkeel],
   )
@@ -310,7 +308,9 @@ export function PoemView({ id, bayt }: { id: string; bayt?: number }) {
       <div className="view poem-view">
         <div className="poem-error">
           <h1 className="view__title">{error.status === 404 ? "لا قصيدة بهذا الرقم" : "تعذّر جلب القصيدة"}</h1>
-          <p className="view__lede">{error.message}</p>
+          {/* the headline already says it on a 404; anything else the server
+              had to add would only repeat it */}
+          {error.status === 404 ? null : <p className="view__lede">{error.message}</p>}
           <a className="btn" href={routeHash({ view: "home" })}>
             إلى الديوان
           </a>

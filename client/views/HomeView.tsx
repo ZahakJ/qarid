@@ -25,14 +25,14 @@ import { Omnibox } from "../components/Omnibox.tsx"
 import { Rule, Shamsa } from "../components/Ornaments.tsx"
 import { arabicDay } from "../duel/share.ts"
 import { useArsenal } from "../hooks/useArsenal.ts"
-import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
+import { openShareCard } from "../share/ShareDialog.tsx"
 import { loadFacets, loadMeta } from "../store/libraryStore.ts"
 import { useCollections } from "../store/collectionsStore.ts"
 import { useProfile } from "../store/profileStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { routeHash, type BrowseQuery, type Route } from "../router.ts"
-import { formatCount, formatNumber, formatPoems, formatPoets } from "../../shared/format.ts"
+import { formatCount, formatNumber, formatPoems, formatPoets, formatScore } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { DailyResponse, FacetsResponse, MetaResponse } from "../../shared/schema.ts"
 import { headingOf } from "./shared.tsx"
@@ -91,10 +91,12 @@ export function HomeView() {
   return (
     <div className="view view--centred home">
       <header className="home__mast">
-        <span className="wordmark wordmark--hero">
+        {/* the wordmark IS the page's h1 — `#/` was the one route whose document
+            outline started at level 2 */}
+        <h1 className="wordmark wordmark--hero">
           <span className="wordmark__word">قريض</span>
           <span className="wordmark__rule" />
-        </span>
+        </h1>
         <p className="home__lede">
           {meta
             ? `${formatNumber(meta.counts.poems)} قصيدة، و${formatNumber(meta.counts.baits)} بيتًا، لـ${formatNumber(meta.counts.poets)} شاعرًا — تُقرأ وتُساجَل.`
@@ -140,16 +142,14 @@ export function HomeView() {
                 })
                 toast(now ? "أُضيف إلى المختارات" : "أُزيل من المختارات", now ? "ok" : "info")
               }}
-              onCard={() => {
-                void shareCard({
+              onCard={() =>
+                openShareCard({
                   sadr: bait.sadr,
                   ajuz: bait.ajuz,
                   poet: bait.poet?.name ?? null,
                   poem: daily?.poem ? headingOf(daily.poem).text : null,
                 })
-                  .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
-                  .catch(() => toast(CARD_MESSAGE.failed, "danger"))
-              }}
+              }
               onCopy={() => {
                 void writeClipboard(formatBaytWithPoet(bait.sadr, bait.ajuz, bait.poet.name, null)).then((ok) =>
                   toast(ok ? "نُسخ البيت" : "تعذّر النسخ", ok ? "ok" : "danger"),
@@ -213,13 +213,14 @@ export function HomeView() {
           <p className="duel-bar__note">يُنشد الخصمُ بيتًا، فتُجيبَه ببيتٍ يبدأ برويّه.</p>
         </div>
         <dl className="duel-bar__stats">
+          {/* the game's own read-outs, on the game's own scale (Hud.tsx) */}
           <div>
             <dt>أطول سلسلة</dt>
-            <dd className="num">{profile.bestStreak}</dd>
+            <dd className="num">{formatScore(profile.bestStreak)}</dd>
           </div>
           <div>
             <dt>مساجلات</dt>
-            <dd className="num">{profile.gamesPlayed}</dd>
+            <dd className="num">{formatScore(profile.gamesPlayed)}</dd>
           </div>
         </dl>
         <ArsenalRing covered={arsenal.covered} total={arsenal.total} />
@@ -369,7 +370,7 @@ function ArsenalRing({ covered, total }: { covered: number; total: number }) {
       </svg>
       <span className="ring__label">
         <span className="ring__n num">
-          {covered}/{total}
+          {formatScore(covered)}/{formatScore(total)}
         </span>
         <span className="ring__cap">الترسانة</span>
       </span>

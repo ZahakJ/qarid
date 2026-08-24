@@ -36,6 +36,7 @@ const CANONICAL: Route[] = [
   { view: "daily" },
   { view: "train" },
   { view: "train-drill" },
+  { view: "train-drill", letter: "ظ" },
   { view: "train-arsenal" },
   { view: "stats" },
   { view: "favorites" },

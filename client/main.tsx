@@ -2,7 +2,7 @@
  * Entry point. Fonts first (per-subset @fontsource imports — design-ux.md §7:
  * Arabic subsets only for the Arabic faces, Latin only for the mono numerals,
  * ~510 KB total), then tokens → base → components → bayt → views →
- * app, in that cascade order.
+ * app → duel → training, in that cascade order.
  *
  * The CSP allows `font-src 'self' data:` because vite inlines the small
  * subsets as data: URIs (CLAUDE.md invariant).
@@ -30,6 +30,7 @@ import "./styles/bayt.css"
 import "./styles/views.css"
 import "./styles/app.css"
 import "./styles/duel.css"
+import "./styles/training.css"
 
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"

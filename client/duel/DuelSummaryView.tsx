@@ -12,13 +12,13 @@
  * this view renders, the profile has already absorbed this duel's شعراء.
  */
 import { useEffect, useMemo, useState } from "react"
-import { formatBaits, formatClock, formatCount, formatPoets } from "../../shared/format.ts"
+import { formatBaits, formatClock, formatCount, formatPoets, formatScore } from "../../shared/format.ts"
 import { FLAVOR } from "../data/flavor.ts"
 import { Nib, Rule } from "../components/Ornaments.tsx"
 import { Panel } from "../components/Panel.tsx"
 import { navigate, routeHash } from "../router.ts"
 import { useCollections } from "../store/collectionsStore.ts"
-import { CARD_MESSAGE, shareCard } from "../share/renderCard.ts"
+import { openShareCard } from "../share/ShareDialog.tsx"
 import { loadMeta } from "../store/libraryStore.ts"
 import { motionReduced, useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
@@ -28,8 +28,10 @@ import {
   loadProfile,
   playAgain,
   poetsMetBefore,
+  recordFinishedDuel,
   useDuel,
 } from "../store/duelStore.ts"
+import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { writeClipboard } from "../bayt/copy.ts"
 import { ExchangeLog, pulseExchange } from "./ExchangeLog.tsx"
 import { playerTurns, type DuelOutcome, type DuelState } from "./machine.ts"
@@ -99,13 +101,24 @@ export function DuelSummaryView() {
   const favorites = useCollections((s) => s.favorites)
   const toggleFavorite = useCollections((s) => s.toggle)
   const [totalPoets, setTotalPoets] = useState<number | null>(null)
-  const profile = useMemo(() => loadProfile(), [session?.endedAt])
+  /** bumped once the duel has been written, so «لقيت …» re-reads the profile */
+  const [recorded, setRecorded] = useState(0)
+  const profile = useMemo(() => loadProfile(), [session?.endedAt, recorded])
   const metBefore = useMemo(() => poetsMetBefore(), [session?.startedAt])
   const lettersBefore = useMemo(() => arsenalLettersBefore(), [session?.startedAt])
 
   useEffect(() => {
     if (!session) navigate({ view: "duel" }, true)
   }, [session])
+
+  // The مساجلة lands in the profile and the ترسانة here, not only on the
+  // transition that opened this screen — a summary that survived a reload has
+  // dispatched nothing, and the letters it won would otherwise never be
+  // counted. `recordFinishedDuel` is idempotent per session.
+  useEffect(() => {
+    recordFinishedDuel()
+    setRecorded((n) => n + 1)
+  }, [session?.startedAt, session?.exchanges.length])
 
   useEffect(() => {
     let live = true
@@ -178,20 +191,31 @@ export function DuelSummaryView() {
       <h1 className="summary-headline">{headlineOf(session.outcome, chain)}</h1>
       <Rule style={{ inlineSize: "min(22rem, 70%)" }} />
 
+      {/* the SAME scale the HUD showed all duel — a player who watched «320»
+          for ten exchanges must not be handed «٥٣٤» here (Hud.tsx header) */}
       <div className="bignums">
-        <BigNumber label="النقاط" value={formatCount(session.score)} />
-        <BigNumber label="أطول سلسلة" value={formatCount(session.best)} />
-        <BigNumber label="أبياتك" value={formatCount(chain)} />
+        <BigNumber label="النقاط" value={formatScore(session.score)} />
+        <BigNumber label="أطول سلسلة" value={formatScore(session.best)} />
+        <BigNumber label="أبياتك" value={formatScore(chain)} />
         <BigNumber label="الوقت" value={formatClock(elapsed)} />
       </div>
 
+      {/* The one line meant to land after a loss, so it is set as a بيت — the
+          two-hemistich plate at verse scale, through the only بيت renderer —
+          not as a single ellipsis-joined run smaller than the meta beneath it. */}
       {session.outcome === "defeat" ? (
-        <p className="summary-flavor">
-          {FLAVOR.defeat.sadr}
-          <span aria-hidden="true"> … </span>
-          {FLAVOR.defeat.ajuz}
-          <span className="summary-flavor__poet">{FLAVOR.defeat.poet}</span>
-        </p>
+        <div className="summary-flavor">
+          <BaytPlate
+            variant="plate"
+            size="sm"
+            sadr={FLAVOR.defeat.sadr}
+            ajuz={FLAVOR.defeat.ajuz}
+            tashkeel={settings.tashkeel}
+            numerals={settings.numerals}
+            label="بيت الخسارة"
+          />
+          {FLAVOR.defeat.poet ? <p className="summary-flavor__poet">{FLAVOR.defeat.poet}</p> : null}
+        </div>
       ) : null}
 
       {ribbon.length ? (
@@ -235,11 +259,7 @@ export function DuelSummaryView() {
               const on = toggleFavorite(savedFromBait2(e))
               toast(on ? "أُضيف إلى المختارات" : "أُزيل من المختارات", on ? "ok" : "info")
             }}
-            onCard={(e) => {
-              void shareCard({ sadr: e.sadr, ajuz: e.ajuz, poet: e.poet?.name ?? null })
-                .then((how) => toast(CARD_MESSAGE[how], how === "failed" ? "danger" : "ok"))
-                .catch(() => toast(CARD_MESSAGE.failed, "danger"))
-            }}
+            onCard={(e) => openShareCard({ sadr: e.sadr, ajuz: e.ajuz, poet: e.poet?.name ?? null })}
             onCopied={() => toast("نُسخ البيت", "ok")}
           />
         </section>

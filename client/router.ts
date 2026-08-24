@@ -40,7 +40,7 @@ export type Route =
   | { view: "duel-summary" }
   | { view: "daily" }
   | { view: "train" }
-  | { view: "train-drill" }
+  | { view: "train-drill"; letter?: string }
   | { view: "train-arsenal" }
   | { view: "stats" }
   | { view: "favorites"; collection?: string }
@@ -149,7 +149,12 @@ export function parseHash(raw: string): Route {
 
     case "train": {
       const sub = seg[1]
-      if (sub === "drill") return { view: "train-drill" }
+      if (sub === "drill") {
+        // «تدرّب» on a weak حرف opens the drill scoped to it; anything that is
+        // not one of the 28 folded letters is dropped, not guessed.
+        const letter = params.get("letter") ?? undefined
+        return isLetter(letter) ? { view: "train-drill", letter } : { view: "train-drill" }
+      }
       if (sub === "arsenal") return { view: "train-arsenal" }
       return { view: "train" }
     }
@@ -250,8 +255,11 @@ export function routeHash(r: Route): string {
       return "#/daily"
     case "train":
       return "#/train"
-    case "train-drill":
-      return "#/train/drill"
+    case "train-drill": {
+      const p = new URLSearchParams()
+      if (r.letter) p.set("letter", r.letter)
+      return withQuery("#/train/drill", p.toString())
+    }
     case "train-arsenal":
       return "#/train/arsenal"
     case "stats":
