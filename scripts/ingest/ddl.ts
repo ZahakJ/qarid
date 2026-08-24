@@ -80,6 +80,8 @@ CREATE INDEX gb_rand ON game_baits(bucket, meter_id);
 CREATE INDEX gb_chain ON game_baits(rawiyy, era_id, meter_id, first_letter, fame, bait_id);
 CREATE INDEX gb_poem ON game_baits(poem_id);
 CREATE INDEX gb_bias ON game_baits(first_letter, fame, opens_conj, bucket);
+CREATE INDEX gb_fame ON game_baits(fame DESC, bait_id);
+CREATE INDEX gb_train ON game_baits(fame, position, bucket, rand, bait_id);
 `
 
 /* Two indexes §5 does not list, both measured on the 1.76M-row artefact:
@@ -95,6 +97,20 @@ CREATE INDEX gb_bias ON game_baits(first_letter, fame, opens_conj, bucket);
  * `gb_poem` — `/api/game/reply` with a شاعر filter joins `poems` on
  *   `gb.poem_id`, which had no index at all (p50 11 ms, p90 32 ms). It also
  *   gives SQLite a narrow b-tree for the unfiltered `COUNT(*)`. ≈20 MB.
+ *
+ * `gb_fame` — `/api/baits` with no روي and no حرف. Its ORDER BY is
+ *   `gb.fame DESC, gb.bait_id ASC` and nothing led with `fame`, so the
+ *   unfiltered shape was `SCAN gb USING COVERING INDEX gb_pick` plus
+ *   `USE TEMP B-TREE FOR ORDER BY`: 1,761,018 rows sorted to hand back 100.
+ *   68 ms at OFFSET 0 and 2,212 ms at OFFSET 999,900 in SQLite alone, 836 ms
+ *   over HTTP — the cheapest way for anyone with the public URL to stall the
+ *   one event loop `node:sqlite` gives us. ≈25 MB.
+ *
+ * `gb_train` — `/api/train/candidates`. `position <= 6 AND fame = 3` ordered by
+ *   `bucket, rand, bait_id` had no index leading with either column, so the plan
+ *   was a 28-way skip scan over `gb_pick(ANY(first_letter) AND fame=?)` plus a
+ *   temp b-tree: p50 153.5 ms. Leading on `fame, position` and carrying the sort
+ *   columns makes it an index-only range walk. ≈70 MB.
  *
  * `gb_bias` — amendment 5's tail bias. `gb_pick` cannot see `opens_conj`, so
  *   the «فحل»/«سيف» passes («rare», then «no_conj») walked the WHOLE letter
@@ -115,7 +131,16 @@ CREATE TABLE _playable (bait_id INTEGER PRIMARY KEY, bucket INTEGER NOT NULL, ra
 
 /** The four difficulty tiers of design-server.md §8, as `combo_counts.tier`. */
 export const TIER_PREDICATES: ReadonlyArray<readonly [tier: string, sql: string]> = [
-  ["easy", "gb.fame = 3 AND gb.position <= 6"],
+  // «مبتدئ» promises «أبيات مشهورة لشعراء يعرفهم كل قارئ» and «مطالع القصائد»,
+  // but fame is a property of the شاعر (shared/famousPoets.ts), never of the
+  // line — so `position <= 6` filled the tier with بيت ٦ of a قصيدة nobody
+  // quotes: measured play at مبتدئ across 15 letters returned البحتري «ظَعائِنُ
+  // أَظعَنَّ الكَرى», الوأواء الدمشقي, الشريف العقيلي, ابن عربي… one of the
+  // fifteen was a بيت a general reader could chain from memory. ≤ 2 is the
+  // مطلع and the بيت after it, which is the closest thing the artefact has to a
+  // per-line popularity signal: 97,391 أبيات, and never fewer than 219 on the
+  // thinnest letter (ظ) — a duel plays twenty.
+  ["easy", "gb.fame = 3 AND gb.position <= 2"],
   // The position cap is what makes «شاعر» playable. `fame >= 2` alone admits
   // بيت 300 of a 500-بيت ديوان — a line nobody has ever quoted — and measured
   // play on the real corpus filled the tier with them. ≤ 12 keeps the مطلع and

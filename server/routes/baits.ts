@@ -23,7 +23,7 @@
 
 import { Hono } from "hono"
 
-import { fnv1a32 } from "../../shared/arabic.ts"
+import { fnv1a32, isArabicLetter, stripTashkeel } from "../../shared/arabic.ts"
 import { DAILY_TIMEZONE } from "../../shared/constants.ts"
 import {
   BaitsQuerySchema,
@@ -139,18 +139,28 @@ function countGameBaits(db: Db, filter: GbFilter): number {
  * wrap once to the bottom. Two index range scans, worst case.
  */
 function sampleOne(db: Db, filter: GbFilter, extra: string, start: number, from = GB_FROM): Row | undefined {
-  if (filter.impossible) return undefined
+  return sampleSome(db, filter, extra, start, from, 1)[0]
+}
+
+/**
+ * The same wrap-around window, `take` rows deep — بيت اليوم needs candidates,
+ * not a candidate, because it has one more gate to pass (`textIsClean`).
+ */
+function sampleSome(db: Db, filter: GbFilter, extra: string, start: number, from: string, take: number): Row[] {
+  if (filter.impossible) return []
   const cond = extra === "" ? filter.where : `${filter.where} AND ${extra}`
-  const pick = (op: ">=" | "<") =>
+  const page = (op: ">=" | "<", n: number) =>
     db
       .q(
         `SELECT ${BAIT_COLS}, ${from === GB_FROM ? BAIT_CONTEXT_COLS : `${POEM_COLS}, ${POET_EXTRA_COLS}`}
          ${from}
          WHERE ${cond} AND gb.bucket ${op} ?
-         ORDER BY gb.bucket ASC, gb.rand ASC, gb.bait_id ASC LIMIT 1`,
+         ORDER BY gb.bucket ASC, gb.rand ASC, gb.bait_id ASC LIMIT ?`,
       )
-      .get(...filter.params, start) as Row | undefined
-  return pick(">=") ?? pick("<")
+      .all(...filter.params, start, n) as Row[]
+  const rows = page(">=", take)
+  if (rows.length < take) rows.push(...page("<", take - rows.length))
+  return rows
 }
 
 /** `YYYY-MM-DD` on the Gulf calendar — بيت اليوم turns over in Riyadh. */
@@ -161,6 +171,38 @@ export function riyadhDay(now: Date = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).format(now)
+}
+
+/**
+ * How many candidates بيت اليوم looks at before it settles for a damaged one.
+ * Six of seven sampled days pass the gate on the first row, so this is a
+ * deterministic tiebreak, not a search.
+ */
+const DAILY_CANDIDATES = 12
+
+/** The first candidate in the window whose text is undamaged, if any. */
+function cleanest(db: Db, filter: GbFilter, extra: string, start: number): Row | undefined {
+  const rows = sampleSome(db, filter, extra, start, GB_FROM_WIDE, DAILY_CANDIDATES)
+  return rows.find((r) => textIsClean(String(r.b_sadr), r.b_ajuz === null ? null : String(r.b_ajuz))) ?? rows[0]
+}
+
+/**
+ * The one shape of scraper damage worth a predicate: a hemistich that begins
+ * with an orphaned letter.
+ *
+ * It is what a word cut at a page/line boundary leaves behind — «…معاهده الغر»
+ * followed by «ر ويروى…» — and Arabic has no one-letter word: و، ف، ب، ل، ك and
+ * the interrogative أ are all prefixes, written joined. So a whitespace-delimited
+ * first token of exactly one letter (tashkeel discounted — the mark rides on the
+ * orphan too) is always damage, and never a line someone wrote.
+ */
+export function textIsClean(sadr: string, ajuz: string | null): boolean {
+  return !startsWithOrphanLetter(sadr) && (ajuz === null || !startsWithOrphanLetter(ajuz))
+}
+
+function startsWithOrphanLetter(text: string): boolean {
+  const first = stripTashkeel(text).trim().split(/\s+/)[0] ?? ""
+  return [...first].length === 1 && isArabicLetter(first)
 }
 
 export function baitsRoutes(db: Db, _config: Config): Hono {
@@ -186,11 +228,17 @@ export function baitsRoutes(db: Db, _config: Config): Hono {
     const start = fnv1a32(date) % BUCKET_COUNT
     const filter = gameBaitFilter(db, {})
 
-    // Prefer a famous مطلع; relax rather than fail on a thin corpus.
+    // Prefer a famous مطلع; relax rather than fail on a thin corpus. Each pass
+    // is a window rather than a single row because fame and position say
+    // nothing about the TEXT, and بيت اليوم is the one بيت every visitor sees:
+    // 2026-08-24 opened on «يطلب العلم من معاهده الغر / ر ويروىَ من نجعة
+    // الوراد», where the scraper cut «الغرر» after the first ر and pushed the
+    // orphan letter to the head of the عجز. `textIsClean` is the gate; the
+    // window is what it needs something to choose from.
     const row =
-      sampleOne(db, filter, "gb.fame >= 2 AND gb.position <= 8", start, GB_FROM_WIDE) ??
-      sampleOne(db, filter, "gb.position <= 8", start, GB_FROM_WIDE) ??
-      sampleOne(db, filter, "", start, GB_FROM_WIDE)
+      cleanest(db, filter, "gb.fame >= 2 AND gb.position <= 8", start) ??
+      cleanest(db, filter, "gb.position <= 8", start) ??
+      cleanest(db, filter, "", start)
     if (row === undefined) return c.json({ error: "no_bait" }, 404)
 
     const poet = poetOfTheDay(db, date)
@@ -217,6 +265,10 @@ export function baitsRoutes(db: Db, _config: Config): Hono {
     const filter = gameBaitFilter(db, q)
     const total = countGameBaits(db, filter)
     if (total === 0) return c.json(listBody([], 0, q.page, q.limit))
+    // `page` is clamped by the schema at 100,000, which on a filtered pool of
+    // 200 أبيات still means "sort the pool, then skip past the end of it". A
+    // page past the last one costs one COUNT and nothing else.
+    if ((q.page - 1) * q.limit >= total) return c.json(listBody([], total, q.page, q.limit))
 
     // The sort runs over `game_baits` ALONE — a covering scan of gb_pick — and
     // only the ≤100 surviving ids are joined out to baits/poems/poets. Sorting

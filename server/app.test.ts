@@ -1,3 +1,6 @@
+import fs from "node:fs"
+import path from "node:path"
+
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import type { Hono } from "hono"
 import type { z } from "zod"
@@ -20,11 +23,11 @@ import {
   StatsResponseSchema,
   TrainCandidatesResponseSchema,
 } from "../shared/schema.ts"
-import { ensureFixtureDb, FIXTURE_DB } from "../test/fixtureDb.ts"
+import { ensureFixtureDb, FIXTURE_DB, REPO_ROOT } from "../test/fixtureDb.ts"
 import { loadConfig } from "./config.ts"
 import { createApp } from "./app.ts"
 import { openDb, type Db } from "./db.ts"
-import { riyadhDay } from "./routes/baits.ts"
+import { riyadhDay, textIsClean } from "./routes/baits.ts"
 
 const config = loadConfig({ HOST: "127.0.0.1", PORT: "5750", NODE_ENV: "test" } as NodeJS.ProcessEnv)
 
@@ -530,6 +533,16 @@ describe("read API on data/fixture.db", () => {
       expect(picks.size).toBeGreaterThan(1)
     })
 
+    it("never opens on a hemistich the scraper cut", async () => {
+      // «يطلب العلم من معاهده الغر» / «ر ويروىَ من نجعة الوراد» — the orphaned
+      // ر at the head of the عجز is what the gate exists for, and بيت اليوم is
+      // the first thing every visitor sees.
+      for (const d of ["2026-08-24", "2026-08-25", "2026-09-01", "2026-12-31", "2027-03-03"]) {
+        const day = await get(`/api/baits/daily?date=${d}`, DailyResponseSchema)
+        expect(textIsClean(day.bait.sadr, day.bait.ajuz), `${d}: ${day.bait.sadr} / ${day.bait.ajuz}`).toBe(true)
+      }
+    })
+
     it("defaults to today in Asia/Riyadh and 400s a malformed date", async () => {
       const today = await get("/api/baits/daily", DailyResponseSchema)
       expect(today.date).toBe(riyadhDay())
@@ -583,6 +596,16 @@ describe("read API on data/fixture.db", () => {
       expect(f.eras.find((e) => e.slug === "jahili")!.count).toBe(
         scalar("SELECT COUNT(*) AS n FROM poems p JOIN eras e ON e.id = p.era_id WHERE e.slug = 'jahili'"),
       )
+    })
+
+    it("treats a filter that filters nothing as no filter at all", async () => {
+      const plain = await get("/api/facets", FacetsResponseSchema)
+      for (const q of ["fame=0", "minBaits=1", "maxBaits=100000"]) {
+        expect(await get(`/api/facets?${q}`, FacetsResponseSchema), q).toEqual(plain)
+      }
+      // …while a filter that does filter still does
+      const famous = await get("/api/facets?fame=3", FacetsResponseSchema)
+      expect(famous.total).toBeLessThanOrEqual(plain.total)
     })
 
     it("keeps every value — and every zero — under a filter", async () => {
@@ -678,5 +701,49 @@ describe("read API on data/fixture.db", () => {
       const res = await api.request("/api/meta")
       expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff")
     })
+
+    it("caches the three payloads that are pure functions of the artefact", async () => {
+      for (const path of ["/api/meta", "/api/stats", "/api/facets"]) {
+        const res = await api.request(path)
+        expect(res.headers.get("Cache-Control"), path).toBe("public, max-age=3600, stale-while-revalidate=86400")
+      }
+      const read = await api.request("/api/poets")
+      expect(read.headers.get("Cache-Control")).toBe("public, max-age=60")
+      // …and never the two that must not be cached
+      const random = await api.request("/api/baits/random")
+      expect(random.headers.get("Cache-Control")).toBe("no-store")
+      const duel = await api.request("/api/game/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: "لا شيء" }),
+      })
+      expect(duel.headers.get("Cache-Control")).toBe("no-store")
+    })
+
+    it("answers HEAD with a Content-Length", async () => {
+      const res = await api.request("/api/meta", { method: "HEAD" })
+      expect(res.status).toBe(200)
+      expect(Number(res.headers.get("Content-Length"))).toBeGreaterThan(0)
+    })
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The static half: a missing hashed asset must not be the SPA shell
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe("the client bundle", () => {
+  it("404s a missing /assets/<hash>, and never stamps it immutable", async () => {
+    const dist = path.join(REPO_ROOT, "dist")
+    if (!fs.existsSync(path.join(dist, "index.html"))) return // dist not built in this run
+    const app = createApp(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), null).app
+    const res = await app.request("/assets/index-OLDHASH0.js")
+    expect(res.status).toBe(404)
+    expect(res.headers.get("Content-Type") ?? "").not.toContain("text/html")
+    expect(res.headers.get("Cache-Control") ?? "").not.toContain("immutable")
+    // a real SPA route still gets the shell
+    const spa = await app.request("/anything")
+    expect(spa.status).toBe(200)
+    expect(spa.headers.get("Content-Type") ?? "").toContain("text/html")
   })
 })

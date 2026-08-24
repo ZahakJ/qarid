@@ -1,10 +1,10 @@
 # قريض (Qarid)
 
 Arabic classical poetry corpus browser **and** مساجلة duel at
-**qarid.avicenna.space** — قَرِيض, the old word for verse itself. **245,675
-poems / 3,570,358 أبيات / 6,997 شعراء** in the built artefact (254,630 rows
-read; 8,949 duplicates and 6 verse-less poems dropped) from `arbml/ashaar`,
-of which **1,761,018 أبيات are game-playable**. Ingested into one read-only
+**qarid.avicenna.space** — قَرِيض, the old word for verse itself. **239,411
+poems / 3,393,887 أبيات / 6,997 شعراء** in the built artefact (254,630 rows
+read; 15,213 duplicate قصائد and 6 verse-less poems dropped) from `arbml/ashaar`,
+of which **1,712,395 أبيات are game-playable**. Ingested into one read-only
 SQLite artefact, browsed by era/بحر/غرض/روي, searched with FTS5, and played:
 the machine recites a بيت, you must answer with one that starts on its روي.
 Single npm package (mimema/leyline shape): Vite 7 + React 19 client, Hono 4
@@ -55,9 +55,11 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
   `/poets`, `/poets/:slug` (poet + signature بيت + first ديوان page + قافية/بحر/غرض
   chips), `/poets/:slug/poems` · **poems** `/poems`, `/poems/:publicId` (أبيات
   paired, first 200), `/poems/:publicId/baits` (offset/limit ≤ 300),
-  `/poems/:publicId/similar` (amendment 9) · **baits** `/baits`, `/baits/random`,
-  `/baits/daily`, `/baits/:id` (prev/next) · **facets** `/facets` · **train**
-  `/train/candidates` · plus the `search` and `game` sub-apps other agents own.
+  `/poems/:publicId/similar` (amendment 9) · **baits** `/baits`,
+  `/baits/random` (era/meter/**poet**/rhyme/first/fame/seed — the three
+  #/wander doors), `/baits/daily`, `/baits/:id` (prev/next) · **facets**
+  `/facets` · **train** `/train/candidates` · plus the `search` and `game`
+  sub-apps other agents own.
   Shared plumbing: `server/dto.ts` is the only place a column name is spelled
   (SQL fragments + row→DTO shaping), `server/query.ts` owns query parsing (zod →
   `400 {error, issues}`), memoised slug→id maps, the poem filter and
@@ -71,14 +73,21 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
   `<body data-app="qarid">`; `BaytPlate` is the only بيت renderer,
   `client/share/renderCard.ts` the only share-card renderer (canvas 1200×630 /
   1080×1080; `shareCard()` delivers by share sheet → clipboard → download and
-  returns which, `CARD_MESSAGE` is the toast for each). Layout in design-ux.md.
+  returns which, `CARD_MESSAGE` is the toast for each). Every «بطاقة» action
+  goes through `openShareCard(bayt)` in `client/share/ShareDialog.tsx` — the
+  preview IS the canvas the download reads — and `<ShareCardHost/>` is mounted
+  once, in App.tsx. Layout in design-ux.md.
+- `client/training/` is تحفيظ's brain, all pure and all tested: `schedule.ts`
+  (SM-2-lite + `buildQueue`), `grade.ts` (normalized Levenshtein + the word
+  diff), `arsenal.ts` (supply / demand / weakness). The views hold no
+  arithmetic. `client/store/trainingStore.ts` owns the slice.
 - Client route map — `#/` home · `#/poets` · `#/poet/<slug>` ·
   `#/poem/<publicId>?bayt=N` · `#/browse?era&meter&theme&rawiyy&letter&sort&p` ·
   `#/search?q&p` · `#/duel` `#/duel/play` `#/duel/summary` · `#/daily` ·
-  `#/favorites?collection` · `#/rules` · `#/stats`. `#/wander`, `#/train`,
-  `#/train/drill`, `#/train/arsenal` parse but render `ViewStub` (v1.5) and
-  **nothing in the UI links to them** — keep it that way until they are built,
-  or the shell starts advertising a page that says "قيد الإنشاء".
+  `#/favorites?collection` · `#/rules` · `#/stats` · `#/wander` ·
+  `#/train` `#/train/drill?letter=<L>` `#/train/arsenal`. All of them render a
+  real view now; «التحفيظ» is in the masthead nav and `#/wander` is reached by
+  `g w` (the arsenal's «تدرّب» is what carries the `?letter`).
   The switch is the `Body` function in `client/App.tsx`: add a `case`, touch
   nothing else. The keymap is `useKeyboard` in `App.tsx` **and**
   `client/data/shortcuts.ts` (HelpOverlay renders the latter) — add to both or
@@ -86,6 +95,15 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 
 ### Invariants (hard-won)
 
+- **Only the OUTERMOST middleware may set a response header and expect it to
+  ship.** `@hono/node-server` swaps in a lazy `Response` whose headers live in a
+  side cache, and hono's `c.header()` rebuilds that response from its ORIGINAL
+  init (`hono/dist/context.js:213`) — so when `compress()` adds
+  `Vary: Accept-Encoding` on the way out, every header an inner middleware wrote
+  onto `c.res.headers` is silently dropped. It is invisible in tests, because
+  `app.request()` sends no `Accept-Encoding` and `compress()` returns early.
+  `Cache-Control` therefore lives in the security-header middleware at the top
+  of `createApp`.
 - **`shared/arabic.ts` is the only normalizer.** FTS index, chain-letter
   derivation, client live letter indicator, search highlighter and `dedup_key`
   all call the same functions. A second copy of "strip tashkeel" is a bug.
@@ -118,7 +136,13 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
   or the 28 circular روي wells overflow the 15.5rem browse rail and the
   neighbouring circle silently swallows the click. The grid asks a
   `container-type: inline-size` shell how many columns it can afford — seven
-  where there is room, four in the rail.
+  where there is room, four in the rail. Same family, two more shapes: a
+  **flex** item's automatic minimum is min-content too, so `.masthead__nav`
+  needs `min-inline-size: 0` or its `overflow-x: auto` never engages and a
+  seventh navlink drags the whole DOCUMENT 100px wider than the phone; and an
+  element sized in `em` (the drill's ruled blank) feeds that minimum, while the
+  same width as a **percentage** does not — which is why `blankWidth()` returns
+  one.
 - **`BaytPlate` already owns j/k/c/f/s on a focused بيت row.** A view that adds
   its own window-level handler for those keys gets them fired TWICE (add, then
   remove). What a view may add is the way *in* — j/k when nothing is focused —
@@ -130,6 +154,13 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
 - Anything a view renders through `BaytPlate` with a ♥ must write to
   `useCollections` (`qarid:v1:favorites`). Component-local favourite state looks
   identical and persists nothing — that bug shipped once.
+- **`qarid:v1:training` has TWO writers.** `duelStore.recordProfile` writes
+  `arsenal[letter].used` at every summary — that is how a مساجلة feeds the
+  ترسانة — while `trainingStore` owns the cards. So every train view calls
+  `reload()` on mount, and every training write merges against what is on disk,
+  taking the larger `used` (it only counts up, so the merge is monotone).
+  `mastered` is NOT merged: it is derived from the cards by `withMastery()` on
+  every write, so a lapse takes محفوظ away again.
 
 ## Spike results
 
@@ -201,32 +232,83 @@ against `data/sample-2000.jsonl` as soon as that file lands.
 
 | fact | measured |
 |---|---|
-| build | **156 s**, peak RSS **617 MB**, deterministic (`build_id a0844e19`) |
-| size | **1,622,286,336 B** (1.51 GiB) at `page_size = 8192` |
-| rows read | 254,630 → **245,675 poems** (8,949 duplicate `dedup_key`, 6 verse-less) |
-| أبيات | **3,570,358** · شعراء **6,997** · `game_baits` **1,761,018** |
+| build | **162 s** (3 passes), peak RSS **739 MB**, deterministic (`build_id 6780a4c8`) |
+| size | **1,602,347,008 B** (1.49 GiB) at `page_size = 8192` |
+| rows read | 254,630 → **239,411 poems** (15,213 duplicate قصائد, 6 verse-less) |
+| أبيات | **3,393,887** · شعراء **6,997** · `game_baits` **1,712,395** |
 | lookups | 12 عصور · 32 meters (16 بحور + التفعيلة/الموشح/النثر/الفولكلور) · 18 أغراض |
-| `combo_counts` | 20,089 rows · unmapped meters **0** |
+| `combo_counts` | 19,682 rows · unmapped meters **0** |
+
+**Dedup is a pass, not a key.** `dedup_key` is `nameKey|مطلع` — no title, no
+length — and `build.ts`'s **pass 0** reads the sources once to decide WHICH copy
+of each key survives (`dedupRank`: most hemistichs, then tashkeel, then a named
+بحر, then aldiwan.net). With the title in the key, 6,264 duplicate قصائد
+survived and landed adjacent on the first screen of التصفح («جدارية» /
+«جدارية..محمود درويش» / «جدارية محمود درويش»); with the title out but first-wins
+in charge, 21,110 أبيات went with the truncated copies it happened to keep.
+After pass 0, `SELECT poet_id, مطلع GROUP BY … HAVING COUNT(*) > 1` is **empty**.
 
 Tier pools (`game_baits`, the «العدد المتاح» the setup screen shows):
-مبتدئ 208,180 · شاعر 769,337 · فحل 1,192,189 · سيف 1,761,018. **شاعر carries a
-`position <= 12` cap** (`TIER_PREDICATES` in `scripts/ingest/ddl.ts`, mirrored in
-`TIERS` in `server/game.ts`): `fame >= 2` alone filled the tier with بيت 300 of a
-500-بيت ديوان, lines nobody has ever quoted. The cap still leaves ≥ 1,612 أبيات
-on the thinnest letter (ظ).
+مبتدئ 95,094 · شاعر 742,384 · فحل 1,170,353 · سيف 1,712,395. Both middle tiers
+carry a **position cap** (`TIER_PREDICATES` in `scripts/ingest/ddl.ts`, mirrored
+in `TIERS` in `server/game.ts`): مبتدئ `fame = 3 AND position <= 2`, شاعر
+`fame >= 2 AND position <= 12`. Fame is a property of the شاعر
+(`shared/famousPoets.ts`), never of the line, so without a cap the tier that
+promises «أبيات مشهورة» recites بيت ٣٠٠ of a 500-بيت ديوان. ≤ 2 is the closest
+thing the artefact has to a per-line popularity signal; it still leaves ≥ 208
+أبيات on the thinnest letter (ظ), and `pickBait` relaxes one tier when a
+combination is dry.
 
 ### Latency on the real corpus (p50, warm, over HTTP)
 
-`/api/meta` 0.5 · `/api/facets` 0.7–8.4 · `/api/stats` 3.1 · `/api/search` 2.8–6.2
-· `/api/poems` filtered 5.1 · `/api/poets` 6.9 · `/api/baits` بيت-mode 22–38 ·
-`/api/game/start` 1.3 · `/api/game/reply` 1.4–3.1 (all 28 letters × 4 tiers < 20 ms)
-· `/api/game/verify` 1.0 exact / 11.0 not-found. Budget is 150 ms; nothing is
-close any more. Three indexes past design-server.md §5 bought that and are
-documented where they are declared (`scripts/ingest/ddl.ts`): `gb_chain`
-(the روي side of بيت-mode browse: 107 → 22 ms, 144 → 7 ms with an عصر),
-`gb_poem` (شاعر-filtered `/api/game/reply`: p90 32 → 4 ms), `gb_bias`
-(amendment 5's tail bias, which used to walk a whole letter looking for
-`opens_conj = 0`: letter و on سيف 149 → < 20 ms).
+`/api/meta` 0.7 · `/api/stats` 3.0 · `/api/search` 1.3–20 · `/api/poems`
+filtered 5.1 · `/api/poets` 6.9 · `/api/baits` بيت-mode 22–38 · `/api/baits`
+unfiltered any page 13–18 · `/api/baits/daily` 2.8 · `/api/train/candidates` 15
+· `/api/game/start` 1.3 · `/api/game/reply` 1.4–6 (all 28 letters × 4 tiers
+< 20 ms) · `/api/game/verify` 2.0 exact / 11.0 not-found. Budget is 150 ms.
+
+**`/api/facets` is 0.7 ms warm and up to 230 ms COLD.** The unfiltered payload
+comes from `meta.facets_json`; every filtered combination is six GROUP BYs over
+245K قصائد — `?first=ا` 102 ms, `?rhyme=ر&first=ا` 149 ms, `?lang=فصيح` 232 ms —
+and is then memoised for the life of the process (the artefact is immutable, so
+the answer is a pure function of the query). The rail's own letters are the
+expensive ones; ظ/ذ/غ are single digits cold.
+
+Five indexes past design-server.md §5 bought the rest, each documented where it
+is declared (`scripts/ingest/ddl.ts`): `gb_chain` (the روي side of بيت-mode
+browse: 107 → 22 ms), `gb_poem` (شاعر-filtered `/api/game/reply`: p90 32 → 4 ms),
+`gb_bias` (amendment 5's tail bias: و on سيف 149 → < 20 ms), `gb_fame`
+(unfiltered `/api/baits`, which sorted 1.7M rows into a temp b-tree: page 10,000
+836 → 18 ms), `gb_train` (`/api/train/candidates`: 153 → 15 ms, together with
+sorting a narrow subquery instead of the joined rows).
+
+**Every SQLite call is synchronous on the one event loop.** `node:sqlite`'s
+`StatementSync` blocks, and `server/index.ts` is one process with no worker, so
+latency is additive across concurrent clients: eight concurrent deep
+`/api/baits` pages used to make `/healthz` take 6.6 s (now 105 ms), one used to
+make it take 833 ms (now 0.9 ms). The fixes above are containment; the
+structural answer — a worker thread holding the handle, `server/dto.ts` callers
+async — is still unbuilt, so any NEW route that can run long is a route that can
+stall every other visitor.
+
+### Serving rules the wire enforces
+
+- **`/api/*` carries `Cache-Control`** (`cachePolicy` in `server/app.ts`):
+  meta/stats/facets an hour + `stale-while-revalidate`, other reads a minute,
+  `/api/baits/random` and the duel `no-store`. Set it in the OUTERMOST
+  middleware or not at all — see the invariant below.
+- **A missing `/assets/<hash>` is a 404**, never the SPA shell: `notFound`
+  returning index.html at 200 under a hashed JS URL is a blank page for any tab
+  still holding a pre-deploy index.html, cached `immutable` for a year.
+- **`compress()` is mounted on `*`**, not just `/api/*` — the bundle is the
+  biggest thing this server sends (index.js 496 KB → 149 KB).
+- **`/api/game/*` bodies are capped at 64 KB** (`MAX_GAME_BODY`), counted off
+  the stream and not just the `Content-Length` header. Six concurrent 67 MB
+  bodies used to add 577 MB of RSS before the schema could reject them.
+- **The rate limiter keys on `CF-Connecting-IP`, then `X-Real-IP`, then the
+  RIGHT-most `X-Forwarded-For` hop.** Cloudflare APPENDS the true client to a
+  client-supplied XFF, so the left-most entry is attacker text: keyed on it,
+  60 requests got 59 tokens instead of 12.
 
 ### Corpus quirks to know before you "fix" them
 
@@ -236,7 +318,17 @@ documented where they are declared (`scripts/ingest/ddl.ts`): `gb_chain`
   in ingest, not a patch in a view.
 - Some مطالع carry the scraper's own damage («لَمء» for «لَمْ»); some قصائد are
   labelled `عمودية`, which is a form, not a بحر, and shows as a chip. Both are
-  the source's, not the pipeline's.
+  the source's, not the pipeline's. One shape of that damage IS gated: بيت اليوم
+  refuses a hemistich that begins with an orphaned letter («… معاهده الغر» /
+  «ر ويروى …», a word cut at a line break), because it is the one بيت every
+  visitor sees — `textIsClean` in `server/routes/baits.ts`.
+- **The same صدر can carry a different روي under a different شاعر** — 21,739
+  groups, 69,139 أبيات. A صدر-only answer is therefore resolved by
+  `po.fame DESC, b.position ASC, b.id ASC` (never rowid), re-ranked on the عجز
+  when the player supplied one, and routed to `ambiguous` when the copies fame
+  cannot separate would chain on different letters (`exactCopies`/`chainClash`
+  in `server/game.ts`). «قفا نبك من ذكرى حبيب ومنزل» used to resolve to أبو
+  العباس الجراوي and demand ب.
 - 39.8% of قصائد have no بحر at all — every بحر facet count is a count of the
   60% that do.
 

@@ -67,13 +67,22 @@ export function trainRoutes(db: Db, _config: Config): Hono {
     if (total === 0) return c.json({ items: [], total: 0 })
 
     const start = seedBucket(q.seed) % BUCKET_COUNT
+    // The sort runs over `game_baits` ALONE and only the ≤10 survivors are
+    // joined out — the house rule every other route follows (CLAUDE.md). Sorting
+    // the joined rows instead made SQLite materialise the whole fame-3 slice
+    // (208,180 أبيات × four joins) before the LIMIT could bite: p50 153 ms,
+    // against 10 ms for the same answer.
     const page = (op: ">=" | "<", take: number): Row[] =>
       db
         .q(
           `SELECT ${BAIT_COLS}, ${BAIT_CONTEXT_COLS}
-           FROM game_baits gb JOIN baits b ON b.id = gb.bait_id ${BAIT_JOINS}
-           WHERE ${cond} AND gb.bucket ${op} ?
-           ORDER BY gb.bucket ASC, gb.rand ASC, gb.bait_id ASC LIMIT ?`,
+           FROM (SELECT gb.bait_id AS bid, gb.bucket AS bk, gb.rand AS rd
+                 FROM game_baits gb
+                 WHERE ${cond} AND gb.bucket ${op} ?
+                 ORDER BY gb.bucket ASC, gb.rand ASC, gb.bait_id ASC LIMIT ?) sel
+           JOIN baits b ON b.id = sel.bid
+           ${BAIT_JOINS}
+           ORDER BY sel.bk ASC, sel.rd ASC, sel.bid ASC`,
         )
         .all(...params, start, take) as Row[]
 

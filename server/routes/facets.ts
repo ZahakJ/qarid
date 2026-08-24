@@ -47,13 +47,14 @@ const LANG_VALUES: readonly LangType[] = ["فصيح", "عامي"]
 export function facetsRoutes(db: Db, _config: Config): Hono {
   const app = new Hono()
   let unfiltered: FacetsResponse | null = null
+  const memo = new Map<string, FacetsResponse>()
 
   app.get("/", (c) => {
     const parsed = FacetsQuerySchema.safeParse(c.req.query())
     if (!parsed.success) {
       return c.json({ error: "bad_query", issues: parsed.error.issues.map((i) => ({ path: [...i.path], message: i.message })) }, 400)
     }
-    const q = parsed.data
+    const q = trimNoOps(db, parsed.data)
 
     if (!anyFilter(q)) {
       if (unfiltered === null) {
@@ -63,10 +64,65 @@ export function facetsRoutes(db: Db, _config: Config): Hono {
       return c.json(unfiltered)
     }
 
-    return c.json(computeFacets(db, q))
+    // The artefact is immutable, so `computeFacets(q)` is a pure function of the
+    // query — and it is six GROUP BYs over 245,675 قصائد, 88 ms for `?first=ا`
+    // and 285 ms for `?lang=فصيح`, every one of them blocking the event loop for
+    // its whole duration (`node:sqlite` is synchronous). A reader clicking
+    // through the browse rail asks for the same handful of combinations over
+    // and over, so each one is computed once per process.
+    const key = facetKey(q)
+    const hit = memo.get(key)
+    if (hit !== undefined) return c.json(hit)
+    const computed = computeFacets(db, q)
+    if (memo.size >= FACET_MEMO_MAX) memo.clear()
+    memo.set(key, computed)
+    return c.json(computed)
   })
 
   return app
+}
+
+/** Bounded because the query space is not: 28 letters × 12 عصور × 32 بحور × … */
+const FACET_MEMO_MAX = 256
+
+function facetKey(q: FacetsQuery): string {
+  return [q.poet, q.era, q.meter, q.theme, q.rhyme, q.first, q.lang, q.minBaits, q.maxBaits, q.fame]
+    .map((v) => v ?? "")
+    .join("\u0000")
+}
+
+/**
+ * Drop the filters that filter nothing.
+ *
+ * `fame`, `minBaits` and `maxBaits` are not dimensions this response reports,
+ * and they are the expensive ones: `poems_filter` leads with `era_id`, so none
+ * of them has a supporting index and each of the six GROUP BYs re-filters the
+ * whole table — measured p50 `?fame=0` 345 ms, `?minBaits=1` 267 ms,
+ * `?maxBaits=100000` 239 ms. But at their extreme values they are also
+ * tautologies: `poets.fame` is 0..3, every قصيدة in the artefact has at least
+ * one بيت (verse-less poems are dropped at ingest), and nothing has more أبيات
+ * than the longest قصيدة. Recognising that turns three of the four measured
+ * shapes into the cached unfiltered payload — a b-tree lookup — and leaves the
+ * honest ones (`?fame=3`, 71 ms) alone.
+ */
+function trimNoOps(db: Db, q: FacetsQuery): FacetsQuery {
+  const out = { ...q }
+  if (out.fame !== undefined && out.fame <= 0) out.fame = undefined
+  if (out.minBaits !== undefined && out.minBaits <= 1) out.minBaits = undefined
+  if (out.maxBaits !== undefined && out.maxBaits >= maxBaitCount(db)) out.maxBaits = undefined
+  return out
+}
+
+const MAX_BAITS = new WeakMap<object, number>()
+
+/** The longest قصيدة in the artefact — asked once per handle, never changes. */
+function maxBaitCount(db: Db): number {
+  const cached = MAX_BAITS.get(db as object)
+  if (cached !== undefined) return cached
+  const row = db.q("SELECT MAX(bait_count) AS n FROM poems").get() as { n: number | null }
+  const n = Number(row.n ?? 0)
+  MAX_BAITS.set(db as object, n)
+  return n
 }
 
 function anyFilter(q: FacetsQuery): boolean {

@@ -474,8 +474,43 @@ export function fnv1a64Signed(s: string): bigint {
 export function sortName(name: string | null | undefined): string {
   const n = normalizeArabic(name)
   if (n === "") return ""
-  if (n.startsWith("ال") && n.length > 3) return n.slice(2)
+  if (n.startsWith("ال") && n.length > 3 && !startsWithHamzaAlef(name) && !NOT_ARTICLE.has(firstWordOf(n))) {
+    return n.slice(2)
+  }
   return n
+}
+
+/**
+ * Is the first letter of the RAW name a hamza-carrying ألف?
+ *
+ * `normalizeArabic` folds إ/أ/آ → ا before `sortName` ever sees the name, so
+ * «إلياس أبو شبكة» arrives as «الياس ابو شبكة» and the blind prefix strip eats a
+ * definite article that was never there — filing a canonical Mahjar شاعر under
+ * الياء, where no reader will look. The definite article is ALWAYS a plain ألف
+ * (or ٱ, the wasla, which is also not hamza-carrying), so the raw spelling
+ * settles it whenever the source kept the hamza.
+ */
+function startsWithHamzaAlef(raw: string | null | undefined): boolean {
+  for (const ch of raw ?? "") {
+    if (!isArabicLetter(ch)) continue
+    return ch === "أ" || ch === "إ" || ch === "آ"
+  }
+  return false
+}
+
+/**
+ * Names whose «ال» is not the article and which the source spells with a plain
+ * ألف, so `startsWithHamzaAlef` cannot see it. Matched as a WHOLE first word —
+ * «الياسمين» keeps its article, «الياس فياض» does not.
+ *
+ * Four شعراء in the artefact carry this name; two spell it «إلياس» and are
+ * recovered by the raw hamza, two spell it «الياس» and need naming here.
+ */
+const NOT_ARTICLE: ReadonlySet<string> = new Set(["الياس"])
+
+function firstWordOf(norm: string): string {
+  const space = norm.indexOf(" ")
+  return space === -1 ? norm : norm.slice(0, space)
 }
 
 /** The section a شاعر files under in the poets index — one of the 28, or null. */

@@ -245,6 +245,69 @@ export function isPlayableBait(bait: {
 export const UNKNOWN_POET = "شاعر مجهول"
 
 /**
+ * The identity of a قصيدة: شاعر + مطلع, and deliberately NOT its title.
+ *
+ * The title used to be in this key and it is why 6,264 duplicate قصائد (2.5% of
+ * the artefact) survived dedup: the eight source hosts title the same قصيدة
+ * differently, so «جدارية» / «جدارية..محمود درويش» / «جدارية محمود درويش» were
+ * three rows and «إلى متى؟» / «إلى متى ؟» two — and because a famous قصيدة is
+ * exactly the one two sources both carry, they sorted to the TOP of «الأشهر»
+ * and landed adjacent on the first screen of both التصفح and البحث. Measured on
+ * the previous artefact: 5,652 (شاعر, مطلع) groups holding more than one row.
+ *
+ * Nothing about the copy is in the key — not its length, not its tashkeel —
+ * because the key decides WHICH rows are the same قصيدة and `build.ts`'s pass 0
+ * decides which of them survives (`dedupRank`). Putting length in the key
+ * instead would leave every truncated copy standing as its own قصيدة, which is
+ * the same duplicate on the screen wearing a different excuse.
+ */
+export function dedupKeyOf(nameKey: string, hemistichs: readonly string[]): string {
+  return `${nameKey}|${normalizeArabic(hemistichs[0] ?? "")}`
+}
+
+/**
+ * The same key, computed from a RAW row without transforming it — `build.ts`
+ * pass 0 needs it for all 254,630 rows and can afford exactly this much work.
+ * `null` when the row has no verse that survives `cleanText`, which is also the
+ * condition under which `transformPoem` returns `null`, so the two agree by
+ * construction.
+ */
+export function dedupKeyOfRaw(raw: RawPoem): string | null {
+  const rawName = cleanText(stripParenthetical(raw.poetName ?? ""))
+  const nameKey = normalizeArabic(rawName === "" ? UNKNOWN_POET : rawName)
+  for (const v of raw.verses) {
+    const c = cleanText(v)
+    if (c !== "") return dedupKeyOf(nameKey, [c])
+  }
+  return null
+}
+
+/**
+ * Which copy of a قصيدة the artefact keeps, as one comparable number.
+ *
+ * Ranked by hemistich count first, and that is the half that matters: 3,924 of
+ * the duplicate groups hold copies of DIFFERENT lengths (one source truncated
+ * the قصيدة, or merged two hemistichs into one), and first-wins over a stream
+ * would keep whichever copy the parquet happened to reach first — 21,110 أبيات
+ * dropped with the copies it discarded. Longest wins, so the ديوان is the
+ * fullest reading of every قصيدة it holds.
+ *
+ * The three flags break ties in the order a reader would: tashkeel (the whole
+ * verse font exists to render it), then a named بحر (a chip on the card), then
+ * aldiwan.net (the source with the cleanest text of the eight). Only the FIRST
+ * verse is tested for tashkeel — this runs on every raw row and a scraper that
+ * kept the marks kept them throughout.
+ */
+export function dedupRank(raw: RawPoem): number {
+  const tashkeel = TASHKEEL_ANY_RE.test(raw.verses[0] ?? "") ? 4 : 0
+  const meter = (raw.meter ?? "").trim() !== "" ? 2 : 0
+  const aldiwan = (raw.poemUrl ?? "").includes("aldiwan.net") ? 1 : 0
+  return raw.verses.length * 8 + tashkeel + meter + aldiwan
+}
+
+const TASHKEEL_ANY_RE = /[\u064B-\u0652\u0670]/
+
+/**
  * One dataset row → everything `build.ts` needs to write, or `null` when the
  * row has no verse that survives `cleanText` (design-server.md §6: zero-bait
  * poems are dropped, and Pass 2 asserts there are none in the artefact).
@@ -263,7 +326,7 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
   const rawName = cleanText(stripParenthetical(raw.poetName ?? ""))
   const name = rawName === "" ? UNKNOWN_POET : rawName
   const nameKey = normalizeArabic(name)
-  const dedupKey = `${nameKey}|${normalizeArabic(title)}|${normalizeArabic(hemis[0]!)}`
+  const dedupKey = dedupKeyOf(nameKey, hemis)
 
   // ── metre / theme / era / language ──────────────────────────────────────
   const meter = normalizeMeter(raw.meter)

@@ -524,10 +524,17 @@ export const BaitsQuerySchema = z.object({
 })
 export type BaitsQuery = z.infer<typeof BaitsQuerySchema>
 
-/** GET /api/baits/random */
+/**
+ * GET /api/baits/random
+ *
+ * `poet` is what #/wander's «شاعره» door walks on — the route's filter already
+ * joins `poems` for the قافية and البحر doors, so scoping the sample to one
+ * شاعر costs nothing extra.
+ */
 export const RandomBaitQuerySchema = z.object({
   era: optionalStr(SlugSchema),
   meter: optionalStr(SlugSchema),
+  poet: optionalStr(PoetSlugSchema),
   rhyme: optionalStr(ArabicLetterSchema),
   first: optionalStr(ArabicLetterSchema),
   fame: optionalIntParam(0, 3),
@@ -802,6 +809,15 @@ export type TrainCandidatesResponse = z.infer<typeof TrainCandidatesResponseSche
 export const GamePoolResponseSchema = z.object({
   total: z.number().int().nonnegative(),
   byLetter: z.array(letterFacetSchema),
+  /**
+   * What the duel can ACTUALLY draw on: `pickBait` relaxes one tier when the
+   * chosen one is dry (server/game.ts `RELAX`), and every arrow points at a
+   * strictly larger pool, so the honest answer to «هل هذه القيود صالحة للعب؟»
+   * is this number, not `total`. Equal to `total` at «سيف», which relaxes
+   * nowhere. `byLetter` stays the chosen tier's own count — it is the shape of
+   * the pool, and the relax is a fallback, not a promise.
+   */
+  effectiveTotal: z.number().int().nonnegative().optional(),
 })
 export type GamePoolResponse = z.infer<typeof GamePoolResponseSchema>
 
@@ -903,6 +919,15 @@ export const GameHintRequestSchema = z.object({
   baitId: z.number().int().positive().nullish().transform((v) => v ?? undefined),
   /** switch_letter: the letter being abandoned, so the server picks a different one */
   letter: ArabicLetterSchema.nullish().transform((v) => v ?? undefined),
+  /**
+   * The duel's chain mode — the same field `verify`/`reply` carry, and for the
+   * same reason: a hint describes a بيت that must ANSWER the required letter,
+   * and which letter that is depends on the mode. Without it every hint bought
+   * in `literal` mode described a بيت on the روي — the one letter the server
+   * would then refuse — and «بدّل الحرف» handed back a chain state the play
+   * screen rendered as the new wall while `verifyAnswer` demanded another.
+   */
+  mode: ChainModeSchema.default("rhyme"),
   difficulty: DifficultySchema.default("normal"),
   filters: GameFiltersSchema.optional(),
   seed: SeedSchema.optional(),
@@ -949,7 +974,19 @@ export const GameNoBaitSchema = z.object({
 export const GameStartResponseSchema = z.discriminatedUnion("ok", [GameStartOkSchema, GameNoBaitSchema])
 export type GameStartResponse = z.infer<typeof GameStartResponseSchema>
 
-export const GameReplyOkSchema = z.object({ ok: z.literal(true), seed: z.string().nullable(), ...servedBaitShape })
+export const GameReplyOkSchema = z.object({
+  ok: z.literal(true),
+  seed: z.string().nullable(),
+  /**
+   * The opponent had to step OUTSIDE the «القيود» to answer at all — every tier
+   * inside them was dry on this letter. The alternative is `no_bait`, which the
+   * client scores as «أفحمتَ الخصم» (+500) and which a thin عصر×بحر pair makes
+   * farmable in one move (server/game.ts `relaxFilters`). Absent means the
+   * reply came from inside the filters, as asked.
+   */
+  relaxed: z.boolean().optional(),
+  ...servedBaitShape,
+})
 
 /**
  * POST /api/game/reply → the opponent's بيت, or `no_bait`, which the client

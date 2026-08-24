@@ -7,6 +7,8 @@ import type { RawPoem } from "./readers.ts"
 import {
   aldiwanIdFrom,
   bareLength,
+  dedupKeyOfRaw,
+  dedupRank,
   fallbackPoetSlug,
   isPlayableBait,
   modalRawiyy,
@@ -188,11 +190,36 @@ describe("transformPoem — identity", () => {
     expect(t.poet.nameKey).toBe(normalizeArabic("بشارة الخوري"))
   })
 
-  it("builds dedup_key from normalised name|title|first hemistich", () => {
+  it("builds dedup_key from normalised name|first hemistich — never the title", () => {
     const t = must(raw({ verses: MUTANABBI, title: "على قدر", poetName: "المتنبي" }))
-    expect(t.dedupKey).toBe(
-      `${normalizeArabic("المتنبي")}|${normalizeArabic("على قدر")}|${normalizeArabic(MUTANABBI[0]!)}`,
-    )
+    expect(t.dedupKey).toBe(`${normalizeArabic("المتنبي")}|${normalizeArabic(MUTANABBI[0]!)}`)
+  })
+
+  it("gives one قصيدة the same key under the eight sources' eight titles", () => {
+    // «جدارية» / «جدارية..محمود درويش» / «جدارية محمود درويش» were three rows
+    // in the artefact, adjacent on the first screen of التصفح.
+    const key = (title: string) => must(raw({ verses: MUTANABBI, title, poetName: "محمود درويش" })).dedupKey
+    expect(key("جدارية")).toBe(key("جدارية..محمود درويش"))
+    expect(key("جدارية محمود درويش")).toBe(key("جدارية"))
+    expect(key("إلى متى؟")).toBe(key("إلى متى ؟"))
+  })
+
+  it("gives a truncated copy the SAME key, and ranks it below the whole قصيدة", () => {
+    // build.ts pass 0 keeps the highest-ranked copy of a key, so a source that
+    // stored five أبيات of a hundred-بيت قصيدة never wins.
+    const whole = raw({ verses: MUTANABBI, poetName: "المتنبي" })
+    const cut = raw({ verses: MUTANABBI.slice(0, 2), poetName: "المتنبي" })
+    expect(must(cut).dedupKey).toBe(must(whole).dedupKey)
+    expect(dedupKeyOfRaw(cut)).toBe(must(whole).dedupKey)
+    expect(dedupRank(cut)).toBeLessThan(dedupRank(whole))
+    // …and among equals, the tashkeel'd / بحر-carrying / aldiwan copy wins
+    const bare = raw({ verses: ["ابى الضيم والفؤاد ابى", "فقام من نومه وسنان"], meter: null, poemUrl: null })
+    const rich = raw({
+      verses: ["أَبى الضَيمُ وَالفُؤادُ أَبى", "فَقامَ مِن نَومِهِ وَسنان"],
+      meter: "بحر الكامل",
+      poemUrl: "https://www.aldiwan.net/poem1.html",
+    })
+    expect(dedupRank(rich)).toBeGreaterThan(dedupRank(bare))
   })
 
   it("collapses ا/أ, ة/ه and ى/ي spellings onto ONE dedup_key and ONE name_key", () => {

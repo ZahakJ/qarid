@@ -107,25 +107,39 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
 }
 
 /**
- * The caller's identity.
+ * The caller's identity — and every part of this order is about which bytes the
+ * caller controls.
  *
- * `X-Forwarded-For` is trusted because qarid only ever answers through the
- * `cf-qarid` tunnel on 127.0.0.1 (CLAUDE.md deploy): cloudflared sets the
- * header, nothing else can reach the socket, and without it every request would
+ * qarid only ever answers through the `cf-qarid` tunnel on 127.0.0.1 (CLAUDE.md
+ * deploy), so some forwarded header has to be believed or every request would
  * share one bucket keyed `127.0.0.1` and the first player would rate-limit the
- * rest of the world. The left-most entry is the client per the header's spec.
+ * rest of the world. But NOT the left-most `X-Forwarded-For` hop, which is what
+ * this used to read: Cloudflare APPENDS the true client IP to a client-supplied
+ * `X-Forwarded-For` rather than replacing it, so the left-most element is
+ * whatever the attacker typed. Measured against the real server: 25 POSTs with
+ * one fixed XFF gave 12×200 then 13×429 (the bucket works), while 60 POSTs with
+ * a rotating left-most hop gave 59×200 — the limiter keyed on attacker input
+ * and handed out a fresh bucket per request.
+ *
+ * So: `CF-Connecting-IP` first (the edge overwrites it and it cannot be spoofed
+ * through the tunnel), then `X-Real-IP`, then the RIGHT-most `X-Forwarded-For`
+ * hop — the one the last trusted proxy appended — and only then the socket.
  *
  * `app.request()` in a test has no socket at all — hence the `local` fallback,
  * which is also what makes the 429 test possible.
  */
 export function clientKey(c: Context): string {
+  const real = c.req.header("cf-connecting-ip") ?? c.req.header("x-real-ip")
+  if (real) {
+    const trimmed = real.trim()
+    if (trimmed) return trimmed
+  }
   const forwarded = c.req.header("x-forwarded-for")
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim()
-    if (first) return first
+    const hops = forwarded.split(",")
+    const last = hops[hops.length - 1]?.trim()
+    if (last) return last
   }
-  const real = c.req.header("cf-connecting-ip") ?? c.req.header("x-real-ip")
-  if (real) return real.trim()
 
   // @hono/node-server hands the raw IncomingMessage through c.env.
   const env = c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined

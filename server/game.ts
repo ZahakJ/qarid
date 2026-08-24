@@ -119,7 +119,7 @@ const RARE_LIST = RARE_RAWIYY_WIDE.map((l) => `'${l}'`).join(",")
  * assertion below fails the process at import time if the two ever drift.
  */
 const TIERS: Readonly<Record<Difficulty, { fame: readonly number[]; extra: string | null }>> = {
-  easy: { fame: [3], extra: "gb.position <= 6" },
+  easy: { fame: [3], extra: "gb.position <= 2" },
   normal: { fame: [3, 2], extra: "gb.position <= 12" },
   hard: { fame: [2, 1, 0], extra: null },
   brutal: { fame: [3, 2, 1, 0], extra: null },
@@ -162,6 +162,9 @@ const RELAX: Readonly<Record<Difficulty, Difficulty | null>> = {
   hard: "brutal",
   brutal: null,
 }
+
+/** The relax map, for `/api/game/pool`'s «العدد المتاح» — see `effectiveTotal`. */
+export { RELAX as RELAX_TIER }
 
 /**
  * The tail bias a difficulty implies when the client did not set one.
@@ -339,13 +342,31 @@ export { COMBO_ANY, COMBO_NONE }
  * (design-server.md §8 defines the field only for `rhyme` mode, which had no
  * `literal` mode when it was written.)
  */
+/**
+ * The one place a chain mode turns two stored letters into the letter the next
+ * answer must open on. `chainState` reads it off a served row; the hint route
+ * reads it off a bare `baits` row (it has no join to spare). Two spellings of
+ * this expression is how `/api/game/hint` ended up describing a بيت on the روي
+ * while `verifyAnswer` demanded the literal ending.
+ *
+ * The fallback matters as much as the choice: a بيت whose عجز the source never
+ * had has neither letter, and `'ا'` keeps the duel moving rather than throwing.
+ */
+export function requiredLetterOf(
+  rawiyy: ArabicLetter | null,
+  lastLetter: ArabicLetter | null,
+  mode: ChainMode,
+): ArabicLetter {
+  return ((mode === "literal" ? lastLetter ?? rawiyy : rawiyy ?? lastLetter) ?? "ا") as ArabicLetter
+}
+
 export function chainState(row: Row, mode: ChainMode): ChainState {
   const rawiyy = letterOrNull(row.b_rawiyy)
   const lastLetter = letterOrNull(row.b_last_letter)
   const fame = num(row.po_fame)
   const position = num(row.b_position)
 
-  const primary = (mode === "literal" ? lastLetter ?? rawiyy : rawiyy ?? lastLetter) ?? "ا"
+  const primary = requiredLetterOf(rawiyy, lastLetter, mode)
   const peeled = mode === "rhyme" && lastLetter !== null && rawiyy !== null && lastLetter !== rawiyy
 
   return {
@@ -408,12 +429,30 @@ export interface PickOptions {
   seed?: string
   /** `switch_letter` needs a بيت whose روي is NOT the letter being abandoned */
   avoidRawiyy?: string
+  /**
+   * Drop the «القيود» rather than concede — `/api/game/reply` only.
+   *
+   * A conceded reply is «أفحمتَ الخصم»: +500 and the duel ends won. But the
+   * opponent draws from the FILTERED pool while the player answers out of the
+   * whole 3.57M-بيت corpus, so a thin combination (80 of the 12×16 عصر×بحر pairs
+   * hold fewer than 400 أبيات at مبتدئ; جاهلي+هزج holds 2) turns that bonus into
+   * a one-move farm: pick the thin pair, answer with any بيت whose روي the pair
+   * does not carry, collect 500. Applying the filters to the player instead
+   * would be the other half of the asymmetry and would make those combinations
+   * unplayable in the opposite direction — with 165 أبيات to choose from, no
+   * human can answer. So the corner where the corpus cannot answer INSIDE the
+   * القيود is answered outside them, and «أفحمتَ الخصم» goes back to meaning
+   * what it says: the ديوان itself has nothing left on this letter.
+   */
+  relaxFilters?: boolean
 }
 
 export interface PickResult {
   row: Row
   /** the tier actually used — different from `difficulty` after a relax */
   tier: Difficulty
+  /** the «القيود» had to be dropped to answer at all (`relaxFilters` only) */
+  relaxed: boolean
 }
 
 type Bias = "rare" | "no_conj" | "avoid_rare" | "none"
@@ -569,9 +608,6 @@ function weightedLetters(db: Db, base: GbCond, tier: Difficulty, rng: () => numb
  * turns into «أفحمتَ الخصم» (+500, amendment 16).
  */
 export function pickBait(db: Db, opts: PickOptions): PickResult | null {
-  const base = gameFilter(db, opts.filters)
-  if (base.impossible) return null
-
   const excludeBaits = new Set(opts.excludeBaitIds ?? [])
   const excludePoems = new Set(opts.excludePoemIds ?? [])
   // `seedBucket(undefined)` is genuinely random — that is the unseeded path.
@@ -582,26 +618,38 @@ export function pickBait(db: Db, opts: PickOptions): PickResult | null {
   const relaxed = RELAX[opts.difficulty]
   if (relaxed !== null) tiers.push(relaxed)
 
-  for (const tier of tiers) {
-    // When the caller named a letter, `combo_counts` answers "is this
-    // combination exhausted?" with one point lookup instead of a scan
-    // (amendment 2). When it did not, the same table picks a letter to aim at.
-    const letters =
-      opts.letter !== undefined ? [opts.letter] : (weightedLetters(db, base, tier, rng) ?? [undefined])
+  const attempt = (base: GbCond): PickResult | null => {
+    if (base.impossible) return null
+    for (const tier of tiers) {
+      // When the caller named a letter, `combo_counts` answers "is this
+      // combination exhausted?" with one point lookup instead of a scan
+      // (amendment 2). When it did not, the same table picks a letter to aim at.
+      const letters =
+        opts.letter !== undefined ? [opts.letter] : (weightedLetters(db, base, tier, rng) ?? [undefined])
 
-    for (const letter of letters) {
-      if (letter !== undefined && opts.letter !== undefined && comboCount(db, letter, base, tier) === 0) continue
-      for (const bias of biasPasses(opts.tailBias)) {
-        const branches = branchesFor(base, tier, letter, bias, opts.avoidRawiyy)
-        const rows = sampleWindow(db, branches, base.needsPoem, start)
-        const usable = rows.filter((r) => !excludeBaits.has(num(r.b_id)) && !excludePoems.has(num(r.p_id)))
-        if (usable.length === 0) continue
-        const idx = Math.min(usable.length - 1, Math.floor(rng() * usable.length))
-        return { row: usable[idx]!, tier }
+      for (const letter of letters) {
+        if (letter !== undefined && opts.letter !== undefined && comboCount(db, letter, base, tier) === 0) continue
+        for (const bias of biasPasses(opts.tailBias)) {
+          const branches = branchesFor(base, tier, letter, bias, opts.avoidRawiyy)
+          const rows = sampleWindow(db, branches, base.needsPoem, start)
+          const usable = rows.filter((r) => !excludeBaits.has(num(r.b_id)) && !excludePoems.has(num(r.p_id)))
+          if (usable.length === 0) continue
+          const idx = Math.min(usable.length - 1, Math.floor(rng() * usable.length))
+          return { row: usable[idx]!, tier, relaxed: false }
+        }
       }
     }
+    return null
   }
-  return null
+
+  const filtered = attempt(gameFilter(db, opts.filters))
+  if (filtered !== null) return filtered
+  // Every tier is dry inside the «القيود». See `relaxFilters` above for why the
+  // answer to that is the whole ديوان and not a +500 bonus.
+  const hasFilters = Object.keys(opts.filters ?? {}).length > 0
+  if (opts.relaxFilters !== true || !hasFilters) return null
+  const wide = attempt(gameFilter(db, undefined))
+  return wide === null ? null : { ...wide, relaxed: true }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -795,7 +843,7 @@ export function rivalsOf(passing: readonly Scored[], band = AMBIGUOUS_BAND, max 
  * The verifier. Order is design-server.md §8's, with amendment 7's `near_miss`
  * spliced in between the fuzzy gate and `not_found`:
  *
- *   too_short → wrong_letter → exact h_full → exact h_sadr
+ *   too_short → wrong_letter → exact h_full → exact h_sadr (ranked, never rowid)
  *             → FTS AND (jaccard ≥ 0.60) → FTS OR (jaccard ≥ 0.75)
  *             → ambiguous → already_used → incomplete_bait
  *             → near_miss (best ≥ 0.35) → not_found (≤3 suggestions)
@@ -831,10 +879,27 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
   // 3. The exact ladder. `h_full`/`h_sadr` are fnv1a64 over the SAME normalized
   //    string `scripts/ingest/transform.ts` hashed, which is why this works at
   //    all — one normalizer, one hash, no drift (CLAUDE.md invariant).
-  const exact =
-    exactMatch(db, `SELECT ${SERVED_COLS} ${BAIT_FROM} WHERE b.h_full = ? ORDER BY b.id LIMIT 4`, q.normFull, "exact") ??
-    exactMatch(db, `SELECT ${SERVED_COLS} ${BAIT_FROM} WHERE b.h_sadr = ? ORDER BY b.id LIMIT 4`, q.normSadr, "sadr")
-  if (exact !== null) return settle(exact.rows, exact.kind, 1, q, mode, usedBaits, usedPoems)
+  //
+  //    Both rungs return every copy the corpus holds, RANKED (see `exactCopies`)
+  //    — never "whichever id is lowest". The صدر rung then gets two more passes:
+  //    the عجز the player supplied re-ranks it, and copies that would chain on
+  //    different letters are asked about instead of guessed at.
+  let rows = exactCopies(db, "h_full", q.normFull)
+  let kind: MatchKind = "exact"
+  if (rows.length === 0) {
+    rows = exactCopies(db, "h_sadr", q.normSadr)
+    kind = "sadr"
+  }
+  if (rows.length > 0) {
+    if (kind === "sadr") {
+      rows = rankByAjuz(rows, q)
+      const clash = chainClash(rows, mode, q)
+      if (clash !== null) {
+        return { ok: false, reason: "ambiguous", normalized: q.normFull, candidates: clash.map((r) => baitDto(r)) }
+      }
+    }
+    return settle(db, rows, kind, 1, q, mode, usedBaits, usedPoems)
+  }
 
   // 4. Fuzzy. AND first at the loose gate, then OR at the strict one — an OR
   //    query matches on any single word, so it needs a higher bar to mean
@@ -882,7 +947,7 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
         return { ok: false, reason: "wrong_letter", expected, alsoAccepted, got: found as ArabicLetter, normalized: q.normFull }
       }
     }
-    return settle([best.row], "fuzzy", best.score, q, mode, usedBaits, usedPoems)
+    return settle(db, [best.row], "fuzzy", best.score, q, mode, usedBaits, usedPoems)
   }
 
   // 6. amendment 7: anything recognisable enough to name gets a suggestion and
@@ -954,16 +1019,137 @@ export function uncontestedMatch(all: readonly Scored[]): Scored[] {
   return gap < UNIQUE_MARGIN ? [] : [best]
 }
 
-/** Run one exact-hash lookup; `null` when nothing matched. */
-function exactMatch(
-  db: Db,
-  sql: string,
-  norm: string,
-  kind: MatchKind,
-): { rows: Row[]; kind: MatchKind } | null {
-  if (norm === "") return null
-  const rows = db.q(sql).all(fnv1a64Signed(norm)) as Row[]
-  return rows.length === 0 ? null : { rows, kind }
+/**
+ * How many copies of one exact hash the verifier ranks. The corpus holds the
+ * same بيت under up to 51 ids (`h_full`) and the same صدر under up to 295
+ * (`h_sadr`), so a cap is needed; eight is enough to see every distinct روي a
+ * famous صدر carries, and `alreadyUsed` no longer depends on the cap at all.
+ */
+export const EXACT_CANDIDATES = 8
+
+/**
+ * Every copy of an exact hash, BEST FIRST — the rung the whole blocker lived on.
+ *
+ * `ORDER BY b.id` (what this used to be) resolves «قفا نبك من ذكرى حبيب ومنزل»
+ * to whichever of its copies SQLite inserted first: id 50954, أبو العباس
+ * الجراوي, روي ب — not امرؤ القيس, روي ل. That is not a display detail: the
+ * chain letter, the poet, the obscurity and therefore the score are all read
+ * off the row this query returns first. The corpus has 21,739 صدر groups whose
+ * copies carry DIFFERENT روي (69,139 أبيات), so rowid order decides the game on
+ * a large slice of exactly the أبيات people quote.
+ *
+ * `po.fame DESC, b.position ASC, b.id ASC`: the canonical شاعر first, then the
+ * copy where the بيت sits nearest the مطلع, then the deterministic tiebreak.
+ * Every copy is joined out anyway (≤295 rows), so the sort is free.
+ */
+function exactCopies(db: Db, column: "h_full" | "h_sadr", norm: string): Row[] {
+  if (norm === "") return []
+  return db
+    .q(
+      `SELECT ${SERVED_COLS} ${BAIT_FROM} WHERE b.${column} = ?
+       ORDER BY po.fame DESC, b.position ASC, b.id ASC LIMIT ${EXACT_CANDIDATES}`,
+    )
+    .all(fnv1a64Signed(norm)) as Row[]
+}
+
+/**
+ * The صدر rung, re-ranked by the عجز the player actually typed.
+ *
+ * When the answer was «جزى الله الشدائد كل خير / عرفت بها عدوي من صديقي» and
+ * the exact `h_full` missed by one word, the صدر rung matches every copy of
+ * «جزى الله الشدائد كل خير» — including copies whose عجز is a different بيت
+ * entirely («وان جرعننى غصصى بريقى», روي ق, against «عَرَفْتُ بها الصَّديْقَ مِنَ
+ * الْأعَادِي», روي د). Throwing the supplied عجز away and taking the famest copy
+ * would be the same bug in a new coat, so the half the player DID give is what
+ * decides — fame order survives as the tiebreak (a stable sort on ties).
+ */
+function rankByAjuz(rows: Row[], q: SplitText): Row[] {
+  if (!q.split || rows.length < 2) return rows
+  const qTokens = tokensOf(q.normFull)
+  return rows
+    .map((row, i) => ({ row, i, score: jaccard(qTokens, tokensOf(fullNormOf(row))) }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((s) => s.row)
+}
+
+/** A candidate row's own normalized full text — the identity two قصائد share. */
+function fullNormOf(row: Row): string {
+  const sadr = str(row.b_sadr)
+  const ajuz = strOrNull(row.b_ajuz)
+  return ajuz === null ? normalizeArabic(sadr) : normalizeArabic(`${sadr} ${ajuz}`)
+}
+
+/**
+ * The copies of one صدر that would send the duel down DIFFERENT letters, or
+ * `null` when the answer is not in doubt.
+ *
+ * A صدر-only answer («يُقبل الصدر وحده» is printed under the answer box) names
+ * a بيت only as far as its first hemistich, and 21,739 صدر groups in the corpus
+ * disagree about the روي of the second. Picking one and demanding its letter
+ * makes the game unplayable in the most public way possible: the player answers
+ * «قفا نبك من ذكرى حبيب ومنزل» and is then told the chain is on ب.
+ *
+ * Fame still settles what fame can settle — امرؤ القيس outranks أبو العباس
+ * الجراوي and the duel simply moves on — so this fires only when the copies the
+ * verifier cannot separate would chain differently. Then the client's existing
+ * `ambiguous` branch asks («وجدتُ أكثر من بيت»), which costs the player nothing.
+ */
+function chainClash(rows: Row[], mode: ChainMode, q: SplitText): Row[] | null {
+  if (q.split) return null
+  const complete = rows.filter((r) => strOrNull(r.b_ajuz) !== null)
+  const best = complete[0]
+  if (best === undefined) return null
+  const bestFame = num(best.po_fame)
+  const letters = new Set<string>([chainState(best, mode).requiredLetter])
+  const rivals: Row[] = [best]
+  for (const row of complete.slice(1)) {
+    if (num(row.po_fame) < bestFame) continue
+    const letter = chainState(row, mode).requiredLetter
+    if (letters.has(letter)) continue
+    letters.add(letter)
+    rivals.push(row)
+    if (rivals.length === 4) break
+  }
+  return rivals.length >= 2 ? rivals : null
+}
+
+/**
+ * Has any copy of this بيت already been played?
+ *
+ * The candidate list is capped (`EXACT_CANDIDATES`), so testing it alone lets a
+ * بيت held under more copies than the cap be replayed verbatim for a full award
+ * — 953 `h_full` groups (5,919 أبيات) are over the old cap of four. The whole
+ * group is therefore asked for by hash, narrow (`baits_hfull`, two columns), and
+ * only when the duel has actually played something.
+ *
+ * The hash is recomputed from the row's own text with the one normalizer rather
+ * than read back out of the column: `server/` never spells a hash twice.
+ */
+function alreadyUsed(db: Db, row: Row, usedBaits: Set<number>, usedPoems: Set<number>): Row | undefined {
+  if (usedBaits.size === 0 && usedPoems.size === 0) return undefined
+  const copies = db
+    .q("SELECT b.id AS id, b.poem_id AS pid FROM baits b WHERE b.h_full = ?")
+    .all(fnv1a64Signed(fullNormOf(row))) as Row[]
+  for (const copy of copies) {
+    if (usedBaits.has(num(copy.id)) || usedPoems.has(num(copy.pid))) return baitRowById(db, num(copy.id))
+  }
+  return undefined
+}
+
+/**
+ * A complete copy of the same صدر, when every candidate we ranked is missing its
+ * عجز. One index lookup on `baits_hsadr`, and it is the difference between
+ * «هذا البيت ناقص العجز» (which costs the player a life) and simply serving the
+ * copy that has the whole بيت — the corpus stores 24,378 قصائد with an odd
+ * verse count, and which copy of a بيت got truncated is not the player's fault.
+ */
+function completeCopy(db: Db, row: Row): Row | undefined {
+  return db
+    .q(
+      `SELECT ${SERVED_COLS} ${BAIT_FROM} WHERE b.h_sadr = ? AND b.ajuz IS NOT NULL
+       ORDER BY po.fame DESC, b.position ASC, b.id ASC LIMIT 1`,
+    )
+    .get(fnv1a64Signed(normalizeArabic(str(row.b_sadr)))) as Row | undefined
 }
 
 /**
@@ -971,11 +1157,13 @@ function exactMatch(
  * played, is it one of the 24,378 قصائد whose last بيت has no عجز, and
  * otherwise — accept.
  *
- * `already_used` is checked across ALL exact matches, not just the one we would
- * have served: the corpus carries the same بيت under more than one id, and
- * "answer it again with the other copy" is not a legal move.
+ * `already_used` is checked across ALL exact matches AND across every copy the
+ * corpus holds of the بيت about to be served (`alreadyUsed`), not just the ones
+ * that fit under the candidate cap: the corpus carries the same بيت under up to
+ * 51 ids, and "answer it again with the other copy" is not a legal move.
  */
 function settle(
+  db: Db,
   rows: Row[],
   kind: MatchKind,
   confidence: number,
@@ -987,8 +1175,11 @@ function settle(
   const used = rows.find((r) => usedBaits.has(num(r.b_id)) || usedPoems.has(num(r.p_id)))
   if (used !== undefined) return { ok: false, reason: "already_used", bait: baitDto(used) }
 
-  const complete = rows.find((r) => strOrNull(r.b_ajuz) !== null)
+  const complete = rows.find((r) => strOrNull(r.b_ajuz) !== null) ?? completeCopy(db, rows[0]!)
   if (complete === undefined) return { ok: false, reason: "incomplete_bait", bait: baitDto(rows[0]!) }
+
+  const elsewhere = alreadyUsed(db, complete, usedBaits, usedPoems)
+  if (elsewhere !== undefined) return { ok: false, reason: "already_used", bait: baitDto(elsewhere) }
 
   return {
     ok: true,
@@ -1053,16 +1244,31 @@ export function switchLetterBait(
   abandoned: string | undefined,
   filters: GameFilters | undefined,
   seed: string | undefined,
+  mode: ChainMode = "rhyme",
 ): Row | null {
-  for (const difficulty of ["easy", "normal", "brutal"] as const) {
-    const picked = pickBait(db, {
-      difficulty,
-      tailBias: "easy",
-      filters,
-      seed: seed === undefined ? undefined : `switch:${seed}:${abandoned ?? ""}`,
-      avoidRawiyy: abandoned,
-    })
-    if (picked !== null) return picked.row
+  let fallback: Row | null = null
+  for (let attempt = 0; attempt < SWITCH_TRIES; attempt++) {
+    for (const difficulty of ["easy", "normal", "brutal"] as const) {
+      const picked = pickBait(db, {
+        difficulty,
+        tailBias: "easy",
+        filters,
+        seed: seed === undefined ? undefined : `switch:${seed}:${abandoned ?? ""}:${attempt}`,
+        avoidRawiyy: abandoned,
+      })
+      if (picked === null) continue
+      fallback ??= picked.row
+      // `avoidRawiyy` constrains `game_baits.rawiyy`, which is the letter
+      // `rhyme` mode demands. In `literal` mode the wall the player is paying
+      // 150 points to walk away from is the LITERAL final letter, and that is
+      // not in the index — so the pick is checked here and re-seeded when it
+      // hands back the same wall under another name (amendment 8's guarantee).
+      if (mode === "rhyme" || abandoned === undefined) return picked.row
+      if (chainState(picked.row, mode).requiredLetter !== abandoned) return picked.row
+    }
   }
-  return null
+  return fallback
 }
+
+/** How many re-seeds `switchLetterBait` spends dodging the abandoned letter. */
+const SWITCH_TRIES = 4

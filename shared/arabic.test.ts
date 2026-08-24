@@ -431,6 +431,20 @@ describe("sortName / shuhraLetter", () => {
     expect(sortName("الا")).toBe("الا")
   })
 
+  it("does not eat the ألف of إلياس — the article is never hamza-carrying", () => {
+    // normalizeArabic folds إ → ا first, so the raw spelling is what decides.
+    // Four شعراء were filed under الياء by the blind strip, «إلياس أبو شبكة»
+    // (195 قصيدة) among them.
+    expect(shuhraLetter("إلياس أبو شبكة")).toBe("ا")
+    expect(shuhraLetter("إلياس بن المدور اليهودي")).toBe("ا")
+    expect(shuhraLetter("آل ثاني")).toBe("ا")
+    // …and the two copies the sources spell with a plain ألف are named
+    expect(shuhraLetter("الياس فياض")).toBe("ا")
+    expect(shuhraLetter("الياس إده")).toBe("ا")
+    // while a real article on a word that merely starts with ياء still goes
+    expect(shuhraLetter("الياسمين الدمشقي")).toBe("ي")
+  })
+
   it("normalizes first, so the two spellings of أبو نواس group together", () => {
     expect(sortName("أبو نواس")).toBe(sortName("ابو نواس"))
   })

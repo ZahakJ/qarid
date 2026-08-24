@@ -327,7 +327,18 @@ describe("era backfill", () => {
   })
 })
 
-describe("dedup — first row wins", () => {
+describe("dedup — the best copy wins", () => {
+  it("keeps one row per (شاعر, مطلع), whatever the eight sources call it", () => {
+    // The key is `nameKey|matla` (transform.ts `dedupKeyOf`) and pass 0 picks
+    // which copy of it survives, so «جدارية» under three titles is one قصيدة.
+    expect(count("SELECT COUNT(*) n FROM poems")).toBe(count("SELECT COUNT(DISTINCT dedup_key) n FROM poems"))
+    const withMatla = count(
+      `SELECT COUNT(*) n FROM (SELECT p.poet_id, b.sadr FROM poems p JOIN baits b ON b.poem_id = p.id AND b.position = 1
+        GROUP BY p.poet_id, b.sadr HAVING COUNT(*) > 1)`,
+    )
+    expect(withMatla).toBe(0)
+  })
+
   it("drops the second copy of a poem and everything that came with it", () => {
     expect(report.duplicatePoems).toBe(1)
     // the fixture's duplicate carries a poetsgate url; the original is aldiwan's
@@ -415,6 +426,14 @@ describe("meta", () => {
     expect(s.poemLengths.reduce((a, b) => a + b.count, 0)).toBe(report.poems)
     expect(s.topPoets.length).toBeGreaterThan(0)
     expect(s.topPoets[0]!.fame).toBe(3)
+  })
+
+  it("carries the high-frequency term set server/search.ts refuses to rank", () => {
+    const terms = JSON.parse(meta("high_df_terms")) as unknown
+    expect(Array.isArray(terms)).toBe(true)
+    // A 47-poem fixture has nothing near HIGH_DF_MIN, which is itself the
+    // assertion: the guard is off unless the corpus earns it.
+    expect(terms).toEqual([])
   })
 
   it("carries amendment 10's per-letter supply and demand over the game pool", () => {

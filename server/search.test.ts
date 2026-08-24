@@ -24,7 +24,7 @@ import { createApp } from "./app.ts"
 import { loadConfig } from "./config.ts"
 import { openDb, type Db } from "./db.ts"
 import { searchRoutes } from "./routes/search.ts"
-import { SEARCH_SCAN_CAP, SNIPPET_CLOSE, SNIPPET_OPEN } from "./search.ts"
+import { SEARCH_SCAN_CAP, SNIPPET_CLOSE, SNIPPET_OPEN, rankDecision, shouldRank } from "./search.ts"
 
 const config = loadConfig({ HOST: "127.0.0.1", PORT: "5750", NODE_ENV: "test" } as NodeJS.ProcessEnv)
 
@@ -360,5 +360,37 @@ describe("GET /api/search — pagination", () => {
     const body = await search({ q: COMMON, scope: "baits", limit: 40 })
     expect(body.total).toBeLessThanOrEqual(SEARCH_SCAN_CAP)
     expect(SEARCH_SCAN_CAP).toBe(400)
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// The bm25 guard (server/search.ts `highDfTerms`)
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("ranking a query is optional when every word is a particle", () => {
+  const HIGH: ReadonlySet<string> = new Set(["من", "في", "ما"])
+
+  it("skips the ORDER BY when the whole AND query is high-frequency", () => {
+    expect(rankDecision(HIGH, ["من"], "and")).toBe(false)
+    expect(rankDecision(HIGH, ["من", "في"], "and")).toBe(false)
+    // one uncommon word makes ranking affordable again — an AND costs what its
+    // RAREST term costs
+    expect(rankDecision(HIGH, ["من", "الخيل"], "and")).toBe(true)
+  })
+
+  it("is stricter for OR, which walks every posting of every term", () => {
+    expect(rankDecision(HIGH, ["من", "الخيل"], "or")).toBe(false)
+    expect(rankDecision(HIGH, ["الخيل", "السيف"], "or")).toBe(true)
+  })
+
+  it("ranks everything when the artefact never named a high-frequency term", () => {
+    expect(rankDecision(new Set(), ["من"], "and")).toBe(true)
+    expect(rankDecision(HIGH, [], "and")).toBe(true)
+  })
+
+  it("ranks everything on a fixture, whose commonest word is 83 أبيات", async () => {
+    expect(shouldRank(db, [COMMON], "and")).toBe(true)
+    const body = await search({ q: COMMON, scope: "baits" })
+    expect(body.baits.length).toBeGreaterThan(0)
   })
 })

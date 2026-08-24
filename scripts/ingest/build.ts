@@ -40,7 +40,7 @@ import { METERS } from "../../shared/meters.ts"
 import { THEMES } from "../../shared/themes.ts"
 import { BUILD_PRAGMAS, COMBO_ANY, COMBO_NONE, DDL, INDEXES, SCRATCH_DDL, TIER_PREDICATES } from "./ddl.ts"
 import { readRecords } from "./readers.ts"
-import { transformPoem, type TransformedPoem } from "./transform.ts"
+import { dedupKeyOfRaw, dedupRank, transformPoem, type TransformedPoem } from "./transform.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Options and report
@@ -121,7 +121,11 @@ export async function buildDatabase(opts: BuildOptions): Promise<BuildReport> {
     db.exec(SCRATCH_DDL)
 
     const lookups = seedLookups(db)
-    const pass1 = await runPass1(db, opts, lookups, say)
+    const winners = await runPass0(opts, say)
+    const pass1 = await runPass1(db, opts, lookups, winners, say)
+    if (pass1.poems !== winners.size) {
+      throw new Error(`ingest: pass 1 kept ${pass1.poems} poems for ${winners.size} distinct قصائد`)
+    }
     const pass2 = runPass2(db, opts, lookups, pass1, started, say)
 
     return pass2
@@ -187,10 +191,50 @@ interface Pass1Result {
   peakRssMb: number
 }
 
+/**
+ * Pass 0 — which copy of each قصيدة pass 1 is allowed to keep.
+ *
+ * The corpus indexes the same قصيدة more than once (8 source hosts, 5,652
+ * (شاعر, مطلع) groups with more than one row) and dedup is a UNIQUE index over
+ * a streamed insert, i.e. first-wins — so without this pass the artefact keeps
+ * whichever copy the parquet reached first: 3,762 duplicate rows survived on
+ * the previous build because the title was in the key, and keying without the
+ * title but without choosing would have dropped 21,110 أبيات by keeping
+ * truncated copies. So the ordinal of the BEST copy of every key is decided
+ * first (`dedupRank`), and pass 1 keeps exactly those rows.
+ *
+ * The cost is one extra read of the sources: `readRecords` is column-projected
+ * (CLAUDE.md invariant — never the `poem description` column), and this pass
+ * cleans exactly one hemistich and one poet name per row rather than
+ * transforming anything. Measured: +11 s and +90 MB on the 254,630-row corpus.
+ */
+async function runPass0(opts: BuildOptions, say: (m: string) => void): Promise<Map<string, number>> {
+  const best = new Map<string, { rank: number; at: number }>()
+  let ordinal = -1
+  for (const src of opts.sources) {
+    say(`pass 0: ${src}`)
+    for await (const raw of readRecords(src)) {
+      ordinal++
+      const key = dedupKeyOfRaw(raw)
+      if (key === null) continue
+      const rank = dedupRank(raw)
+      const held = best.get(key)
+      // `>` and not `>=`: ties keep the FIRST copy, which is what makes two
+      // builds of the same input identical (amendment 17).
+      if (held === undefined || rank > held.rank) best.set(key, { rank, at: ordinal })
+    }
+  }
+  const winners = new Map<string, number>()
+  for (const [key, held] of best) winners.set(key, held.at)
+  say(`pass 0 done: ${(ordinal + 1).toLocaleString("en")} rows, ${winners.size.toLocaleString("en")} distinct قصائد`)
+  return winners
+}
+
 async function runPass1(
   db: DatabaseSync,
   opts: BuildOptions,
   lookups: Lookups,
+  winners: Map<string, number>,
   say: (m: string) => void,
 ): Promise<Pass1Result> {
   const insPoem = db.prepare(
@@ -235,10 +279,17 @@ async function runPass1(
   for (const src of opts.sources) {
     say(`pass 1: ${src}`)
     for await (const raw of readRecords(src)) {
-      seen++
+      const ordinal = seen++
       const poem = transformPoem(raw)
       if (poem === null) {
         emptyPoems++
+        continue
+      }
+      // Not the copy pass 0 chose — a duplicate قصيدة under another title, or a
+      // shorter reading of it. `dedupKey` is the same string pass 0 keyed on
+      // (`dedupKeyOf`), so the two passes cannot disagree about what a قصيدة is.
+      if (winners.get(poem.dedupKey) !== ordinal) {
+        duplicatePoems++
         continue
       }
       if (poem.meterUnmapped !== null) {
@@ -294,8 +345,9 @@ async function runPass1(
         poem.url,
       )
 
-      // design-server.md §6: first-wins. A dropped duplicate contributes
-      // nothing — not its أبيات, not its votes, not its tallies.
+      // Unreachable now that pass 0 hands out one ordinal per key — kept as
+      // the safety net that made design-server.md §6's "first-wins" true, and
+      // as the thing that would catch a drift between the two passes' keys.
       if (Number(res.changes) === 0) {
         duplicatePoems++
         // A شاعر first met on a duplicate row must not survive as a ghost with
@@ -674,9 +726,35 @@ function writeMeta(db: DatabaseSync, opts: BuildOptions, buildId: string, builtA
     ["facets_json", JSON.stringify(facetsJson)],
     ["stats_json", JSON.stringify(statsJson)],
     ["letters_json", JSON.stringify(letters)],
+    ["high_df_terms", JSON.stringify(highDfTerms(db))],
   ]
   const ins = db.prepare("INSERT INTO meta (key, value) VALUES (?, ?)")
   for (const [k, v] of rows) ins.run(k, v)
+}
+
+/**
+ * A term appearing in this many أبيات or more is one `server/search.ts` will not
+ * rank. 50,000 is where `ORDER BY bm25()` costs ~18 ms on the real corpus: the
+ * ranked scan is linear in document frequency («من», 757,141 أبيات, 287 ms;
+ * «الحب», 26,846, 16 ms) because SQLite must score every posting before it can
+ * order them, and `SEARCH_SCAN_CAP` caps only what comes back.
+ */
+export const HIGH_DF_MIN = 50_000
+
+/**
+ * The terms above that threshold, read straight out of the FTS index with
+ * `fts5vocab` — the same tokenizer that built it, so no normalizer can drift.
+ * 38 terms on the real corpus (من في ما علي ان لا يا قد …), none on a fixture.
+ * The vocab table is `temp.`: the artefact's own schema stays design-server.md
+ * §5's.
+ */
+function highDfTerms(db: DatabaseSync): string[] {
+  db.exec("CREATE VIRTUAL TABLE temp.baits_vocab USING fts5vocab(main, baits_fts, row)")
+  const rows = db
+    .prepare("SELECT term FROM temp.baits_vocab WHERE doc >= ? ORDER BY doc DESC")
+    .all(HIGH_DF_MIN) as Array<{ term: string }>
+  db.exec("DROP TABLE temp.baits_vocab")
+  return rows.map((r) => String(r.term))
 }
 
 /**
@@ -888,7 +966,7 @@ export function assertArtefact(db: DatabaseSync, pass1?: Pick<Pass1Result, "unma
   )
   if (badMeter > 0) fail(`${badMeter} game_baits row(s) are not on a بحر`)
 
-  for (const key of ["build_id", "built_at", "counts_json", "meta_json", "facets_json", "stats_json", "letters_json"]) {
+  for (const key of ["build_id", "built_at", "counts_json", "meta_json", "facets_json", "stats_json", "letters_json", "high_df_terms"]) {
     const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as { value: string } | undefined
     if (row === undefined || row.value === "") fail(`meta.${key} is missing`)
   }

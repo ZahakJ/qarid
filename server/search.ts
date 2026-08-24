@@ -84,15 +84,74 @@ function snippetOf(table: string, column: number, idExpr: string): string {
 }
 
 /**
- * The ranked, bounded scan of one FTS table. `MATERIALIZED` is deliberate: the
- * whole point is that the 400-row cap is paid ONCE and the outer joins never
- * see the full match set.
+ * The bounded scan of one FTS table. `MATERIALIZED` is deliberate: the whole
+ * point is that the 400-row cap is paid ONCE and the outer joins never see the
+ * full match set.
+ *
+ * `ranked = false` drops the `ORDER BY bm25()` — see `highDfTerms` for when and
+ * why. The cap bounds the JOINS either way; only the ORDER BY makes SQLite
+ * visit every posting before it can answer.
  */
-function hitsCte(table: string): string {
+function hitsCte(table: string, ranked: boolean): string {
+  const order = ranked ? "ORDER BY score ASC, rowid ASC " : ""
   return `WITH hits AS MATERIALIZED (
             SELECT rowid AS ref, bm25(${table}) AS score
             FROM ${table} WHERE ${table} MATCH ?
-            ORDER BY score ASC, rowid ASC LIMIT ${SEARCH_SCAN_CAP})`
+            ${order}LIMIT ${SEARCH_SCAN_CAP})`
+}
+
+/**
+ * The terms so common that ranking them costs more than the answer is worth.
+ *
+ * `SEARCH_SCAN_CAP` caps the rows RETURNED, not the rows SCORED: `ORDER BY
+ * bm25()` cannot answer until every posting in the term's list has a score, so
+ * the cost is linear in document frequency and the cap never bites. Measured on
+ * data/qarid.db: «من» (757,141 أبيات) 287 ms ranked against 13 ms unranked,
+ * «في» (721,320) 255 ms, «ما» (323,236) 122 ms — and «من» and «في» are complete
+ * words a reader types, and also the prefix of «منزل»/«فيها» at any pause. Over
+ * HTTP with the omnibox's own shape that was p50 328 ms, 2.2× the 150 ms budget
+ * and 328 ms of a blocked event loop for every other visitor.
+ *
+ * `scripts/ingest/build.ts` derives the set from `fts5vocab` over `baits_fts`
+ * at ingest (`HIGH_DF_MIN` documents, 38 terms on the real corpus) and writes it
+ * to `meta.high_df_terms`; an artefact built before that key simply ranks
+ * everything, exactly as it used to.
+ *
+ * When the whole query lands in that set there is nothing for bm25 to separate
+ * — every hit contains the same near-universal word — so the first 400 by rowid
+ * are as good an answer as the first 400 by score, and 25× cheaper. The rule
+ * differs by mode because the cost does: an AND (or a phrase) is as cheap as
+ * its RAREST term, so one uncommon word makes ranking affordable again; an OR
+ * walks every posting of every term, so a single common one is enough to hurt.
+ */
+const HIGH_DF = new WeakMap<object, ReadonlySet<string>>()
+
+function highDfTerms(db: Db): ReadonlySet<string> {
+  const cached = HIGH_DF.get(db as object)
+  if (cached !== undefined) return cached
+  const row = db.q("SELECT value FROM meta WHERE key = 'high_df_terms'").get() as { value: string } | undefined
+  let set: ReadonlySet<string> = new Set()
+  try {
+    const parsed = row === undefined ? null : JSON.parse(row.value)
+    if (Array.isArray(parsed)) set = new Set(parsed.filter((t): t is string => typeof t === "string"))
+  } catch {
+    set = new Set()
+  }
+  HIGH_DF.set(db as object, set)
+  return set
+}
+
+/** Is ranking this query affordable? See `highDfTerms`. */
+export function shouldRank(db: Db, terms: readonly string[], mode: SearchMode): boolean {
+  return rankDecision(highDfTerms(db), terms, mode)
+}
+
+/** The rule itself, artefact-free so a test can state it in one line. */
+export function rankDecision(high: ReadonlySet<string>, terms: readonly string[], mode: SearchMode): boolean {
+  if (terms.length === 0 || high.size === 0) return true
+  const words = terms.flatMap((t) => t.split(" ")).filter((t) => t !== "")
+  if (words.length === 0) return true
+  return mode === "or" ? !words.some((t) => high.has(t)) : !words.every((t) => high.has(t))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -259,9 +318,9 @@ interface Ranked {
  * The bounded ranked scan, filtered. Returns at most `SEARCH_SCAN_CAP` rows in
  * rank order — which is also why `total` is "within the bounded scan".
  */
-function rankedRefs(db: Db, table: string, joins: string, filter: SqlFilter, match: string): Ranked[] {
+function rankedRefs(db: Db, table: string, joins: string, filter: SqlFilter, match: string, ranked = true): Ranked[] {
   const rows = db
-    .q(`${hitsCte(table)} SELECT h.ref AS ref, h.score AS score FROM hits h ${joins} WHERE ${filter.where} ORDER BY h.score ASC, h.ref ASC`)
+    .q(`${hitsCte(table, ranked)} SELECT h.ref AS ref, h.score AS score FROM hits h ${joins} WHERE ${filter.where} ORDER BY h.score ASC, h.ref ASC`)
     .all(match, ...filter.params) as Row[]
   return rows.map((r) => ({ ref: num(r.ref), score: -num(r.score) }))
 }
@@ -306,7 +365,14 @@ function pageOf(refs: Ranked[], page: number, limit: number): Ranked[] {
   return from >= refs.length ? [] : refs.slice(from, from + limit)
 }
 
-function searchBaits(db: Db, match: string, q: SearchFilters, page: number, limit: number): Page<BaitHit> {
+function searchBaits(
+  db: Db,
+  match: string,
+  q: SearchFilters,
+  page: number,
+  limit: number,
+  ranked = true,
+): Page<BaitHit> {
   const filter = baitFilter(db, q)
   if (filter.impossible) return NONE
 
@@ -315,7 +381,7 @@ function searchBaits(db: Db, match: string, q: SearchFilters, page: number, limi
     : filter.needsBaits
       ? "JOIN baits b ON b.id = h.ref"
       : ""
-  const refs = rankedRefs(db, "baits_fts", joins, filter, match)
+  const refs = rankedRefs(db, "baits_fts", joins, filter, match, ranked)
   const slice = pageOf(refs, page, limit)
   if (slice.length === 0) return { items: [], total: refs.length }
 
@@ -397,7 +463,11 @@ function onePass(db: Db, q: SearchQuery, mode: SearchMode): SearchResult {
   const match = ftsQuery(q.q, mode)
   if (match === "") return EMPTY_RESULT(mode)
 
-  const baits = wants(q.scope, "baits") ? searchBaits(db, match, q, q.page, q.limit) : NONE
+  // Only `baits_fts` gets the guard: it is the 3.57M-row index, and the other
+  // two are 245,675 and 6,997 rows — a whole ranked scan of either is under a
+  // millisecond.
+  const ranked = shouldRank(db, ftsTerms(q.q), mode)
+  const baits = wants(q.scope, "baits") ? searchBaits(db, match, q, q.page, q.limit, ranked) : NONE
   const poems = wants(q.scope, "poems") ? searchPoems(db, match, q, q.page, q.limit) : NONE
   const poets = wants(q.scope, "poets") ? searchPoets(db, match, q, q.page, q.limit) : NONE
 

@@ -28,6 +28,31 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
     h.set("X-Content-Type-Options", "nosniff")
     h.set("Referrer-Policy", "strict-origin-when-cross-origin")
     h.set("Cross-Origin-Opener-Policy", "same-origin")
+
+    /**
+     * Cache-Control on `/api/*`, which had none at all — so Cloudflare cached
+     * nothing and every reload re-derived everything.
+     *
+     * The database is a build artefact (CLAUDE.md invariant): `/api/meta`,
+     * `/api/stats` and `/api/facets` are pure functions of it and cannot change
+     * until it is rebuilt, so they get an hour with a day of
+     * stale-while-revalidate. Every other read gets a minute — enough to absorb
+     * a reload and a back-button, short enough that nothing feels stuck. The
+     * two that must never be cached say so: `/api/baits/random` is a different
+     * بيت every call, and the duel is a POST conversation.
+     *
+     * It lives HERE, in the outermost middleware, and not in an `/api/*` one of
+     * its own — that is not a style choice. `@hono/node-server` swaps in a lazy
+     * `Response` whose headers live in a side cache, and hono's `c.header()`
+     * rebuilds that response from its ORIGINAL init (context.ts:213). So when
+     * `compress()` sets `Vary: Accept-Encoding` on the way out, every header an
+     * INNER middleware wrote directly onto `c.res.headers` is silently dropped.
+     * The last middleware to touch the headers is the only one that can be sure
+     * they ship, and that is this one.
+     */
+    if (c.req.path.startsWith("/api/") && c.res.ok && !h.has("Cache-Control")) {
+      h.set("Cache-Control", cachePolicy(c.req.path, c.req.method))
+    }
     const type = h.get("content-type") ?? ""
     if (type.includes("text/html")) {
       h.set(
@@ -51,7 +76,46 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
 
   app.get("/healthz", (c) => c.text("ok"))
 
-  app.use("/api/*", compress())
+  /**
+   * Compression, everywhere — not just `/api/*`.
+   *
+   * The client bundle is the biggest thing this server sends and it was going
+   * out raw: a cold `#/` was 11 requests and 727 KB, of which index-*.js is
+   * 453,382 B (135,539 B gzipped) and index-*.css 67,026 B (11,713 B) — ~373 KB
+   * of avoidable transfer per first load. Cloudflare would compress it at the
+   * edge for the public hostname, but not the origin→edge hop, not
+   * `npm run preview` and not a direct hit on 8010.
+   *
+   * hono's `compress()` already skips what must not be touched: HEAD, an
+   * existing `Content-Encoding`, `206`, bodies under 1 KB, `no-transform`, and
+   * anything outside its compressible-content-type list — so the 223 KB of
+   * woff2 (already compressed) is correctly left alone.
+   */
+  app.use("*", compress())
+
+  /**
+   * `HEAD` never reaches `compress()` (it returns early), and nothing else sets
+   * a length on a streamed JSON body, so `curl -I` on any /api route came back
+   * 200 with neither `content-length` nor `content-encoding` — unusable for a
+   * monitor that probes size. The body is drained here and its byte count
+   * reported, which is exactly what HEAD promises: the GET headers, no body.
+   */
+  app.use("*", async (c, next) => {
+    await next()
+    // The method test comes FIRST and nothing above it may touch `c.res.body`:
+    // @hono/node-server hands back a lazy Response whose headers live in a
+    // side cache until someone reads the body, and reading it rebuilds the
+    // response from its ORIGINAL init — silently dropping every header an inner
+    // middleware set (this ate the Cache-Control below for a while). Headers
+    // are snapshotted before the body is drained for the same reason.
+    if (c.req.method !== "HEAD") return
+    const status = c.res.status
+    const headers = new Headers(c.res.headers)
+    if (headers.has("content-length")) return
+    const body = await c.res.arrayBuffer()
+    headers.set("Content-Length", String(body.byteLength))
+    c.res = new Response(null, { status, headers })
+  })
 
   // Every /api route needs the corpus; answer honestly when it is absent.
   app.use("/api/*", async (c, next) => {
@@ -95,6 +159,15 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
     })
     app.notFound((c) => {
       if (c.req.path.startsWith("/api/")) return c.json({ error: "not_found" }, 404)
+      // A missing `/assets/<hash>` is a 404, NOT the SPA shell. Serving
+      // index.html at 200 under a hashed asset URL is how a tab still holding a
+      // pre-deploy index.html gets HTML where it asked for a module — blank
+      // page, `Failed to load module script`, because `nosniff` is set — and
+      // the `/assets/*` middleware above would then stamp that HTML
+      // `immutable, max-age=31536000` in the browser and at the edge, for a
+      // year, under the JS URL. (`c.res.ok` is false here, so the header is not
+      // set either way; both halves of the trap are closed.)
+      if (c.req.path.startsWith("/assets/")) return c.json({ error: "not_found" }, 404)
       c.header("Cache-Control", "no-cache")
       return c.html(indexHtml, 200)
     })
@@ -103,4 +176,15 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
   }
 
   return { app }
+}
+
+/** How long one `/api` response may be reused. See the middleware above. */
+function cachePolicy(path: string, method: string): string {
+  if (method !== "GET" && method !== "HEAD") return "no-store"
+  if (path.startsWith("/api/game/")) return path === "/api/game/pool" ? "public, max-age=3600" : "no-store"
+  if (path === "/api/baits/random") return "no-store"
+  if (path === "/api/meta" || path === "/api/stats" || path === "/api/facets") {
+    return "public, max-age=3600, stale-while-revalidate=86400"
+  }
+  return "public, max-age=60"
 }

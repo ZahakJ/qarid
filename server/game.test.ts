@@ -15,6 +15,7 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest"
 import type { Hono } from "hono"
 
+import { firstLetterOf, normalizeArabic } from "../shared/arabic.ts"
 import { VERIFY } from "../shared/constants.ts"
 import { RARE_RAWIYY_WIDE_SET } from "../shared/letters.ts"
 import {
@@ -46,6 +47,7 @@ import {
   type Scored,
 } from "./game.ts"
 import { createRateLimiter } from "./ratelimit.ts"
+import { MAX_GAME_BODY } from "./routes/game.ts"
 
 const config = loadConfig({ HOST: "127.0.0.1", PORT: "5762", NODE_ENV: "test" } as NodeJS.ProcessEnv)
 
@@ -631,7 +633,7 @@ describe("POST /api/game/reply", () => {
     const easy = Number(
       (
         db
-          .q("SELECT COUNT(*) AS n FROM game_baits WHERE first_letter = 'ت' AND fame = 3 AND position <= 6")
+          .q("SELECT COUNT(*) AS n FROM game_baits WHERE first_letter = 'ت' AND fame = 3 AND position <= 2")
           .get() as { n: number }
       ).n,
     )
@@ -965,15 +967,209 @@ describe("the token bucket", () => {
     expect((await probe.request("/")).status).toBe(200)
   })
 
-  it("keys on the left-most X-Forwarded-For entry", async () => {
+  it("keys on the LAST X-Forwarded-For hop — the left-most one is the caller's own text", async () => {
     const limiter = createRateLimiter({ tokens: 1, windowMs: 10_000 })
     const probe = new (await import("hono")).Hono()
     probe.use("*", limiter.middleware)
     probe.get("/", (c) => c.text("ok"))
     const h = (xff: string) => ({ headers: { "x-forwarded-for": xff } })
+
+    // Cloudflare appends the true client to whatever XFF arrived, so rotating
+    // the left-most entry must not mint a fresh bucket per request (it did:
+    // 60 requests, 59 allowed).
     expect((await probe.request("/", h("198.51.100.1, 10.0.0.1"))).status).toBe(200)
-    expect((await probe.request("/", h("198.51.100.1, 10.0.0.99"))).status).toBe(429)
-    expect((await probe.request("/", h("198.51.100.2, 10.0.0.1"))).status).toBe(200)
+    expect((await probe.request("/", h("198.51.100.2, 10.0.0.1"))).status).toBe(429)
+    expect((await probe.request("/", h("203.0.113.9, 10.0.0.1"))).status).toBe(429)
+    // A different LAST hop is a different caller.
+    expect((await probe.request("/", h("198.51.100.1, 10.0.0.2"))).status).toBe(200)
     expect(limiter.size()).toBe(2)
+  })
+
+  it("prefers CF-Connecting-IP over anything the client can write", async () => {
+    const limiter = createRateLimiter({ tokens: 1, windowMs: 10_000 })
+    const probe = new (await import("hono")).Hono()
+    probe.use("*", limiter.middleware)
+    probe.get("/", (c) => c.text("ok"))
+    const h = (xff: string) => ({
+      headers: { "x-forwarded-for": xff, "cf-connecting-ip": "203.0.113.5" },
+    })
+    expect((await probe.request("/", h("9.9.9.9, 10.0.0.1"))).status).toBe(200)
+    expect((await probe.request("/", h("8.8.8.8, 10.0.0.2"))).status).toBe(429)
+    expect(limiter.size()).toBe(1)
+  })
+})
+
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Which copy of a duplicated بيت the verifier resolves to
+//
+// The fixture carries the corpus's own shape (see test/fixtures/…jsonl): one
+// صدر under three شعراء with two different روي, and one صدر under two EQUALLY
+// famous شعراء with two different روي. The obscure copies are written first, so
+// they hold the lower bait ids — which is precisely how `ORDER BY b.id` used to
+// decide the chain letter of «قفا نبك من ذكرى حبيب ومنزل».
+// ═════════════════════════════════════════════════════════════════════════════
+
+const QIFA = "قِفا نَبكِ مِن ذِكرى حَبيبٍ وَمَنزِلِ"
+const QIFA_AJUZ = "بِسِقطِ اللِوى بَينَ الدَخولِ فَحَومَلِ"
+const JARAWI_AJUZ = "فَعَهدي بِمَغناها قَريبٌ مُقارِبُ"
+const NUFUS = "وَإِذا كانَت النُفوسُ كِبارا"
+
+describe("POST /api/game/verify — the copy it resolves to", () => {
+  it("answers a صدر-only with the famous copy, not the lowest rowid", async () => {
+    const res = await verify({ text: QIFA })
+    if (!res.ok) throw new Error(`expected an accept, got ${res.reason}`)
+    expect(res.matchKind).toBe("sadr")
+    expect(res.poet.name).toBe("امرؤ القيس")
+    expect(res.requiredLetter).toBe("ل")
+    // …and the score follows the attribution: fame 3 at the مطلع is obscurity 0
+    expect(res.obscurity).toBe(0)
+  })
+
+  it("keeps the copy whose عجز the player actually typed", async () => {
+    const res = await verify({ text: `${QIFA} ${JARAWI_AJUZ}` })
+    if (!res.ok) throw new Error(`expected an accept, got ${res.reason}`)
+    expect(res.matchKind).toBe("exact")
+    expect(res.poet.name).toBe("أبو العباس الجراوي")
+    expect(res.requiredLetter).toBe("ب")
+  })
+
+  it("re-ranks the صدر rung on the عجز when one of its words is misremembered", async () => {
+    // `h_full` misses (one word off), so the صدر rung matches all three copies —
+    // and the half the player DID give is what decides between them, not fame.
+    const res = await verify({ text: `${QIFA} * فَعَهدي بِمَغناها قَريبٌ مُجاوِرُ` })
+    if (!res.ok) throw new Error(`expected an accept, got ${res.reason}`)
+    expect(res.poet.name).toBe("أبو العباس الجراوي")
+    expect(res.requiredLetter).toBe("ب")
+  })
+
+  it("asks which بيت when two equally famous copies chain on different letters", async () => {
+    const res = await verify({ text: NUFUS })
+    if (res.ok) throw new Error("expected the ambiguity branch")
+    expect(res.reason).toBe("ambiguous")
+    if (res.reason !== "ambiguous") return
+    expect(res.candidates.length).toBeGreaterThanOrEqual(2)
+    const letters = new Set(res.candidates.map((b) => b.rawiyy))
+    expect(letters.size).toBeGreaterThanOrEqual(2)
+  })
+
+  it("still resolves a clash the fame order settles", async () => {
+    // Three copies of QIFA, two روي — but only one of them is fame 3.
+    const res = await verify({ text: QIFA })
+    expect(res.ok).toBe(true)
+  })
+
+  it("refuses a بيت already played under ANOTHER of its copies", async () => {
+    // The fixture holds this بيت verbatim under two شعراء. Answer it once to
+    // learn which copy the fuzzy ladder settles on, then play the OTHER id.
+    const misremembered = `${QIFA} * بِسِقطِ اللِوى بَينَ الدَخولِ فَحَومَلا`
+    const first = await verify({ text: misremembered })
+    if (!first.ok) throw new Error(`expected an accept, got ${first.reason}`)
+    const twins = db
+      .q("SELECT b.id AS id FROM baits b WHERE b.sadr = ? AND b.ajuz = ?")
+      .all(QIFA, QIFA_AJUZ) as Array<{ id: number }>
+    expect(twins.length).toBe(2)
+    const other = twins.map((t) => Number(t.id)).find((id) => id !== first.bait.id)
+    expect(other).toBeDefined()
+
+    const again = await verify({ text: misremembered, usedBaitIds: [other!] })
+    if (again.ok) throw new Error("expected already_used")
+    expect(again.reason).toBe("already_used")
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Body size, chain mode, and the «أفحمتَ الخصم» farm
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("POST /api/game/* — the request body", () => {
+  it("refuses a body larger than MAX_GAME_BODY with 413, without parsing it", async () => {
+    const body = JSON.stringify({ letter: "م", seed: "x".repeat(MAX_GAME_BODY) })
+    expect(body.length).toBeGreaterThan(MAX_GAME_BODY)
+    const res = await app.request("/api/game/reply", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": `10.2.0.${ip++ % 250}` },
+      body,
+    })
+    expect(res.status).toBe(413)
+    expect(await res.json()).toMatchObject({ error: "payload_too_large" })
+  })
+
+  it("still answers a body that is merely large-ish", async () => {
+    const res = await post("/api/game/reply", { letter: "م", excludeBaitIds: Array.from({ length: 500 }, (_, i) => i + 1) })
+    expect(res.status).toBe(200)
+  })
+})
+
+describe("POST /api/game/hint — the chain mode", () => {
+  it("describes a بيت on the LITERAL letter in literal mode", async () => {
+    // `peeled` ends on ا though its روي is و: the two modes demand two letters.
+    expect(peeled.lastLetter).not.toBe(peeled.rawiyy)
+    const literal = await post("/api/game/hint", {
+      kind: "first_word",
+      baitId: peeled.id,
+      difficulty: "brutal",
+      mode: "literal",
+      seed: "hint-literal",
+    })
+    const body = literal.body as { ok: boolean; firstWord?: string }
+    expect(body.ok).toBe(true)
+    expect(firstLetterOf(normalizeArabic(body.firstWord ?? ""))).toBe(peeled.lastLetter)
+
+    const rhyme = await post("/api/game/hint", {
+      kind: "first_word",
+      baitId: peeled.id,
+      difficulty: "brutal",
+      mode: "rhyme",
+      seed: "hint-literal",
+    })
+    const rhymeBody = rhyme.body as { ok: boolean; firstWord?: string }
+    expect(firstLetterOf(normalizeArabic(rhymeBody.firstWord ?? ""))).toBe(peeled.rawiyy)
+  })
+
+  it("hands «بدّل الحرف» a chain state in the duel's own mode", async () => {
+    const res = await post("/api/game/hint", { kind: "switch_letter", letter: "ظ", mode: "literal", seed: "switch-lit" })
+    const body = res.body as { ok: boolean; mode?: string; requiredLetter?: string; alsoAccepted?: string[] }
+    expect(body.ok).toBe(true)
+    expect(body.mode).toBe("literal")
+    // literal mode accepts nothing alongside the letter it names…
+    expect(body.alsoAccepted).toEqual([])
+    // …and never hands back the wall the player just paid 150 points to leave
+    expect(body.requiredLetter).not.toBe("ظ")
+  })
+})
+
+describe("POST /api/game/reply — «أفحمتَ الخصم» is earned, not farmed", () => {
+  it("leaves the القيود rather than concede a thin combination", async () => {
+    const thin = { era: "jahili", meter: "hazaj" }
+    const pool = (await get("/api/game/pool?difficulty=easy&era=jahili&meter=hazaj")).body as { total: number }
+    // The fixture's جاهلي×هزج pool is empty or nearly so — exactly the shape
+    // that used to hand the player +500 for one move.
+    expect(pool.total).toBeLessThan(50)
+    const res = GameReplyResponseSchema.parse(
+      (await post("/api/game/reply", { letter: "ل", difficulty: "easy", filters: thin })).body,
+    )
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.relaxed).toBe(true)
+  })
+
+  it("still answers from inside the القيود when it can", async () => {
+    const res = GameReplyResponseSchema.parse((await post("/api/game/reply", { letter: "م" })).body)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.relaxed).toBeUndefined()
+  })
+})
+
+describe("GET /api/game/pool — «العدد المتاح»", () => {
+  it("reports the pool the duel actually draws from, relax included", async () => {
+    const easy = (await get("/api/game/pool?difficulty=easy")).body as { total: number; effectiveTotal?: number }
+    const normal = (await get("/api/game/pool?difficulty=normal")).body as { total: number }
+    expect(easy.effectiveTotal).toBe(normal.total)
+    expect(easy.effectiveTotal!).toBeGreaterThanOrEqual(easy.total)
+    // «سيف» relaxes nowhere, so the two numbers are the same thing
+    const brutal = (await get("/api/game/pool?difficulty=brutal")).body as { total: number; effectiveTotal?: number }
+    expect(brutal.effectiveTotal).toBe(brutal.total)
   })
 })
