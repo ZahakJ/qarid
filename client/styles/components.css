@@ -1,0 +1,442 @@
+/* قريض — shared components: Panel, Chip (4 variants), Segmented, Skeleton,
+ * EmptyState, Breadcrumbs, Toasts, HelpOverlay, buttons.
+ * Chip variants differ by SHAPE + SVG mark, never by hue (design-ux.md §2).
+ */
+
+/* ── Panel ──────────────────────────────────────────────────────────── */
+.panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+  padding: var(--sp-5);
+}
+
+.panel--quiet {
+  background: transparent;
+  border-color: var(--line-1);
+}
+
+.panel--illuminated {
+  border-color: var(--accent-hair);
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-block-end: var(--sp-4);
+}
+
+.panel__title {
+  font-size: var(--fs-ui-4);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.panel__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* corner ornaments ride the panel box */
+.panel__corner {
+  position: absolute;
+  color: var(--accent);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.panel__corner[data-at="ts"] {
+  inset-block-start: 6px;
+  inset-inline-start: 6px;
+}
+.panel__corner[data-at="te"] {
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  transform: scaleX(-1);
+}
+.panel__corner[data-at="bs"] {
+  inset-block-end: 6px;
+  inset-inline-start: 6px;
+  transform: scaleY(-1);
+}
+.panel__corner[data-at="be"] {
+  inset-block-end: 6px;
+  inset-inline-end: 6px;
+  transform: scale(-1);
+}
+
+/* ── Rule ornament ──────────────────────────────────────────────────── */
+.rule {
+  block-size: 1px;
+  background: var(--rule-gold);
+  border: 0;
+  margin: 0;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease);
+}
+
+.btn:hover {
+  border-color: var(--accent-line);
+  color: var(--text-1);
+}
+
+.btn--primary {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.btn--primary:hover {
+  background: rgba(var(--accent-rgb), 0.2);
+  box-shadow: var(--accent-glow);
+}
+
+.btn--ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--text-2);
+  padding-inline: 0.5rem;
+}
+
+.btn--ghost:hover {
+  color: var(--accent);
+  border-color: var(--line-1);
+}
+
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Chip — one component, four shapes ──────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  border: 1px solid var(--line-1);
+  background: var(--bg-1);
+  padding: 0.22em 0.7em;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+  white-space: nowrap;
+}
+
+button.chip {
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--text-1);
+  border-color: var(--line-2);
+}
+
+/* بحر — pill carrying a tafʿila glyph mark */
+.chip--bahr {
+  border-radius: var(--r-pill);
+}
+
+/* غرض — filled pill */
+.chip--gharad {
+  border-radius: var(--r-pill);
+  background: var(--bg-2);
+  border-color: transparent;
+}
+
+/* عصر — square-cornered */
+.chip--asr {
+  border-radius: 2px;
+}
+
+/* روي — circular letter well, Amiri, lapis hairline */
+.chip--rawiyy {
+  inline-size: 1.9em;
+  block-size: 1.9em;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+  border-color: var(--lapis-line);
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.chip[data-active="1"] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.chip[data-zero="1"],
+.chip[disabled] {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.chip__count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78em;
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* The بحر chip's تفعيلة is a mark, not a second label: smaller, quieter, and
+ * in the verse face so it reads as a scansion glyph. */
+.chip__mark {
+  color: var(--accent);
+  opacity: 0.55;
+  font-family: var(--font-verse);
+  font-size: 0.85em;
+  flex: none;
+}
+
+.chip-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+/* ── Segmented ──────────────────────────────────────────────────────── */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+}
+
+.segmented__opt {
+  padding: 0.3rem 0.85rem;
+  border-radius: calc(var(--r-2) - 2px);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-2) var(--ease),
+    color var(--dur-2) var(--ease);
+}
+
+.segmented__opt:hover {
+  color: var(--text-1);
+}
+
+.segmented__opt[aria-pressed="true"],
+.segmented__opt[data-active="1"] {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ── Skeleton ───────────────────────────────────────────────────────── */
+.skeleton {
+  display: block;
+  border-radius: var(--r-1);
+  background: var(--line-1);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.18), transparent);
+  animation: bayt-sweep 1.4s linear infinite;
+}
+
+/* ── EmptyState — carries a real بيت ────────────────────────────────── */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-7) var(--sp-4);
+  text-align: center;
+}
+
+.empty__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.empty__bayt {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: var(--lh-bayt);
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+}
+
+.empty__attrib {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ── Breadcrumbs ────────────────────────────────────────────────────── */
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.crumbs__sep {
+  color: var(--text-3);
+  /* ← is "next" in RTL; the crumb separator points back toward the root */
+  opacity: 0.7;
+}
+
+.crumbs a:hover {
+  color: var(--accent);
+}
+
+.crumbs [aria-current="page"] {
+  color: var(--text-1);
+}
+
+/* ── Toasts ─────────────────────────────────────────────────────────── */
+.toasts {
+  position: fixed;
+  inset-block-end: var(--sp-5);
+  inset-inline-start: 50%;
+  transform: translateX(50%);
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: center;
+  z-index: var(--z-toast);
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0.6rem 1rem;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow-2);
+  font-size: var(--fs-ui-2);
+  max-inline-size: min(30rem, 90vw);
+  animation: toast-in var(--dur-3) var(--ease);
+}
+
+.toast[data-tone="ok"] {
+  border-color: rgba(var(--ok-rgb), 0.5);
+}
+.toast[data-tone="warn"] {
+  border-color: rgba(var(--warn-rgb), 0.5);
+}
+.toast[data-tone="danger"] {
+  border-color: rgba(var(--danger-rgb), 0.5);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── HelpOverlay ────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  place-items: center;
+  padding: var(--sp-4);
+  background: rgba(4, 5, 8, 0.72);
+  backdrop-filter: blur(6px);
+  animation: fade-in var(--dur-2) var(--ease);
+}
+
+.overlay__card {
+  inline-size: min(42rem, 100%);
+  max-block-size: min(80dvh, 44rem);
+  overflow-y: auto;
+  background: var(--bg-1);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-2);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.keys {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-2) var(--sp-4);
+  align-items: baseline;
+  margin-block-start: var(--sp-4);
+}
+
+/* A chord is read left-to-right even on an RTL page: `g` then `h`, not `h g`.
+ * The dt keeps its inline-start (right) position; only its contents flip. */
+.keys dt {
+  justify-self: start;
+  display: flex;
+  gap: 4px;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.keys dd {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  padding: 0.15em 0.45em;
+  border: 1px solid var(--line-2);
+  border-block-end-width: 2px;
+  border-radius: var(--r-1);
+  background: var(--bg-2);
+  color: var(--text-1);
+  direction: ltr;
+  unicode-bidi: isolate;
+}

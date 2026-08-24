@@ -1,0 +1,241 @@
+/* قريض — application shell: masthead, wordmark, nav, view scaffolding. */
+
+.app {
+  min-block-size: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+
+/* ── masthead ───────────────────────────────────────────────────────── */
+.masthead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  background: linear-gradient(var(--bg-0) 62%, rgba(7, 8, 12, 0));
+  backdrop-filter: blur(10px);
+}
+
+.masthead__inner {
+  inline-size: min(var(--col-wide), 100% - 2 * var(--sp-4));
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  padding-block: var(--sp-3);
+}
+
+/* ── wordmark: قريض in Aref Ruqaa, gold, over a dissolving hairline ─── */
+.wordmark {
+  display: inline-grid;
+  justify-items: center;
+  gap: 0.28em;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.wordmark__word {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  /* Aref Ruqaa hangs low; give the descenders room so the rule never clips. */
+  line-height: 1.5;
+  color: var(--accent);
+  text-shadow: 0 0 22px rgba(var(--accent-rgb), 0.28);
+}
+
+.wordmark__rule {
+  inline-size: 100%;
+  block-size: 1px;
+  background: var(--rule-gold);
+}
+
+.wordmark--hero .wordmark__word {
+  font-size: clamp(3.2rem, 2rem + 6vw, 5.5rem);
+}
+
+.wordmark--hero {
+  gap: 0.16em;
+}
+
+.masthead__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.navlink {
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--r-2);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  transition:
+    color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.navlink:hover {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.navlink[aria-current="page"] {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+/* ── main ───────────────────────────────────────────────────────────── */
+.main {
+  inline-size: min(var(--col-wide), 100% - 2 * var(--sp-4));
+  margin-inline: auto;
+  padding-block: var(--sp-6) var(--sp-8);
+}
+
+.main--narrow {
+  inline-size: min(var(--col-narrow), 100% - 2 * var(--sp-4));
+}
+
+.view {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.view__head {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+
+/* Aref Ruqaa's ascenders and tails run far outside the em box — give the line
+ * box room or the heading reads as clipped. */
+.view__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  color: var(--text-1);
+  line-height: 2.2;
+  padding-block-start: 0.1em;
+}
+
+.view__lede {
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+  max-inline-size: var(--col-text);
+}
+
+/* A centred view still wants its panels full-bleed inside the reading column —
+ * only the type is centred, not the boxes. */
+.view--centred {
+  justify-items: stretch;
+  text-align: center;
+}
+
+.view--centred .wordmark,
+.view--centred .segmented {
+  justify-self: center;
+}
+
+.view--centred .view__lede {
+  margin-inline: auto;
+}
+
+.view--centred .view__head {
+  justify-items: center;
+  text-align: center;
+}
+
+/* ── Phase-0 placeholder body ───────────────────────────────────────── */
+.stub {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-6);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-3);
+  background: rgba(255, 255, 255, 0.012);
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+}
+
+/* The hash is ASCII inside an RTL block. `isolate` alone is not enough: the
+ * leading `#/` are neutrals, so they take the paragraph direction and `#/duel`
+ * renders as `duel/#`. The run needs its own LTR direction; `justify-self`
+ * keeps the box itself at the inline-start (right) edge. */
+.stub__route {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+  justify-self: start;
+}
+
+.doors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--sp-3);
+  inline-size: 100%;
+}
+
+.door {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  text-align: start;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+.door:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+  color: var(--text-1);
+}
+
+.door__name {
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+}
+
+.door__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ── footer ─────────────────────────────────────────────────────────── */
+.footer {
+  inline-size: min(var(--col-wide), 100% - 2 * var(--sp-4));
+  margin-inline: auto;
+  padding-block: var(--sp-5);
+  border-block-start: 1px solid var(--line-1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.footer__nib {
+  color: var(--accent);
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .masthead__inner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-2);
+  }
+
+  .masthead__nav {
+    justify-content: center;
+  }
+
+  .wordmark__word {
+    font-size: 1.75rem;
+  }
+}

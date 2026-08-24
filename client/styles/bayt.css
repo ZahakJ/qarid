@@ -1,0 +1,240 @@
+/* قريض — the بيت. design-ux.md §3 (Poem).
+ *
+ * DOM order is sadr, gutter, ajuz. Under RTL the first grid column is the
+ * right-hand one, so the two hemistichs are pushed to the outer margins and
+ * the empty gutter becomes a quiet centre channel — the shape of a printed
+ * diwan. The gutter carries nothing until hover, when a small gold shamsa
+ * fades in at 45%.
+ */
+
+.bayt-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.bayt-row {
+  display: grid;
+  grid-template-columns: var(--bayt-num-col, 4ch) 1fr;
+  align-items: baseline;
+  gap: 0 var(--sp-2);
+  padding-block: var(--sp-2);
+  padding-inline: var(--sp-2);
+  border-inline-start: 2px solid transparent;
+  border-radius: var(--r-1);
+  transition:
+    background-color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+  /* >300-abyat poems: skip layout for offscreen rows instead of virtualizing,
+   * so Ctrl+F, anchors and text selection all keep working (amendments §12).
+   * The intrinsic size keeps the scrollbar honest before a row is laid out. */
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 4.5rem;
+}
+
+.bayt-row:hover,
+.bayt-row:focus-within,
+.bayt-row[data-active="1"] {
+  background: var(--accent-wash);
+  border-inline-start-color: var(--accent);
+}
+
+.bayt-row[data-pulse="1"] {
+  animation: bayt-pulse 900ms var(--ease) 2;
+}
+
+@keyframes bayt-pulse {
+  0%,
+  100% {
+    background: var(--accent-wash);
+  }
+  50% {
+    background: var(--accent-dim);
+  }
+}
+
+/* Verse numbers are Arabic-Indic, quiet, and in the reading font. */
+.bayt-num {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-2);
+  color: var(--text-3);
+  text-align: end;
+  padding-inline-end: var(--sp-2);
+  user-select: none;
+}
+
+/* ── the two-hemistich grid ─────────────────────────────────────────── */
+.bayt {
+  display: grid;
+  grid-template-columns: 1fr var(--gutter, 3.25rem) 1fr;
+  align-items: baseline;
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-md);
+  line-height: var(--lh-bayt);
+  color: var(--text-1);
+}
+
+.bayt .sadr {
+  text-align: start;
+}
+
+.bayt .ajuz {
+  text-align: end;
+}
+
+.bayt .gutter {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease);
+}
+
+.bayt-row:hover .gutter,
+.bayt-row:focus-within .gutter {
+  opacity: 0.45;
+}
+
+/* size steps — persisted in settings (verseSize) */
+.bayt[data-size="sm"] {
+  font-size: var(--fs-bayt-sm);
+}
+.bayt[data-size="md"] {
+  font-size: var(--fs-bayt-md);
+}
+.bayt[data-size="lg"] {
+  font-size: var(--fs-bayt-lg);
+}
+
+/* tashkeel needs the taller leading and one size step up */
+.bayt[data-tashkeel="1"] {
+  line-height: var(--lh-bayt-tashkeel);
+}
+
+/* روي underline — the only place lapis touches ordinary verse */
+.bayt .rawiyy-mark {
+  text-decoration: underline;
+  text-decoration-color: var(--lapis);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.3em;
+}
+
+/* search hit: lapis UNDERLINE, never a fill (amendment 14) */
+.bayt mark,
+.bayt-plate mark {
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+  border-block-end: 1.5px solid var(--lapis);
+  padding-block-end: 0.06em;
+}
+
+/* ── BaytPlate — the standalone, framed بيت ─────────────────────────── */
+.bayt-plate {
+  position: relative;
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+}
+
+.bayt-plate[data-side="them"] {
+  border-inline-start: 2px solid var(--lapis);
+}
+
+.bayt-plate[data-side="you"] {
+  border-inline-start: 2px solid var(--accent);
+}
+
+.bayt-plate__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-4);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.bayt-plate__actions {
+  display: flex;
+  gap: var(--sp-1);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.bayt-plate:hover .bayt-plate__actions,
+.bayt-plate:focus-within .bayt-plate__actions,
+.bayt-row:hover .bayt-plate__actions {
+  opacity: 1;
+}
+
+/* Touch has no hover: keep the rail permanently visible but quiet. */
+@media (hover: none) {
+  .bayt-plate__actions {
+    opacity: 0.55;
+  }
+  .bayt .gutter {
+    opacity: 0.2;
+  }
+}
+
+/* ── narrow: one column, ajuz stepped in behind a hairline ──────────── */
+@media (max-width: 860px) {
+  .bayt {
+    grid-template-columns: 1fr;
+    row-gap: 0;
+  }
+
+  .bayt .sadr,
+  .bayt .ajuz {
+    text-align: start;
+  }
+
+  .bayt .gutter {
+    display: none;
+  }
+
+  .bayt .ajuz {
+    padding-inline-start: 1.75rem;
+    border-inline-start: 1px solid var(--line-1);
+  }
+
+  .bayt-row {
+    grid-template-columns: 3ch 1fr;
+  }
+}
+
+/* ── skeleton: same geometry as the real plate, gold sweep ──────────── */
+.bayt-skeleton {
+  display: grid;
+  grid-template-columns: 1fr var(--gutter, 3.25rem) 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+  block-size: calc(var(--lh-bayt) * 1em);
+}
+
+.bayt-skeleton span {
+  block-size: 0.55em;
+  border-radius: var(--r-pill);
+  background: var(--line-1);
+  position: relative;
+  overflow: hidden;
+}
+
+.bayt-skeleton span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.18), transparent);
+  animation: bayt-sweep 1.4s linear infinite;
+}
+
+@keyframes bayt-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}

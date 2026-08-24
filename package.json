@@ -13,8 +13,10 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "smoke": "node tools/screenshot.mjs",
-    "ingest": "node --env-file-if-exists=.env scripts/ingest/build.ts",
-    "ingest:fixture": "node scripts/ingest/build.ts test/fixtures/ashaar-sample.jsonl data/fixture.db"
+    "ingest": "node --env-file-if-exists=.env scripts/ingest/index.ts build",
+    "ingest:fetch": "node scripts/ingest/index.ts fetch",
+    "ingest:fixture": "node scripts/ingest/index.ts fixture",
+    "ingest:stats": "node scripts/ingest/index.ts stats"
   },
   "dependencies": {
     "@fontsource/amiri": "^5.3.0",

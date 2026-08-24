@@ -26,6 +26,10 @@ export default defineConfig({
       "../shared/**/*.test.ts",
       "../scripts/**/*.test.ts",
       "../client/**/*.test.ts",
+      "../test/**/*.test.ts",
     ],
+    // One real ingest per run: test/fixtureDb.ts builds data/fixture.db through
+    // scripts/ingest/build.ts, which is the artefact every server test opens.
+    globalSetup: ["../test/fixtureDb.ts"],
   },
 })
