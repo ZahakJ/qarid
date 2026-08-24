@@ -4,10 +4,13 @@
  *
  * Three things in here are load-bearing rather than decorative:
  *
- *  1. `.letter-well` is the largest single glyph in the product (2.4rem Amiri)
- *     because the required letter is the whole game. The turn's timer is drawn
- *     as a hairline arc AROUND it, so the two facts a player needs — which
- *     letter, how long — occupy one point of focus instead of two.
+ *  1. `.letter-ind .letter-well` is the largest single glyph in the product
+ *     (2.4rem Amiri) because the required letter is the whole game. The turn's
+ *     timer is drawn as a hairline arc AROUND it, so the two facts a player
+ *     needs — which letter, how long — occupy one point of focus instead of
+ *     two. Every rule in that cluster is scoped under `.letter-ind` and MUST
+ *     stay so: `.letter-well` is also views.css's 28-cell روي grid, and this
+ *     file loads after views.css.
  *  2. `.recite` animates a stepped mask, one step per word, so the opponent's
  *     بيت arrives word by word without `BaytPlate` ever reflowing. The mask
  *     only exists while `[data-reveal]` is on the element; the finished state
@@ -462,54 +465,115 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   border-radius: var(--r-3);
 }
 
+/* ── the «المطلوب → عندك» cluster ────────────────────────────────────
+ *
+ * Rebuilt for v2 §6. Four things it now guarantees, each of which was wrong:
+ *
+ *  1. NO CLASS COLLISION. `.letter-well` is ALSO the browse rail's 28-cell روي
+ *     grid (views.css), and duel.css loads after views.css — so every cell of
+ *     that grid was inheriting this 4.25rem gold disc, overflowing its 15.5rem
+ *     rail and letting the neighbouring circle swallow the click, which is the
+ *     exact failure CLAUDE.md's grid-minimum invariant was written about.
+ *     Everything here is scoped under `.letter-ind`, so the two never meet.
+ *  2. TRUE CIRCLES. `inline-size` + `aspect-ratio: 1` (not a matched
+ *     block-size) — a circle that cannot be distorted by a stretching parent.
+ *  3. THE WELLS SHARE A ROW. Each side is a three-row grid — label / well /
+ *     footnote — with the footnote row a fixed height, so the side that grows
+ *     ghost chips and the side that grows a verdict stay level. Centring two
+ *     unequal columns is what used to drift the two discs apart by 4px.
+ *  4. THE ARC IS CONCENTRIC BY CONSTRUCTION. It is inset a fixed gap on all
+ *     four sides of the well it rings, and its viewBox is square, so the ring
+ *     radius is (well + 2·gap)·0.47 whatever the well measures — no second
+ *     hairline riding on the border.
+ */
+
 .letter-ind {
   display: grid;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   justify-items: center;
+  /* the disc, the ring gap and the footnote band — one place, three sizes */
+  --well: 4.25rem;
+  --well-gap: 7px;
+  --well-foot: 1.75rem;
 }
 
+/* ONE grid holds both sides and the arrow between them, with the three rows
+ * declared — caption / disc / footnote. The two `.letter-ind__side` wrappers
+ * are `display: contents`, so their children are placed directly here and the
+ * two discs are literally in the same grid row: no amount of ghost chips on
+ * one side and verdict text on the other can drift them apart, which is what a
+ * pair of independently-centred flex columns used to do. */
 .letter-ind__row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  grid-template-rows: auto var(--well) var(--well-foot);
   align-items: center;
-  gap: var(--sp-4);
+  justify-items: center;
+  /* room for the ring on both sides of each disc, and for the arrow between */
+  column-gap: var(--sp-5);
+  /* the ring stands `--well-gap` proud of the disc on every side, so the row
+     gap has to clear it before the caption and the ghosts start */
+  row-gap: var(--sp-4);
+  max-inline-size: 100%;
 }
 
 .letter-ind__side {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-1);
+  display: contents;
+}
+
+.letter-ind__row > .letter-ind__side:first-child > * {
+  grid-column: 1;
+}
+
+.letter-ind__row > .letter-ind__side:last-child > * {
+  grid-column: 3;
 }
 
 .letter-ind__label {
+  grid-row: 1;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
 }
 
-.letter-well {
+.letter-ind .letter-well {
+  grid-row: 2;
   position: relative;
   display: grid;
   place-items: center;
-  inline-size: 4.25rem;
-  block-size: 4.25rem;
+  inline-size: var(--well);
+  aspect-ratio: 1;
+  flex: none;
   border-radius: 50%;
   background: var(--accent-dim);
   border: 1px solid var(--accent-line);
 }
 
-.letter-well__glyph {
+/* BASELINE-ALIGNED, not ink-centred. `place-items: center` centres the LINE
+ * BOX, and with `line-height: 1` Amiri's box centre sits 9.5px above the
+ * baseline at 38.4px — so the letter rendered ~3.5px low in the disc.
+ *
+ * The nudge is ONE value for all 28 letters on purpose. Measured with canvas
+ * actualBoundingBox on the isolated forms at 2.4rem Amiri, the ink centre
+ * ranges from 5.5px above the box centre (ك) to 14.5px below it (ج): centring
+ * each letter's own ink would move ا down 4px and ج up 14px and the disc would
+ * visibly jump between turns. Putting the shared BASELINE 6.1px (the mean ink
+ * half-height, (20.4 − 8.2) / 2) below the disc's centre instead typesets the
+ * whole alphabet on one line — 9.5 − 6.1 = 3.4px up, which is 0.09em and
+ * therefore survives every step of the size scale. */
+.letter-ind .letter-well__glyph {
   font-family: var(--font-verse);
   font-size: 2.4rem;
   line-height: 1;
   color: var(--accent);
+  transform: translateY(-0.09em);
 }
 
-.letter-well--typed {
+.letter-ind .letter-well--typed {
   background: none;
   border-color: var(--line-2);
 }
 
-.letter-well--typed .letter-well__glyph {
+.letter-ind .letter-well--typed .letter-well__glyph {
   color: var(--text-2);
 }
 
@@ -532,9 +596,11 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 }
 
 .letter-ind__verdict {
+  grid-row: 3;
+  align-self: center;
   font-size: var(--fs-ui-1);
   color: var(--text-3);
-  min-block-size: 1.2em;
+  white-space: nowrap;
 }
 
 .letter-ind[data-verdict="match"] .letter-ind__verdict,
@@ -546,49 +612,85 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   color: var(--danger);
 }
 
+/* An SVG, not «←». An arrow character is bidi-mirrored in an RTL run by some
+ * shapers and not by others, so the one glyph whose whole job is to point had
+ * a 50% chance of pointing at the wrong disc. Geometry is never reordered. */
 .letter-ind__arrow {
-  color: var(--text-3);
-  font-size: var(--fs-ui-4);
+  grid-column: 2;
+  grid-row: 2;
+  inline-size: 1.75rem;
+  block-size: auto;
+  color: var(--accent-line);
 }
 
+/* The ghosts are the same disc, quieter and a third the size, so the row reads
+ * as «this letter, or these» rather than as two unrelated shapes. */
 .letter-ind__ghosts {
+  grid-row: 3;
+  align-self: center;
   display: inline-flex;
+  align-items: center;
   gap: var(--sp-1);
 }
 
 .letter-ghost {
+  display: grid;
+  place-items: center;
+  inline-size: 1.55rem;
+  aspect-ratio: 1;
+  flex: none;
+  border: 1px dashed var(--line-2);
+  border-radius: 50%;
   font-family: var(--font-verse);
   font-size: var(--fs-ui-2);
+  line-height: 1;
   color: var(--text-3);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-pill);
-  padding-inline: 0.4rem;
+}
+
+/* the same measured baseline offset as the disc — see above */
+.letter-ghost > bdi {
+  transform: translateY(-0.09em);
 }
 
 .letter-ind__clause {
+  max-inline-size: 30rem;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
   text-align: center;
+  text-wrap: balance;
 }
 
+/* Concentric by construction: inset the same gap on all four sides of a disc
+ * that is itself square. The viewBox is 100×100 with r 47, so the ring always
+ * lands 0.47·(well + 2·gap) from the centre — clear of the disc's own border
+ * at every size the scale produces. */
 .letter-arc {
   position: absolute;
-  inset: -6px;
-  inline-size: calc(100% + 12px);
-  block-size: calc(100% + 12px);
-  transform: rotate(-90deg);
+  inset: calc(-1 * var(--well-gap));
+  inline-size: calc(100% + 2 * var(--well-gap));
+  block-size: calc(100% + 2 * var(--well-gap));
+  /* base.css caps every svg at `max-inline-size: 100%`, which here is the
+   * DISC's width — the ring came out the size of the disc it was meant to
+   * surround, dropped a second hairline onto its border, and (RTL, so
+   * `inset-inline-start` is the ignored one when the box is over-constrained)
+   * slid off centre. The ring opts out. */
+  max-inline-size: none;
+  overflow: visible;
+  /* 12 o'clock is where a clock starts; the sweep unwinds with the reading
+     direction, which under RTL is anticlockwise. */
+  transform: rotate(-90deg) scaleX(-1);
 }
 
 .letter-arc__track {
   fill: none;
   stroke: var(--line-1);
-  stroke-width: 2;
+  stroke-width: 3;
 }
 
 .letter-arc__run {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-linecap: round;
   transition: stroke-dashoffset 220ms linear;
 }
@@ -599,7 +701,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 
 .letter-arc[data-tone="danger"] .letter-arc__run {
   stroke: var(--danger);
-  animation: arc-pulse 700ms var(--ease) infinite alternate;
+  animation: arc-pulse 700ms var(--ease-out) infinite alternate;
 }
 
 @keyframes arc-pulse {
@@ -1190,17 +1292,27 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
     gap: var(--sp-2);
   }
 
+  /* One size step down, declared where the cluster declares its sizes — the
+   * disc, its ring and its footnote band all follow from these three, so a
+   * phone gets the same geometry rather than a separately-tuned one. (This
+   * used to name the bare `.letter-well`, which is the browse rail's روي grid
+   * as well: at ≤860px all 28 of ITS cells were being resized too.) */
+  .letter-ind {
+    --well: 3.6rem;
+    --well-gap: 6px;
+    --well-foot: 1.6rem;
+  }
+
   .letter-ind__row {
-    gap: var(--sp-3);
+    column-gap: var(--sp-4);
   }
 
-  .letter-well {
-    inline-size: 3.6rem;
-    block-size: 3.6rem;
-  }
-
-  .letter-well__glyph {
+  .letter-ind .letter-well__glyph {
     font-size: 2rem;
+  }
+
+  .letter-ind__arrow {
+    inline-size: 1.4rem;
   }
 
   .duel-hud {

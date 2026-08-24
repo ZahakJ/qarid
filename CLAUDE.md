@@ -252,6 +252,31 @@ was assembled rather than written. See the invariant below.
   column.** `.letter-head` carries its row height as an inline style; adding a
   percentage height "for the rows that have one" made the lead heading 6,392px
   tall and the شعراء index looked empty.
+- **`.letter-well` is TWO elements, and the stylesheet ORDER decides which one
+  wins.** views.css's 28-cell روي grid and duel.css's 4.25rem required-letter
+  disc share the class, and `client/main.tsx` loads duel.css last — so the
+  disc's un-scoped rules reached every grid cell and each one became a 68px
+  gold circle overlapping its neighbours inside the 15.5rem rail, counts
+  clipped, clicks landing on the wrong letter. Every rule in that cluster is
+  scoped under `.letter-ind` now and `client/styles/styles.test.ts` fails if one
+  is not. The general rule: a stylesheet that loads AFTER views.css may not name
+  a bare class views.css already owns.
+- **A single-class view modifier in views.css is DEAD.** app.css loads after it
+  and sets `.view { gap: var(--sp-5) }`, so `.home`, `.search-view`,
+  `.fav-view`, `.rules-view` and `.stats-view` were each declaring a rhythm the
+  browser never applied — five views rendering at a gap their CSS did not name.
+  They are `.view.home`, `.view.search-view`, … now, and the same trap is why
+  `.browse-head` (a `.view__head`) must say `.view__head.browse-head` to be a
+  flex row at all. Files that load after app.css — poets.css is NOT one of them,
+  duel.css and training.css are — do not need the second class.
+- **Every list row is TWO declared `--meta-band` bands, and every chip in a meta
+  band is exactly that tall.** A `.prow` lives in a fixed-height slot with
+  `overflow: hidden`; left to content, its heading band was 32px under an Amiri
+  مطلع and 26px under a UI-face عنوان, and its meta band 21px bare but 34px the
+  moment the قصيدة kept its قافية — 32 + 8 + 34 does not fit in 76px, so the
+  قافية well was clipped top and bottom and the list visibly staggered. The
+  three meta bands in the app (`.prow__meta`, `.bcard__meta`,
+  `.bayt-plate__meta`) all take `--meta-band`, chips included.
 - **`BaytPlate` already owns j/k/c/f/s on a focused بيت row.** A view that adds
   its own window-level handler for those keys gets them fired TWICE (add, then
   remove). What a view may add is the way *in* — j/k when nothing is focused —

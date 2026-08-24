@@ -60,21 +60,51 @@ export function clauseFor(required: string | null, source: RequiredLetterSource 
   return null
 }
 
-const CIRC = 2 * Math.PI * 30
+/**
+ * The ring is drawn in a UNITLESS 100×100 viewBox, and the element it sits in
+ * is inset a fixed gap on all four sides of a square well — so the arc is
+ * concentric with the disc at every size the scale produces, instead of being
+ * pinned to one 68px well the way a `0 0 68 68` box was. r 47 leaves the 3-unit
+ * stroke inside the box; nothing is ever clipped.
+ */
+const ARC_R = 47
+const CIRC = 2 * Math.PI * ARC_R
 
 function TimerArc({ msLeft, turnMs }: { msLeft: number | null; turnMs: number }) {
   if (msLeft === null || turnMs <= 0) return null
   const ratio = Math.max(0, Math.min(1, msLeft / turnMs))
   const tone = msLeft <= 2000 ? "danger" : msLeft <= 5000 ? "warn" : "calm"
   return (
-    <svg className="letter-arc" viewBox="0 0 68 68" data-tone={tone} aria-hidden="true">
-      <circle className="letter-arc__track" cx="34" cy="34" r="30" />
+    <svg className="letter-arc" viewBox="0 0 100 100" data-tone={tone} aria-hidden="true">
+      <circle className="letter-arc__track" cx="50" cy="50" r={ARC_R} />
       <circle
         className="letter-arc__run"
-        cx="34"
-        cy="34"
-        r="30"
+        cx="50"
+        cy="50"
+        r={ARC_R}
         style={{ strokeDasharray: CIRC, strokeDashoffset: CIRC * (1 - ratio) }}
+      />
+    </svg>
+  )
+}
+
+/**
+ * «→» / «←» is the one glyph in this app whose entire job is to point, and it
+ * is a bidi-MIRRORED character: in an RTL run some shapers flip it and some do
+ * not, so the arrow between المطلوب and عندك had no reliable direction. SVG
+ * geometry is never reordered by the bidi algorithm — this points from the
+ * required disc (inline-start) to the typed one, always.
+ */
+function FlowArrow() {
+  return (
+    <svg className="letter-ind__arrow" viewBox="0 0 28 12" aria-hidden="true" focusable="false">
+      <path
+        d="M27 6H2M8 1 2 6l6 5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   )
@@ -106,9 +136,7 @@ export function LetterIndicator({ required, source, alsoAccepted, mode, draft, m
           ) : null}
         </div>
 
-        <span className="letter-ind__arrow" aria-hidden="true">
-          ←
-        </span>
+        <FlowArrow />
 
         <div className="letter-ind__side">
           <span className="letter-ind__label">عندك</span>

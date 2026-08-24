@@ -123,6 +123,72 @@ hr {
   margin-block: var(--sp-5);
 }
 
+/* ── scrollbars (v2 §6) ─────────────────────────────────────────────── */
+/* Thin, gold-on-ink, everywhere — the document AND every inner scroller (the
+ * palette body, the browse facet rail, the شعراء strip, the exchange log, the
+ * قواعد table). Two mechanisms, because no engine takes both:
+ *
+ *  • the standard `scrollbar-width` / `scrollbar-color` pair, which Firefox and
+ *    Chromium ≥ 121 read;
+ *  • the `::-webkit-scrollbar` family, which is what older WebKit/Blink
+ *    honours. A bare `::-webkit-scrollbar` IS `*::-webkit-scrollbar`. An engine
+ *    that supports the standard pair ignores these, so the two never fight.
+ *
+ * The two standard properties need DIFFERENT selectors, and that asymmetry is
+ * the whole reason this block looks the way it does (css-scrollbars-1):
+ * `scrollbar-color` inherits, so `html` + `body` reach every scroller under
+ * them, while `scrollbar-width` does NOT — declared only on the root it left
+ * every inner scroller on the platform's fat default under a thin document, so
+ * the width takes the universal selector.
+ *
+ * The webkit thumb is painted with `background-clip: content-box` behind a
+ * transparent border, which is the only way to inset one: the gold gets a 2px
+ * gutter on each side, so a 10px track carries a 6px bar that never touches the
+ * content it scrolls. Nothing here hijacks scrolling or hides a scrollbar the
+ * reader needs — the ONE gutter that stays hidden is the masthead's nav strip
+ * (app.css), which says it continues with a mask instead. */
+*,
+::before,
+::after {
+  scrollbar-width: thin;
+}
+
+html {
+  /* The VIEWPORT's own bar is taken from the ROOT element and nowhere else
+   * (css-scrollbars-1 §3), and the derived accent family lives on `body` — so
+   * this one declaration cannot use `--scroll-thumb` and re-derives from the
+   * raw triple `:root` already carries. `body` below re-states it in derived
+   * terms, and every inner scroller inherits THAT. */
+  scrollbar-color: rgba(var(--accent-rgb), 0.26) rgba(0, 0, 0, 0.24);
+}
+
+body {
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+}
+
+::-webkit-scrollbar {
+  inline-size: var(--scroll-size);
+  block-size: var(--scroll-size);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: var(--scroll-track);
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: var(--r-pill);
+  border: var(--scroll-pad) solid transparent;
+  background-color: var(--scroll-thumb);
+  background-clip: content-box;
+  transition: background-color var(--dur-2) var(--ease-out);
+}
+
+::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scroll-thumb-hover);
+}
+
 ::selection {
   background: rgba(var(--accent-rgb), 0.26);
   color: var(--text-1);

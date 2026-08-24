@@ -8,8 +8,9 @@
  * error or page error, write screenshots/<route>.png.
  *
  *   node tools/screenshot.mjs [--no-build] [--no-db] [--mobile] [--full]
- *                             [--port N] [--db PATH] [--poem ID] [--out DIR]
- *                             [--routes home,browse,…] [--seed FILE|off]
+ *                             [--port N] [--width N] [--db PATH] [--poem ID]
+ *                             [--out DIR] [--routes home,browse,…]
+ *                             [--seed FILE|off]
  *
  * DB selection: `--db PATH`, else data/qarid.db, else data/fixture.db, else
  * fail with a clear message telling you which npm script builds one. `--no-db`
@@ -56,6 +57,20 @@ function flag(name) {
   if (i !== -1 && argv[i + 1] && !argv[i + 1].startsWith("--")) return argv[i + 1]
   const eq = argv.find((a) => a.startsWith(`--${name}=`))
   return eq ? eq.slice(name.length + 3) : undefined
+}
+
+/**
+ * `--width N` moves the DESKTOP viewport. The design bar (docs/v2.md §8) asks
+ * for 1440, 1024 and 390, and 1024 — a tablet in landscape, and the width where
+ * the browse facet rail collapses into its «القيود» disclosure — was the one of
+ * the three this walk could not shoot. `--mobile` still means a PHONE and
+ * ignores this. A non-1440 desktop run suffixes its files so the three passes
+ * can share one --out directory.
+ */
+const DESKTOP_W = Number(flag("width") ?? 1440)
+if (!Number.isInteger(DESKTOP_W) || DESKTOP_W < 320 || DESKTOP_W > 3840) {
+  console.error(`FAIL — --width must be an integer 320–3840, got ${flag("width")}`)
+  process.exit(1)
 }
 
 const PORT = Number(flag("port") ?? 6750)
@@ -196,7 +211,7 @@ try {
    */
   const emulation = mobile
     ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }
-    : { viewport: { width: 1440, height: 900 } }
+    : { viewport: { width: DESKTOP_W, height: 900 } }
 
   const errors = []
   /** Non-ok responses and dead requests, with their URLs — see pageFor(). */
@@ -269,7 +284,7 @@ try {
         ]),
     )
     await page.waitForTimeout(150)
-    const file = join(OUT_DIR, mobile ? `${name}-390.png` : `${name}.png`)
+    const file = join(OUT_DIR, mobile ? `${name}-390.png` : DESKTOP_W === 1440 ? `${name}.png` : `${name}-${DESKTOP_W}.png`)
     await page.screenshot({ path: file, fullPage: full })
     console.log(`  ✓ ${name}`)
   }

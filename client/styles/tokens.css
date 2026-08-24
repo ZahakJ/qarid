@@ -64,14 +64,27 @@
   --lh-ui: 1.6;
 
   /* ── space / shape / motion ───────────────────────────────────────── */
-  --sp-1: 0.25rem;
-  --sp-2: 0.5rem;
-  --sp-3: 0.75rem;
-  --sp-4: 1rem;
-  --sp-5: 1.5rem;
-  --sp-6: 2rem;
-  --sp-7: 3rem;
-  --sp-8: 4.5rem;
+  /* ONE 4/8 scale, v2 §8: 4 8 12 16 24 32 48 64 96. Every margin, padding and
+   * gap a VIEW sets comes from here — a component may still carry an intrinsic
+   * size (a chip's 0.22em, a 1px rule, the scrollbar's own width), because that
+   * is a property of the thing and not of the rhythm around it.
+   * `--sp-8` was 4.5rem and is 4rem now, so the scale doubles cleanly at every
+   * other step; it had exactly one caller (`.main`'s bottom padding). */
+  --sp-1: 0.25rem;  /*  4px */
+  --sp-2: 0.5rem;   /*  8px */
+  --sp-3: 0.75rem;  /* 12px */
+  --sp-4: 1rem;     /* 16px */
+  --sp-5: 1.5rem;   /* 24px */
+  --sp-6: 2rem;     /* 32px */
+  --sp-7: 3rem;     /* 48px */
+  --sp-8: 4rem;     /* 64px */
+  --sp-9: 6rem;     /* 96px */
+
+  /* The band a list row's metadata occupies. Chips are intrinsically sized and
+   * the قافية well is the tallest of them, so a row that kept its قافية used to
+   * sit 6px taller than its neighbour inside the same fixed slot and the list
+   * staggered. Every meta band is this tall, chips included. */
+  --meta-band: 2rem;
 
   --r-1: 4px;
   --r-2: 8px;
@@ -82,6 +95,14 @@
   --dur-2: 180ms;
   --dur-3: 320ms;
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* v2 §8's single easing family for entrances and micro-transitions. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── scrollbars (v2 §6) — thin gold on ink, app-wide ──────────────── */
+  /* Only the SIZES are app-agnostic; the two thumb inks are derived from the
+   * accent triple and therefore live on `body` with the rest of the family. */
+  --scroll-size: 10px;
+  --scroll-pad: 2px;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.55);
@@ -111,6 +132,11 @@ body {
   --accent-dim: rgba(var(--accent-rgb), 0.14);
   --accent-wash: rgba(var(--accent-rgb), 0.045);
   --accent-glow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), 0 0 18px rgba(var(--accent-rgb), 0.16);
+
+  /* scrollbars — derived, so a re-themed accent re-themes the gutters too */
+  --scroll-track: rgba(0, 0, 0, 0.24);
+  --scroll-thumb: rgba(var(--accent-rgb), 0.26);
+  --scroll-thumb-hover: rgba(var(--accent-rgb), 0.55);
 
   /* lapis — opponent bayt card, rawiyy underline, search »« markers. Nothing else. */
   --lapis: rgb(var(--lapis-rgb));

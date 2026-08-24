@@ -167,14 +167,21 @@
  * the بحر pill's 29px is what staggered every بيت and قصيدة list in the app.
  * Inside a meta band every chip is exactly `--meta-band` tall, and the قافية
  * well becomes a --meta-band circle: same shape, same optical weight, one line.
+ *
+ * There are exactly THREE meta bands in the app — a قصيدة row's, a بيت card's,
+ * and the one BaytPlate carries under a plate (home's بيت اليوم, #/wander, the
+ * duel's cards) — and they all take the same band, so the same four chips read
+ * the same height wherever a reader meets them.
  */
 .prow__meta > .chip,
-.bcard__meta > .chip {
+.bcard__meta > .chip,
+.bayt-plate__meta > .chip {
   min-block-size: var(--meta-band);
 }
 
 .prow__meta > .chip--rawiyy,
-.bcard__meta > .chip--rawiyy {
+.bcard__meta > .chip--rawiyy,
+.bayt-plate__meta > .chip--rawiyy {
   inline-size: var(--meta-band);
   block-size: var(--meta-band);
   padding-block-end: 0.18em;
@@ -859,8 +866,19 @@
   overflow: hidden;
 }
 
+/* A مطلع standing in for a missing ترجمة is VERSE, so it takes the app's one
+ * verse-preview size — `--fs-bayt-sm`, the same as `.prow__title--matla`, the
+ * بيت rows of the palette drop and every other preview (v2 §6). It was
+ * inheriting `--fs-ui-2` from the prose above it: the right face at the wrong
+ * size, which is exactly the mismatch that made poem browsing read as two
+ * different products. Two lines, not three: a بيت is one long line and clamping
+ * verse at three left a ragged half-line hanging under it. */
 .poet-day__bio--matla {
   font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: var(--lh-bayt);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   color: var(--text-3);
 }
 
@@ -1281,9 +1299,11 @@
   color: var(--accent);
 }
 
+/* `--fs-ui-1` is the app's ONE size for a count beside a name — `.prow__n`,
+ * `.pcard__n` and every meta band use it, and this strip was a step below. */
 .search-poet__n {
   flex: none;
-  font-size: var(--fs-ui-0);
+  font-size: var(--fs-ui-1);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -1765,7 +1785,15 @@
 }
 
 @media (max-width: 640px) {
-  .home {
+  /* Every شاعر card is a full-width row on a phone, so the ديوان size belongs
+     on the row's own inline-end edge — the alignment every other list here
+     uses. Wider up, the cards are content-sized and the two stay one phrase. */
+  .search-poet {
+    justify-content: space-between;
+  }
+
+  /* both classes, or `.view`'s own `gap` wins — see the note beside `.view.home` */
+  .view.home {
     gap: var(--sp-6);
   }
 

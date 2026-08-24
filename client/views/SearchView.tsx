@@ -213,20 +213,6 @@ export function SearchView({ q, page }: { q: string; page: number }) {
                 {facetsOpen ? "−" : "+"}
               </span>
             </button>
-            {res ? (
-              <p className="search-count">
-                <span className="search-count__n">{formatResults(res.total)}</span>
-                {res.ms > 0 ? (
-                  <>
-                    {" · "}
-                    {/* ONLY the number gets the LTR isolate. Wrapping the whole
-                        phrase in it made the Arabic words an LTR run too, so
-                        they reordered and the reader got «مِلّي ثانية 6.1». */}
-                    <span className="search-ms">{res.ms.toFixed(res.ms < 10 ? 1 : 0)}</span> مِلّي ثانية
-                  </>
-                ) : null}
-              </p>
-            ) : null}
           </div>
         </div>
 
@@ -269,6 +255,30 @@ export function SearchView({ q, page }: { q: string; page: number }) {
             ) : null}
           </div>
         ) : null}
+
+        {/* The ledger line belongs to the RESULTS, so it sits at the foot of
+            the bar and directly above the first one. Parked at the far end of
+            the modes row it was 800px of empty column away from what it
+            counted — the same mistake `.prow__n` in views.css carries a note
+            about. */}
+        {res ? (
+          <p className="search-count">
+            <span className="search-count__n">{formatResults(res.total)}</span>
+            {res.ms > 0 ? (
+              <>
+                <span className="search-count__sep" aria-hidden="true">
+                  ·
+                </span>
+                <span>
+                  {/* ONLY the number gets the LTR isolate. Wrapping the whole
+                      phrase in it made the Arabic words an LTR run too, so they
+                      reordered and the reader got «مِلّي ثانية 6.1». */}
+                  <span className="search-ms">{res.ms.toFixed(res.ms < 10 ? 1 : 0)}</span> مِلّي ثانية
+                </span>
+              </>
+            ) : null}
+          </p>
+        ) : null}
       </div>
 
       {/* «لا نتيجة بكل الكلمات» — only when the OR pass genuinely widened it. */}
@@ -303,9 +313,9 @@ export function SearchView({ q, page }: { q: string; page: number }) {
           {baits.length > 0 ? (
             <section className="search-group">
               <h2 className="section-title">
-                أبيات<span className="section-title__n">{formatCount(baits.length)}</span>
+                <span>أبيات</span>
+                <span className="section-title__n">{formatCount(baits.length)}</span>
               </h2>
-              <Rule />
               <div className="bayt-list" data-bayt-list="">
                 {baits.map((b) => (
                   <BaytCard
@@ -353,7 +363,10 @@ export function SearchView({ q, page }: { q: string; page: number }) {
 function PoetStrip({ poets }: { poets: readonly PoetHit[] }) {
   return (
     <section className="search-group">
-      <h2 className="section-title">شعراء</h2>
+      <h2 className="section-title">
+        <span>شعراء</span>
+        <span className="section-title__n">{formatCount(poets.slice(0, 6).length)}</span>
+      </h2>
       <div className="search-poets">
         {poets.slice(0, 6).map((p) => (
           <a className="search-poet" key={p.slug} href={routeHash({ view: "poet", slug: p.slug })}>
@@ -374,7 +387,10 @@ function PoemStrip({ poems }: { poems: readonly PoemHit[] }) {
   if (shown.length === 0) return null
   return (
     <section className="search-group">
-      <h2 className="section-title">قصائد</h2>
+      <h2 className="section-title">
+        <span>قصائد</span>
+        <span className="section-title__n">{formatCount(shown.length)}</span>
+      </h2>
       <div>
         {shown.map((p) => (
           <div className="prow-slot" key={p.id}>
