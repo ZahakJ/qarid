@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { SCORING } from "../../shared/constants.ts"
+import { ASSIST, SCORING } from "../../shared/constants.ts"
 import { HINT_COSTS } from "../../shared/schema.ts"
 import {
   awardFor,
@@ -9,6 +9,8 @@ import {
   obscurityFromPoemCount,
   pricedHint,
   scoreObscurity,
+  assistScale,
+  stumpBonusFor,
   STUMP_BONUS,
 } from "./scoring.ts"
 
@@ -119,5 +121,49 @@ describe("hint pricing — design-ux.md §4 tier table", () => {
   it("«أفحمتَ الخصم» is worth 500 (amendment 16)", () => {
     expect(STUMP_BONUS).toBe(SCORING.stumpBonus)
     expect(STUMP_BONUS).toBe(500)
+  })
+})
+
+describe("وضع التدريب — the flat halving (v2.md §2)", () => {
+  it("halves what a بيت earns", () => {
+    const plain = awardFor({ streak: 3, msRemaining: 20_000, timerOn: true, obscurity: 0.5 })
+    const assisted = awardFor({ streak: 3, msRemaining: 20_000, timerOn: true, obscurity: 0.5, assist: true })
+    expect(assisted.total).toBe(Math.round(plain.total * ASSIST.scoreMultiplier))
+    expect(assisted.assisted).toBe(true)
+    expect(plain.assisted).toBe(false)
+  })
+
+  it("leaves the itemisation alone — only the total is halved", () => {
+    // The breakdown is what the summary shows; halving `base` would make the
+    // screen claim a بيت is worth 50 points, which it is not.
+    const a = awardFor({ streak: 10, msRemaining: 0, timerOn: false, obscurity: 0, assist: true })
+    expect(a.base).toBe(SCORING.base)
+    expect(a.streakBonus).toBe(SCORING.perStreak * SCORING.maxStreakBonus)
+    expect(a.total).toBe(Math.round((SCORING.base + a.streakBonus) * ASSIST.scoreMultiplier))
+  })
+
+  it("does NOT discount a هَمْس the player bought", () => {
+    // Earned points halve; spent points do not, or hints would be cheaper in
+    // training mode than in a real duel.
+    const a = awardFor({ streak: 1, msRemaining: 0, timerOn: false, obscurity: 0, hintPenalty: 60, assist: true })
+    expect(a.hintPenalty).toBe(60)
+    expect(a.total).toBe(Math.round(110 * ASSIST.scoreMultiplier) - 60)
+  })
+
+  it("halves «أفحمتَ الخصم» too", () => {
+    expect(stumpBonusFor(false)).toBe(STUMP_BONUS)
+    expect(stumpBonusFor(true)).toBe(Math.round(STUMP_BONUS * ASSIST.scoreMultiplier))
+  })
+
+  it("assistScale is the identity when التدريب is off", () => {
+    for (const n of [0, 1, 99, 137, 500]) expect(assistScale(false, n)).toBe(n)
+    expect(assistScale(true, 137)).toBe(69)
+  })
+
+  it("keeps the score an integer", () => {
+    for (const streak of [0, 1, 3, 7]) {
+      const a = awardFor({ streak, msRemaining: 3_333, timerOn: true, obscurity: 0.37, assist: true })
+      expect(Number.isInteger(a.total)).toBe(true)
+    }
   })
 })

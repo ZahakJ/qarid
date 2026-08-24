@@ -14,6 +14,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  bareWords,
   baytKey,
   cleanText,
   findFolded,
@@ -26,8 +27,10 @@ import {
   foldQuery,
   foldedIndex,
   ftsQuery,
+  ftsTermRecords,
   ftsTerms,
   normalizeArabic,
+  PREFIX_MIN_LENGTH,
   opensConj,
   parseBaytKey,
   rawiyyOf,
@@ -379,6 +382,90 @@ describe("ftsQuery — the quoting trick", () => {
     const q = Array.from({ length: 40 }, (_, i) => `كلمة${i}`).join(" ")
     expect(ftsTerms(q)).toHaveLength(12)
     expect(ftsQuery(q).split(" ")).toHaveLength(12)
+  })
+})
+
+describe("ftsQuery — the trailing star (v2.md §2)", () => {
+  it("ignores the star unless the caller opts in", () => {
+    // Default OFF: every existing caller keeps the exact expression it had,
+    // and a reader's `*` stays a literal character the quoting swallows.
+    expect(ftsQuery("كتابه*")).toBe('"كتابه"')
+    expect(ftsQuery("كتابه*", "and", { stars: true })).toBe('"كتابه"*')
+  })
+
+  it("puts the star OUTSIDE the quotes — FTS5's prefix operator", () => {
+    expect(ftsQuery("قفا نبكي*", "and", { stars: true })).toBe('"قفا" "نبكي"*')
+    expect(ftsQuery("قفا* نبكي", "and", { stars: true })).toBe('"قفا" "نبكي"')
+  })
+
+  it("stars only the words that carry one, in either mode", () => {
+    expect(ftsQuery("غامرت* شرف", "or", { stars: true })).toBe('"غامرت"* OR "شرف"')
+  })
+
+  it("refuses a prefix shorter than PREFIX_MIN_LENGTH", () => {
+    // «ال»* costs 2,058 ms on the real corpus — see PREFIX_MIN_LENGTH.
+    expect(PREFIX_MIN_LENGTH).toBe(4)
+    expect(ftsQuery("ال*", "and", { stars: true })).toBe('"ال"')
+    expect(ftsQuery("الح*", "and", { stars: true })).toBe('"الح"')
+    expect(ftsQuery("الحب*", "and", { stars: true })).toBe('"الحب"*')
+  })
+
+  it("only a TRAILING star is an operator", () => {
+    // `a*b` sanitizes to one word, exactly as it did before stars existed.
+    expect(ftsQuery("كتا*به", "and", { stars: true })).toBe('"كتابه"')
+    expect(ftsQuery("*", "and", { stars: true })).toBe("")
+    expect(ftsQuery("* *", "and", { stars: true })).toBe("")
+  })
+
+  it("survives punctuation glued after the star", () => {
+    expect(ftsQuery("كتابه*،", "and", { stars: true })).toBe('"كتابه"*')
+  })
+
+  it("stars a phrase from outside its closing quote", () => {
+    expect(ftsQuery('"طلب العلم"*', "and", { stars: true })).toBe('"طلب العلم"*')
+    expect(ftsQuery('"طلب العلم"', "and", { stars: true })).toBe('"طلب العلم"')
+  })
+
+  it("normalizes the starred term exactly like the index", () => {
+    // tashkeel and همزة spelling are gone before the star is attached
+    expect(ftsQuery("الصَّلاة*", "and", { stars: true })).toBe('"الصلاه"*')
+  })
+
+  const hostile = ["foo*", "*foo*", "a OR b*", "NEAR(a b)*", '"*', "**", "-*"]
+  for (const q of hostile) {
+    it(`no operator escapes the quoting with stars on: ${JSON.stringify(q)}`, () => {
+      const out = ftsQuery(q, "and", { stars: true })
+      // Strip every quoted span AND the prefix operator that may follow one;
+      // whatever is left must be joiners and space.
+      const residue = out.replace(/"[^"]*"\*?/g, "").replace(/OR/g, "").trim()
+      expect(residue, `unquoted residue in ${out}`).toBe("")
+    })
+  }
+})
+
+describe("ftsTermRecords / bareWords", () => {
+  it("reports the star per term without leaving it in the term", () => {
+    expect(ftsTermRecords("قفا نبكي*")).toEqual([
+      { term: "قفا", starred: false },
+      { term: "نبكي", starred: true },
+    ])
+  })
+
+  it("ftsTerms is unchanged by the star", () => {
+    expect(ftsTerms("قفا نبكي*")).toEqual(["قفا", "نبكي"])
+  })
+
+  it("bareWords strips what normalizeArabic keeps", () => {
+    // the comma is neither a mark nor a letter, so `normalizeArabic` keeps it
+    expect(normalizeArabic("اعبدُ الله ، خيرٌ")).toBe("اعبد الله ، خير")
+    expect(bareWords("اعبدُ الله ، خيرٌ")).toBe("اعبد الله خير")
+    expect(bareWords("  «قِفا»  نَبكِ…  ")).toBe("قفا نبك")
+    expect(bareWords(null)).toBe("")
+  })
+
+  it("bareWords is idempotent — both sides of a prefix comparison run it", () => {
+    const once = bareWords("إذا غامَرْتَ، في شرفٍ مَرومِ")
+    expect(bareWords(once)).toBe(once)
   })
 })
 

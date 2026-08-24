@@ -113,10 +113,16 @@ export function clampTier(tier: DuelTier, timer: boolean): DuelTier {
   return tierAllowed(tier, timer) ? tier : "poet"
 }
 
-/** A whole config from a رتبة plus the three switches the setup screen owns. */
+/**
+ * A whole config from a رتبة plus the switches the setup screen owns.
+ *
+ * `assist` is optional here and not on the رتبة: وضع التدريب (v2.md §2) is a
+ * property of the SESSION, not of the tier, and every caller that predates it
+ * (تحدّي اليوم, the tests) means «off».
+ */
 export function configFor(
   tier: DuelTier,
-  opts: Pick<DuelConfig, "timer" | "format" | "chainMode" | "filters">,
+  opts: Pick<DuelConfig, "timer" | "format" | "chainMode" | "filters"> & { assist?: boolean },
 ): DuelConfig {
   const preset = presetOf(clampTier(tier, opts.timer))
   return {
@@ -129,5 +135,6 @@ export function configFor(
     turnSeconds: preset.seconds,
     lives: preset.lives,
     filters: opts.filters,
+    assist: opts.assist === true,
   }
 }

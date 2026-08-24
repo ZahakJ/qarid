@@ -33,6 +33,7 @@
 
 import { COMBO_ANY, COMBO_NONE, TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
 import {
+  bareWords,
   cleanText,
   firstLetterOf,
   fnv1a64Signed,
@@ -40,7 +41,7 @@ import {
   ftsTerms,
   normalizeArabic,
 } from "../shared/arabic.ts"
-import { VERIFY } from "../shared/constants.ts"
+import { ASSIST, VERIFY } from "../shared/constants.ts"
 import { RARE_RAWIYY_WIDE } from "../shared/letters.ts"
 import { rngFrom } from "../shared/rng.ts"
 import { HINT_COSTS } from "../shared/schema.ts"
@@ -1188,6 +1189,248 @@ function settle(
     normalized: q.normFull,
     ...servedBait(complete, mode),
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// وضع التدريب — the suggestion rail (v2.md §2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `GET /api/game/assist` answers "which real أبيات open on this letter and
+ * carry what I have typed so far?", on every 250 ms pause in a player's typing.
+ * That budget — a few milliseconds, on the one event loop every other visitor
+ * shares — is what shapes everything below, and it rules OUT the obvious
+ * implementation.
+ *
+ * **Why this is not an FTS5 prefix query**, which is what v2.md §2 describes.
+ * A prefix term costs FTS5 the MERGED doclist of every term that starts with
+ * it, built before `LIMIT` and before `bm25()` can rank anything — so the price
+ * is set by what was typed, not by what comes back. Measured on data/qarid.db,
+ * ranked, `LIMIT 8`:
+ *
+ *   | typed        | MATCH            | ms    |
+ *   |--------------|------------------|-------|
+ *   | «كتاب»       | `"كتاب"*`        |   7.8 |
+ *   | «قفا نب»     | `"قفا" "نب"*`    |   5.2 |
+ *   | «الم»        | `"الم"*`         |   275 |
+ *   | «وا»         | `"وا"*`          |   545 |
+ *   | «ال»         | `"ال"*`          | 2,058 |
+ *   | «في ال»      | `"في" "ال"*`     | 1,394 |
+ *
+ * Two seconds of blocked event loop for one keystroke, and the AND with a
+ * common companion does not save it. `PREFIX_MIN_LENGTH` in shared/arabic.ts is
+ * the guard that makes the STAR safe for the search palette (≥ 4 characters,
+ * ≤ 41 ms measured); it cannot help a rail that has to answer «ال» too.
+ *
+ * **Why it is not a LIKE scan either.** `first_letter = ? AND norm LIKE ?` over
+ * `game_baits` is index-perfect for the first half and a full scan for the
+ * second: letter و alone is 460,743 rows and the scan measured 745 ms, letter
+ * ا's مشاهير 118–265 ms. Both are per keystroke.
+ *
+ * **What this does instead.** One bounded, fame-first slice of the corpus per
+ * letter is read ONCE into memory and matched in JavaScript afterwards.
+ * Measured: the build costs 8–201 ms once per letter per process (ا, the widest,
+ * is 19,664 مطالع at 162 ms + 34 ms of folding) and every keystroke after it is
+ * **0.1–2.2 ms**, with no SQL at all until the ≤ 8 winners are hydrated by
+ * primary key. The whole cache, if a session touched all 28 letters, is the
+ * 95,065-بيت مشاهير pool — about 15 MB of strings.
+ *
+ * The slice is the tier the duel itself calls مبتدئ (`fame = 3 AND position <= 2`
+ * — «أشهر الشعراء، ومطالع القصائد»), which is also the honest answer to v2.md's
+ * «ranked by fame»: a tutorial suggests أبيات a reader might actually know. A
+ * letter too thin to teach with widens one tier (see `assistTier`), and the
+ * count that decides comes from `combo_counts`, so choosing costs one point
+ * lookup and no scan.
+ */
+
+/** Bigger than this, a pool is not built at all — see `assistTier`. */
+export const ASSIST_POOL_MAX = 40_000
+
+/** Thinner than this, a letter widens one tier rather than teach with 208 أبيات. */
+export const ASSIST_POOL_MIN = 600
+
+/** How many letters' pools stay resident. 28 would be ~15 MB; a duel plays a few. */
+export const ASSIST_POOL_CACHE_MAX = 12
+
+/** The tiers `assistTier` may widen through, narrowest (and most famous) first. */
+const ASSIST_TIERS: readonly Difficulty[] = ["easy", "normal", "brutal"]
+
+/** One بيت in a letter's pool: its id, and its text folded for comparison. */
+interface AssistRow {
+  id: number
+  /** `bareWords` of the FTS5 norm — the form both sides of a match run through */
+  text: string
+}
+
+export interface AssistPool {
+  tier: Difficulty
+  rows: readonly AssistRow[]
+}
+
+const ASSIST_POOLS = new WeakMap<object, Map<string, AssistPool>>()
+
+/**
+ * Which tier's pool teaches this letter: the most famous one that is thick
+ * enough to answer with, and small enough to hold.
+ *
+ * `comboCount` is a point lookup on a WITHOUT ROWID primary key, so this costs
+ * nothing and never scans. On the real corpus every letter but five answers
+ * `easy` (ظ 208, ض 224, ث 254, ز 414, ذ 420 widen to `normal`, which is
+ * 1,548–3,485 أبيات); on a fixture, where no tier reaches the floor, the
+ * widest tier that still fits is taken, which is the whole little corpus.
+ */
+export function assistTier(db: Db, letter: string): Difficulty {
+  const cond = gameFilter(db, undefined)
+  let widest: Difficulty = "easy"
+  for (const tier of ASSIST_TIERS) {
+    const n = comboCount(db, letter, cond, tier)
+    // No `combo_counts` (an artefact built before amendment 2): the LIMIT in
+    // `buildAssistPool` is then the only bound, and مبتدئ is the safe slice.
+    if (n === null) return "easy"
+    if (n > ASSIST_POOL_MAX) break
+    widest = tier
+    if (n >= ASSIST_POOL_MIN) return tier
+  }
+  return widest
+}
+
+/**
+ * One letter's pool, built once per database handle and kept.
+ *
+ * `ORDER BY` is the fame-first order the answer is ranked in, applied here so
+ * a match can stop at the first `limit` hits instead of ranking anything, and
+ * `LIMIT` is a hard bound on both the sort and the memory: a tier is only
+ * chosen when `combo_counts` says it fits, so the clamp never bites on a real
+ * artefact — it is there so that an artefact this code has never seen cannot
+ * pull 460,743 rows into the process.
+ *
+ * `baits_fts.norm` is the normalised text `scripts/ingest/build.ts` wrote with
+ * the same `normalizeArabic` this file imports (CLAUDE.md's one-normalizer
+ * invariant), so nothing is re-normalised here — only `bareWords`, which both
+ * sides of every comparison run through.
+ */
+function buildAssistPool(db: Db, letter: string): AssistPool {
+  const tier = assistTier(db, letter)
+  const rows = db
+    .q(
+      `SELECT gb.bait_id AS id, f.norm AS norm
+         FROM game_baits gb JOIN baits_fts f ON f.rowid = gb.bait_id
+        WHERE gb.first_letter = ? AND ${TIER_SQL[tier]}
+        ORDER BY gb.fame DESC, gb.position ASC, gb.bait_id ASC
+        LIMIT ${ASSIST_POOL_MAX}`,
+    )
+    .all(letter) as Row[]
+  return { tier, rows: rows.map((r) => ({ id: num(r.id), text: bareWords(str(r.norm)) })) }
+}
+
+export function assistPool(db: Db, letter: string): AssistPool {
+  let perDb = ASSIST_POOLS.get(db as object)
+  if (perDb === undefined) {
+    perDb = new Map()
+    ASSIST_POOLS.set(db as object, perDb)
+  }
+  const hit = perDb.get(letter)
+  if (hit !== undefined) return hit
+  const built = buildAssistPool(db, letter)
+  // Clear rather than evict one: the pools are equal-ish in weight and a duel
+  // that has touched thirteen letters is not going to be helped by keeping
+  // twelve of them (the same rule `liveByLetter` uses in routes/game.ts).
+  if (perDb.size >= ASSIST_POOL_CACHE_MAX) perDb.clear()
+  perDb.set(letter, built)
+  return built
+}
+
+/** The tier predicates as SQL, from the DDL that defines them. */
+const TIER_SQL: Readonly<Record<string, string>> = Object.fromEntries(TIER_PREDICATES)
+
+export interface AssistOptions {
+  letter: string
+  /** what the player has typed, raw */
+  q: string
+  limit: number
+}
+
+export interface AssistResult {
+  items: BaitDto[]
+  /** how many أبيات in the pool matched, not how many are returned */
+  total: number
+}
+
+/**
+ * The rail's answer: أبيات that open on `letter` and carry what was typed,
+ * best first.
+ *
+ * Three ranks, and the order between them is the whole usefulness of the thing:
+ *
+ *  0. the بيت opens with what you typed AND the last word you typed is whole —
+ *     «اذا» finds «إذا غامرتَ», the بيت you are actually starting to write;
+ *  1. the بيت opens with what you typed, mid-word — «اذا» also prefixes
+ *     «أَذاعَ بِذي العَهدِ», which is right while you are still typing the word
+ *     but wrong as the first thing you are shown (measured: without this split
+ *     أَذاع/أَذات took the top two slots off «اذا» on the real corpus);
+ *  2. your words appear later inside the بيت — you remember a phrase but not
+ *     the opening, which is v2.md §2's "matches the typed prefix/words".
+ *
+ * Each is one substring test per row (the needle is compared against the folded
+ * text with a leading space, so «مل» matches «… ملء …» and never «العمل»
+ * mid-word). The pool is walked to the end even once the list is full, because
+ * `total` is a promise about the whole pool and the walk costs 0.1–2.2 ms;
+ * only the ≤ 8 rows that will be RETURNED ever reach SQLite. Identical text
+ * collapses: the corpus carries the same قصيدة under two ids often enough that
+ * a rail of five would otherwise show one بيت five times.
+ */
+export function assistSuggest(db: Db, opts: AssistOptions): AssistResult {
+  const needle = bareWords(opts.q)
+  const limit = Math.max(1, Math.min(ASSIST.maxLimit, Math.trunc(opts.limit)))
+  if ([...needle].length < ASSIST.minChars) return { items: [], total: 0 }
+
+  const pool = assistPool(db, opts.letter)
+  const inner = ` ${needle}`
+  const opensWhole: AssistRow[] = []
+  const opensPartial: AssistRow[] = []
+  const within: AssistRow[] = []
+  let total = 0
+
+  for (const row of pool.rows) {
+    if (row.text.startsWith(needle)) {
+      total++
+      const whole = row.text.length === needle.length || row.text[needle.length] === " "
+      const bucket = whole ? opensWhole : opensPartial
+      if (bucket.length < limit) bucket.push(row)
+    } else if (row.text.includes(inner)) {
+      total++
+      if (within.length < limit) within.push(row)
+    }
+  }
+
+  const ordered = [...opensWhole, ...opensPartial, ...within].slice(0, limit)
+  return { items: assistBaits(db, ordered), total }
+}
+
+/**
+ * Hydrate the ≤ 8 winners: one `IN (…)` over the primary key, re-ordered to the
+ * ranking (SQLite has no reason to preserve it) and deduplicated on the folded
+ * text, which is what makes two scrapes of one قصيدة a single suggestion.
+ */
+function assistBaits(db: Db, rows: readonly AssistRow[]): BaitDto[] {
+  if (rows.length === 0) return []
+  const seen = new Set<string>()
+  const wanted: AssistRow[] = []
+  for (const r of rows) {
+    if (seen.has(r.text)) continue
+    seen.add(r.text)
+    wanted.push(r)
+  }
+  const marks = wanted.map(() => "?").join(",")
+  const found = db.q(`SELECT ${SERVED_COLS} ${BAIT_FROM} WHERE b.id IN (${marks})`).all(...wanted.map((r) => r.id)) as Row[]
+  const byId = new Map<number, Row>()
+  for (const row of found) byId.set(num(row.b_id), row)
+  const out: BaitDto[] = []
+  for (const r of wanted) {
+    const row = byId.get(r.id)
+    if (row !== undefined) out.push(baitDto(row))
+  }
+  return out
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

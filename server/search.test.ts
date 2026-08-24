@@ -425,3 +425,34 @@ describe("ranking a query is optional when every word is a particle", () => {
     expect(body.baits.length).toBeGreaterThan(0)
   })
 })
+
+// ═════════════════════════════════════════════════════════════════════════════
+// The trailing star (v2.md §2)
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("a trailing * is a prefix, and nothing else is syntax", () => {
+  it("finds by prefix what the whole word finds", async () => {
+    // «العليم» is one بيت of the fixture (see the header); «العلي*» must reach
+    // the same بيت without the reader knowing how the word ends.
+    const whole = await search({ q: "العليم", scope: "baits" })
+    const starred = await search({ q: "العلي*", scope: "baits" })
+    expect(whole.baits.length).toBeGreaterThan(0)
+    expect(starred.baits.map((b) => b.id)).toEqual(expect.arrayContaining(whole.baits.map((b) => b.id)))
+  })
+
+  it("ignores a star too short to afford", async () => {
+    // `PREFIX_MIN_LENGTH` — «ال»* costs 2,058 ms on the real corpus, so it is
+    // searched as the word «ال» instead of as every word beginning with it.
+    const short = await search({ q: "ال*", scope: "baits" })
+    const word = await search({ q: "ال", scope: "baits" })
+    expect(short.baits.map((b) => b.id)).toEqual(word.baits.map((b) => b.id))
+  })
+
+  it("still refuses every other operator", async () => {
+    for (const q of ["*", "**", "NEAR(الملك العليم)", "الملك AND العليم", "^الملك"]) {
+      const res = await app.request(url({ q, scope: "baits" }))
+      expect(res.status, `«${q}» must not reach FTS5 as syntax`).toBe(200)
+      SearchResponseSchema.parse(await res.json())
+    }
+  })
+})

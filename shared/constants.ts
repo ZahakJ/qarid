@@ -51,6 +51,35 @@ export const SEARCH_INNER_LIMIT = 400
 export const GAME_RATE_LIMIT = { tokens: 12, windowMs: 10_000 } as const
 
 /**
+ * وضع التدريب's own bucket (v2.md §2), deliberately NOT the duel's.
+ *
+ * The spec says «rate-limited with the game bucket», and taken literally that
+ * is a bug: `GAME_RATE_LIMIT` is 12 requests per 10 s for ALL of /api/game/*,
+ * and a suggestion rail that fires on a 250 ms pause spends those tokens while
+ * the player types — so the very next `/verify` (the server is the authority on
+ * an answer, design-server.md §8) would be the request that gets a 429 and the
+ * duel would break because a HINT was too eager. A suggestion may go quiet
+ * under load; a verdict may not. So the rail gets its own bucket, and spends
+ * none of the duel's.
+ *
+ * 30 per 10 s is what a fast typist can actually reach through the client's
+ * 250 ms debounce plus its per-prefix cache (client/duel/assist.ts).
+ */
+export const ASSIST_RATE_LIMIT = { tokens: 30, windowMs: 10_000 } as const
+
+/** GET /api/game/assist — the rail asks for 5, the schema allows 8 (v2.md §2). */
+export const ASSIST = {
+  /** «after ≥2 chars»: below this the needle matches half the ديوان */
+  minChars: 2,
+  defaultLimit: 5,
+  maxLimit: 8,
+  /** the client's debounce, and the interval a test may assert */
+  debounceMs: 250,
+  /** وضع التدريب scores at half price, and the screen says so */
+  scoreMultiplier: 0.5,
+} as const
+
+/**
  * `bucket = fnv1a32(...) % BUCKETS`, and sampling walks the bucket column with
  * a wrap-around window. `ORDER BY RANDOM()` over 2M+ rows sorts 2M+ rows.
  */

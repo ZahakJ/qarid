@@ -23,6 +23,8 @@ type ProfileStore = ProfileSlice & {
   recordDuel: (r: { score: number; streak: number; abyat: number; poets?: readonly string[] }) => void
   metPoets: (slugs: readonly string[]) => void
   recordDaily: (result: DailyResult) => void
+  /** «كيف تتم المساجلة؟» has been offered — never auto-open it again (v2.md §1) */
+  markWalkthroughSeen: () => void
   /** «لقيت N شاعرًا» */
   poetsMetCount: () => number
   reset: () => void
@@ -38,6 +40,7 @@ function data(s: ProfileSlice): ProfileSlice {
     dailyResults: s.dailyResults,
     reviewStreak: s.reviewStreak,
     firstSeenAt: s.firstSeenAt,
+    walkthroughSeenAt: s.walkthroughSeenAt,
   }
 }
 
@@ -67,6 +70,8 @@ export const useProfile = create<ProfileStore>()((set, get) => ({
   metPoets: (slugs) => set((s) => ({ poetsMet: union(s.poetsMet, slugs) })),
 
   recordDaily: (result) => set((s) => ({ dailyResults: { ...s.dailyResults, [result.date]: result } })),
+
+  markWalkthroughSeen: () => set((s) => (s.walkthroughSeenAt > 0 ? {} : { walkthroughSeenAt: Date.now() })),
 
   poetsMetCount: () => get().poetsMet.length,
 

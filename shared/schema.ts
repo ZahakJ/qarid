@@ -30,7 +30,7 @@
  */
 
 import { z } from "zod"
-import { MUBARAZA_EXCHANGES } from "./constants.ts"
+import { ASSIST, MUBARAZA_EXCHANGES } from "./constants.ts"
 import { HIJAI_LETTERS } from "./letters.ts"
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -626,6 +626,21 @@ export const GamePoolQuerySchema = z.object({
 })
 export type GamePoolQuery = z.infer<typeof GamePoolQuerySchema>
 
+/**
+ * GET /api/game/assist — وضع التدريب's suggestion rail (v2.md §2).
+ *
+ * `letter` is the chain letter the answer must open on, so it is the enum and
+ * not a free string: the rail asks about the turn it is in, never about
+ * arbitrary text. `q` is what the player has typed so far, raw — it is folded
+ * by `shared/arabic.ts` on the way in and never reaches SQL as text.
+ */
+export const GameAssistQuerySchema = z.object({
+  letter: ArabicLetterSchema,
+  q: z.string().max(300).default(""),
+  limit: intParam(1, ASSIST.maxLimit, ASSIST.defaultLimit),
+})
+export type GameAssistQuery = z.infer<typeof GameAssistQuerySchema>
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 7. Response schemas — GET routes
 // ═══════════════════════════════════════════════════════════════════════════
@@ -852,6 +867,15 @@ export const GamePoolResponseSchema = z.object({
   effectiveTotal: z.number().int().nonnegative().optional(),
 })
 export type GamePoolResponse = z.infer<typeof GamePoolResponseSchema>
+
+/**
+ * v2.md §2 — up to eight real أبيات that open on the required letter and carry
+ * what the player has typed. The list envelope is the house one even though
+ * the rail never pages: `total` is how many of the scanned pool matched, so a
+ * client can say «ومثلها كثير» without a second request.
+ */
+export const GameAssistResponseSchema = listResponse(BaitDtoSchema)
+export type GameAssistResponse = z.infer<typeof GameAssistResponseSchema>
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 8. Game — requests (POST /api/game/*, design-server.md §8)
@@ -1260,6 +1284,15 @@ export const DuelConfigSchema = z.object({
   turnSeconds: z.number().int().min(5).max(600).default(40),
   lives: z.number().int().min(1).max(9).default(3),
   filters: GameFiltersSchema.default({}),
+  /**
+   * وضع التدريب (v2.md §2): the answer field grows a suggestion rail of real
+   * أبيات, and every award is halved for it (`ASSIST.scoreMultiplier`). Part of
+   * the CONFIG rather than of the settings slice because it is a property of
+   * the duel that was played — a summary that says «تدريب» has to still say it
+   * after a reload, and a score earned at half price must never be compared
+   * against one that was not. Defaulted, so a v1 session on disk parses.
+   */
+  assist: z.boolean().default(false),
 })
 export type DuelConfig = z.infer<typeof DuelConfigSchema>
 
@@ -1453,6 +1486,12 @@ export const ProfileSliceSchema = z.object({
   dailyResults: z.record(DayKeySchema, DailyResultSchema).default({}),
   reviewStreak: z.number().int().nonnegative().default(0),
   firstSeenAt: z.number().int().nonnegative().default(0),
+  /**
+   * When «كيف تتم المساجلة؟» was last closed — 0 means never (v2.md §1). The
+   * walkthrough auto-offers itself on the FIRST visit to #/duel only, and this
+   * is the flag that makes «once» mean once across sessions.
+   */
+  walkthroughSeenAt: z.number().int().nonnegative().default(0),
 })
 export type ProfileSlice = z.infer<typeof ProfileSliceSchema>
 

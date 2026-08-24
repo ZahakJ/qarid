@@ -27,7 +27,9 @@ import {
   PoemsResponseSchema,
   PoetPageResponseSchema,
   PoetsResponseSchema,
+  ProfileResponseSchema,
   GameHintResponseSchema,
+  GameAssistResponseSchema,
   GamePoolResponseSchema,
   GameReplyResponseSchema,
   GameStartResponseSchema,
@@ -47,8 +49,12 @@ import {
   type PoemsResponse,
   type PoetPageResponse,
   type PoetsResponse,
+  type ProfileResponse,
+  type RegisterRequest,
+  type LoginRequest,
   type GameHintRequest,
   type GameHintResponse,
+  type GameAssistResponse,
   type GamePoolResponse,
   type GameReplyRequest,
   type GameReplyResponse,
@@ -201,6 +207,16 @@ export function getTrainCandidates(params: Params = {}, o?: Opts): Promise<Train
 /** amendment 2 — the setup screen's live «العدد المتاح» counter (a point lookup). */
 export function getGamePool(params: Params = {}, o?: Opts): Promise<GamePoolResponse> {
   return request(qs("/api/game/pool", params), GamePoolResponseSchema, init(o))
+}
+
+/**
+ * وضع التدريب's suggestion rail (v2.md §2) — real أبيات that open on `letter`
+ * and carry what the player has typed. GET, so it is the one duel call a
+ * browser may cache; the client debounces and remembers its own answers
+ * (client/duel/assist.ts) rather than leaning on that.
+ */
+export function getGameAssist(params: Params, o?: Opts): Promise<GameAssistResponse> {
+  return request(qs("/api/game/assist", params), GameAssistResponseSchema, init(o))
 }
 
 /** The opponent opens the مساجلة. */

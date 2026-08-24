@@ -16,10 +16,14 @@
  * of the two, so the server stays the floor and a شاعر with eleven surviving
  * قصائد can still lift a بيت the fame table calls ordinary.
  *
- * Every number the formula uses lives in shared/constants.ts (`SCORING`) or
- * shared/schema.ts (`HINT_COSTS`) — this file adds no constants of its own.
+ * v2.md §2 adds one lever on top: وضع التدريب halves what a move EARNS
+ * (`ASSIST.scoreMultiplier`), never what it spends — see `assistScale`.
+ *
+ * Every number the formula uses lives in shared/constants.ts (`SCORING`,
+ * `ASSIST`) or shared/schema.ts (`HINT_COSTS`) — this file adds no constants of
+ * its own.
  */
-import { SCORING } from "../../shared/constants.ts"
+import { ASSIST, SCORING } from "../../shared/constants.ts"
 import { HINT_COSTS, type HintKind } from "../../shared/schema.ts"
 
 /** What one accepted بيت is worth, itemised so the UI can show the breakdown. */
@@ -29,6 +33,8 @@ export type AwardBreakdown = {
   timeBonus: number
   obscurityBonus: number
   hintPenalty: number
+  /** وضع التدريب was on: the earned half of this award was halved (v2.md §2) */
+  assisted: boolean
   total: number
 }
 
@@ -42,6 +48,8 @@ export type AwardInput = {
   obscurity: number
   /** points already committed to hints on THIS exchange (positive number) */
   hintPenalty?: number
+  /** وضع التدريب — the rail was there to answer with (v2.md §2) */
+  assist?: boolean
 }
 
 function clamp01(n: number): number {
@@ -65,6 +73,20 @@ export function scoreObscurity(serverObscurity: number, poemCount?: number | nul
   return clamp01(Math.max(clamp01(serverObscurity), obscurityFromPoemCount(poemCount)))
 }
 
+/**
+ * وضع التدريب's flat halving (v2.md §2), applied to what a move EARNS and never
+ * to what it costs.
+ *
+ * A player who answered off the suggestion rail did less of the remembering, so
+ * the points are worth half — but a هَمْس they bought is still 60 points gone,
+ * and discounting the penalty alongside the award would make hints cheaper in
+ * training mode than in a real duel, which is backwards. Rounded, so the score
+ * stays an integer everywhere it is shown.
+ */
+export function assistScale(assist: boolean, points: number): number {
+  return assist ? Math.round(points * ASSIST.scoreMultiplier) : points
+}
+
 /** The itemised award. `total` may go negative if the player bought hints. */
 export function awardFor(input: AwardInput): AwardBreakdown {
   const streak = Number.isFinite(input.streak) ? Math.max(0, Math.trunc(input.streak)) : 0
@@ -74,18 +96,26 @@ export function awardFor(input: AwardInput): AwardBreakdown {
   const timeBonus = seconds * SCORING.perSecondRemaining
   const obscurityBonus = Math.round(SCORING.obscurityBonus * clamp01(input.obscurity))
   const hintPenalty = Math.max(0, Math.trunc(input.hintPenalty ?? 0))
+  const assisted = input.assist === true
+  const earned = base + streakBonus + timeBonus + obscurityBonus
   return {
     base,
     streakBonus,
     timeBonus,
     obscurityBonus,
     hintPenalty,
-    total: base + streakBonus + timeBonus + obscurityBonus - hintPenalty,
+    assisted,
+    total: assistScale(assisted, earned) - hintPenalty,
   }
 }
 
 /** «أفحمتَ الخصم» — the opponent had no reply left (amendments.md §16). */
 export const STUMP_BONUS = SCORING.stumpBonus
+
+/** …halved like every other earned point when وضع التدريب is on. */
+export function stumpBonusFor(assist: boolean): number {
+  return assistScale(assist, STUMP_BONUS)
+}
 
 /** Price of one hint, as a positive number of points. */
 export function hintCost(kind: HintKind): number {

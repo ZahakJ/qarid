@@ -246,6 +246,9 @@ export function DuelPlayView() {
           alsoAccepted={session.required.alsoAccepted}
           invalid={precheck !== null}
           onPrecheckFail={onPrecheckFail}
+          /* v2.md §2 — the suggestion rail exists only in وضع التدريب, and the
+             field is where it belongs: under the words being typed. */
+          assist={session.config.assist}
         />
 
         <div className="duel-acts">
@@ -269,12 +272,12 @@ export function DuelPlayView() {
               onClose={() => setHintsOpen(false)}
             />
           </div>
-          {/* the two key names are keyboard-only; a thumb gets the one line
-              that is true on every device (bayt.css's `@media (hover: none)`
-              pattern, applied here through `.keys-only`) */}
-          <span className="duel-acts__note">
-            <span className="keys-only">أدخِل ليُرسَل · Shift+Enter لسطر جديد · </span>يُقبل الصدر وحده
-          </span>
+          {/* «يُقبل الصدر وحده» used to live here, at the far end of the row,
+              and v2.md §1 is the owner reporting that he never found it. It is
+              now `.answer__help`, directly under the field. What is left here
+              is keyboard-only, so a thumb sees an empty row rather than two key
+              names it cannot press (`.keys-only`, base.css). */}
+          <span className="duel-acts__note keys-only">أدخِل ليُرسَل · Shift+Enter لسطر جديد</span>
         </div>
       </section>
     </div>

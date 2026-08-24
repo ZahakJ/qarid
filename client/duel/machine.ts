@@ -52,7 +52,7 @@ import {
   type PoemSummary,
   type PoetSummary,
 } from "../../shared/schema.ts"
-import { awardFor, scoreObscurity, STUMP_BONUS, type AwardBreakdown } from "./scoring.ts"
+import { awardFor, scoreObscurity, stumpBonusFor, type AwardBreakdown } from "./scoring.ts"
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Shapes
@@ -451,6 +451,7 @@ function accept(s: DuelState, served: ServedBait, now: number): DuelState {
     timerOn: s.config.timer,
     obscurity: scoreObscurity(served.obscurity, served.poet.poemCount),
     hintPenalty: s.hintSpend,
+    assist: s.config.assist,
   })
   const exchange = exchangeOf(served, "player", now, {
     award: award.total,
@@ -657,7 +658,8 @@ export function reduce(s: DuelState, a: DuelAction): DuelState {
 
     case "NO_REPLY": {
       if (s.phase !== "computerThinking") return s
-      return finish({ ...s, score: s.score + STUMP_BONUS }, "stumped", a.now)
+      // …at half price in وضع التدريب, like every other earned point (v2.md §2).
+      return finish({ ...s, score: s.score + stumpBonusFor(s.config.assist) }, "stumped", a.now)
     }
 
     case "REPLY_ERROR": {

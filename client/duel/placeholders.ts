@@ -29,10 +29,16 @@ export const OPENINGS: readonly string[] = [
 /**
  * Deterministic per (seed, turn) so the same duel replays identically and a
  * re-render never shuffles the field out from under the player.
+ *
+ * v2.md §1 wants the placeholder to SHOW that a صدر alone is enough, not merely
+ * to be one: every string in `OPENINGS` was already a صدر with no عجز after it,
+ * and a reader has no way to know that the missing half is missing on purpose.
+ * So the example is labelled — «صدرٌ وحده يكفي — مثال: …» — and the field's own
+ * helper line under it says the same thing in a sentence (`SADR_HELP`).
  */
 export function placeholderFor(seed: string, turn: number, tier: string): string | undefined {
   if (tier === "sword") return undefined
   const rng = rngFrom(`${seed}:placeholder:${turn}`)
   const i = Math.floor(rng() * OPENINGS.length) % OPENINGS.length
-  return `مثال — ${OPENINGS[i]!} …`
+  return `صدرٌ وحده يكفي — مثال: ${OPENINGS[i]!}`
 }

@@ -20,7 +20,7 @@ import {
   type PoemSummary,
   type PoetSummary,
 } from "../../shared/schema.ts"
-import { MUBARAZA_EXCHANGES } from "../../shared/constants.ts"
+import { ASSIST, MUBARAZA_EXCHANGES } from "../../shared/constants.ts"
 import {
   currentBait,
   displayScore,
@@ -887,5 +887,48 @@ describe("guards", () => {
       [awaiting(), { type: "RETRY", now: T0 }],
     ]
     for (const [state, action] of cases) expect(reduce(state, action), action.type).toBe(state)
+  })
+})
+
+// ── وضع التدريب (v2.md §2) ──────────────────────────────────────────────────
+
+describe("assist mode halves the score and says so", () => {
+  const answer = served("ب")
+
+  /** One accepted بيت, played with التدريب on or off, otherwise identical. */
+  function accepted(assist: boolean): DuelState {
+    const s = awaiting(config({ assist }), served("و"))
+    return reduce(reduce(s, { type: "SUBMIT", text: "…", now: T0 + 3_000 }), {
+      type: "VERIFIED",
+      response: okVerify(answer),
+      now: T0 + 3_200,
+    })
+  }
+
+  it("scores an accepted بيت at half price", () => {
+    const plain = accepted(false)
+    const assisted = accepted(true)
+    expect(plain.lastAward?.assisted).toBe(false)
+    expect(assisted.lastAward?.assisted).toBe(true)
+    expect(assisted.score).toBe(Math.round(plain.score * ASSIST.scoreMultiplier))
+    expect(assisted.exchanges.at(-1)?.award).toBe(assisted.lastAward?.total)
+  })
+
+  it("halves «أفحمتَ الخصم» as well", () => {
+    const acc = accepted(true)
+    const think = reduce(acc, { type: "CONTINUE", now: T0 + 4_000 })
+    const win = reduce(think, { type: "NO_REPLY", letter: "ب", now: T0 + 5_000 })
+    expect(win.outcome).toBe("stumped")
+    expect(win.score).toBe(acc.score + Math.round(STUMP_BONUS * ASSIST.scoreMultiplier))
+  })
+
+  it("is off by default, and survives a reload", () => {
+    expect(config().assist).toBe(false)
+    const s = awaiting(config({ assist: true }), served("و"))
+    const back = fromSlice(toSlice(s), T0 + 9_000)
+    expect(back?.config.assist).toBe(true)
+    // a session persisted before وضع التدريب existed reads as «off»
+    const legacy = DuelConfigSchema.parse({ turnSeconds: 40, lives: 3 })
+    expect(legacy.assist).toBe(false)
   })
 })

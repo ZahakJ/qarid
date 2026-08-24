@@ -1,4 +1,20 @@
 {
+  "duel": {
+    "qarid:v1:profile": {
+      "v": 2,
+      "data": {
+        "gamesPlayed": 0,
+        "abyatPlayed": 0,
+        "bestStreak": 0,
+        "bestScore": 0,
+        "poetsMet": [],
+        "dailyResults": {},
+        "reviewStreak": 0,
+        "firstSeenAt": 1756000000000,
+        "walkthroughSeenAt": 1756000000000
+      }
+    }
+  },
   "duel-play": {
     "qarid:v1:duel": {
       "v": 1,

@@ -1,21 +1,33 @@
 /**
- * `#/duel` — the setup screen (design-ux.md §4 Setup).
+ * `#/duel` — the setup screen (design-ux.md §4 Setup, rewritten for v2.md §1).
  *
- * Four decisions, all of them with their consequences ON SCREEN rather than
- * hidden behind a difficulty word:
+ * Five decisions, and v2.md §1 is the owner reporting that he could not read
+ * four of them: «القيود» did not say WHOM they constrain, «العدد المتاح» did not
+ * say what it counts, «الوصال/المبارزة» and «الروي/الحرف الأخير» were two pairs
+ * of words with their meaning hidden inside the selected one. So every control
+ * on this page now carries its explanation ON SCREEN, and both sides of every
+ * two-way choice are explained at once — a note that only describes the option
+ * you already picked cannot help you pick.
  *
- *  1. المستوى — the four رتب as a table of real parameters (client/duel/tiers.ts).
- *  2. القيود  — optional عصر/بحر, with a LIVE eligible-pool count straight off
- *     `/api/game/pool` (amendments.md §2: a point lookup in `combo_counts`,
- *     0.2 ms on the full corpus). A thin combination WARNS, never blocks.
+ *  1. المستوى — the four رتب as a table of real parameters (client/duel/tiers.ts),
+ *     under a line saying what a رتبة actually changes.
+ *  2. القيود  — optional عصر/بحر, with the asymmetry stated: they narrow the
+ *     ديوان THE OPPONENT recites from, never yours. A LIVE eligible-pool count
+ *     comes off `/api/game/pool` (amendments.md §2: a point lookup in
+ *     `combo_counts`, 0.2 ms on the full corpus); a thin combination WARNS,
+ *     never blocks.
  *  3. الوقت   — on/off; off forces the رتبة down to شاعر, because فحل and سيف
- *     are timers as much as they are pools.
+ *     are timers as much as they are pools, and the note says so.
  *  4. النمط   — الوصال (endless) vs المبارزة (best of ten), and the قاعدة:
- *     الروي (classical, lenient) vs الحرف الأخير (literal, amendments.md §1).
+ *     الروي (classical, lenient) vs الحرف الأخير (literal, amendments.md §1),
+ *     with a LIVE example off a real بيت — `chainExample.ts` derives both
+ *     letters through the same `rawiyyOf` the server chains on.
+ *  5. وضع التدريب (v2.md §2) — the suggestion rail, at half points, said out
+ *     loud. On by default for a first-ever duel, off for every one after it.
  *
  * The pool request is debounced: /api/game/* shares one token bucket of 12
- * requests per 10 s per IP, and a filter row that fires on every click would
- * spend a duel's worth of tokens before the player pressed ابدأ.
+ * requests per 10 s, and a filter row that fires on every click would spend a
+ * duel's worth of tokens before the player pressed ابدأ.
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { THIN_POOL_WARNING } from "../../shared/constants.ts"
@@ -27,7 +39,7 @@ import {
   type GameFilters,
   type MetaResponse,
 } from "../../shared/schema.ts"
-import { getGamePool } from "../api/queries.ts"
+import { getDailyBait, getGamePool } from "../api/queries.ts"
 import { Chip } from "../components/Chip.tsx"
 import { Panel } from "../components/Panel.tsx"
 import { Segmented } from "../components/Segmented.tsx"
@@ -35,7 +47,10 @@ import { Rule } from "../components/Ornaments.tsx"
 import { navigate } from "../router.ts"
 import { loadMeta } from "../store/libraryStore.ts"
 import { loadProfile, startDuel } from "../store/duelStore.ts"
+import { useProfile } from "../store/profileStore.ts"
+import { FALLBACK_EXAMPLE, exampleFrom, type ChainExample } from "./chainExample.ts"
 import { clampTier, configFor, presetOf, tierAllowed, TIER_PRESETS } from "./tiers.ts"
+import { Walkthrough } from "./Walkthrough.tsx"
 
 /**
  * `null` when the pool is still unknown — a count of 0 is a real answer.
@@ -60,6 +75,30 @@ export function poolIsThin(pool: Pool): boolean {
   return pool !== null && pool.effective < THIN_POOL_WARNING
 }
 
+/** Both halves of a two-way choice, explained at once (v2.md §1). */
+function OptionNotes<T extends string>({ value, options }: { value: T; options: readonly { value: T; label: string; note: string }[] }) {
+  return (
+    <dl className="opt-notes">
+      {options.map((o) => (
+        <div key={o.value} className="opt-notes__row" data-active={o.value === value ? "1" : undefined}>
+          <dt>{o.label}</dt>
+          <dd>{o.note}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+const FORMAT_NOTES = [
+  { value: "endless" as const, label: "الوصال", note: "تُساجل بلا نهاية، حتى تنفد أرواحك." },
+  { value: "match" as const, label: "المبارزة", note: "عشرة أبيات لك، ثم تُحسب الغلبة بالنقاط." },
+]
+
+const CHAIN_NOTES = [
+  { value: "rhyme" as const, label: "الرويّ", note: "تُقشَر ألفُ الإطلاق وواوُه وياؤه وهاءُ الضمير، ويبقى الرويّ." },
+  { value: "literal" as const, label: "الحرف الأخير", note: "آخر حرفٍ في العجز كما كُتب، بلا قشرٍ ولا تأويل." },
+]
+
 export function DuelSetupView() {
   const [tier, setTier] = useState<DuelTier>("poet")
   const [timer, setTimer] = useState(true)
@@ -69,7 +108,16 @@ export function DuelSetupView() {
   const [meter, setMeter] = useState<string | undefined>(undefined)
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [pool, setPool] = useState<Pool>(null)
+  const [example, setExample] = useState<ChainExample>(FALLBACK_EXAMPLE)
   const profile = useMemo(() => loadProfile(), [])
+  const walkthroughSeenAt = useProfile((s) => s.walkthroughSeenAt)
+  const markWalkthroughSeen = useProfile((s) => s.markWalkthroughSeen)
+  const [walkthrough, setWalkthrough] = useState(false)
+
+  // v2.md §2: ON for the first duel this browser ever plays, OFF after it.
+  // `gamesPlayed` is already persisted (the profile slice), so "first game"
+  // needs no flag of its own.
+  const [assist, setAssist] = useState(() => profile.gamesPlayed === 0)
 
   useEffect(() => {
     let live = true
@@ -82,6 +130,39 @@ export function DuelSetupView() {
       live = false
     }
   }, [])
+
+  // The chain-mode example, off a REAL بيت. بيت اليوم is the cheapest honest
+  // source — one cached request (2.8 ms server-side, an hour of Cache-Control)
+  // that the home screen has usually already made — and roughly half of all
+  // أبيات have no peel to show, so a بيت that cannot teach the difference is
+  // dropped and the vetted المتنبي example stands (`exampleFrom` → null).
+  useEffect(() => {
+    let live = true
+    getDailyBait()
+      .then((res) => {
+        const found = exampleFrom(res.bait)
+        if (live && found) setExample(found)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+
+  // v2.md §1: offered ONCE, on a first-ever visit to #/duel. The flag is
+  // written when it OPENS, not when it closes — a reader who wanted the duel
+  // and dismissed the overlay by leaving the page must not meet it again, and
+  // «offered once» is a promise about the offer, not about the reading.
+  useEffect(() => {
+    if (walkthroughSeenAt !== 0) return
+    setWalkthrough(true)
+    markWalkthroughSeen()
+  }, [walkthroughSeenAt, markWalkthroughSeen])
+
+  const closeWalkthrough = () => {
+    setWalkthrough(false)
+    markWalkthroughSeen()
+  }
 
   const effectiveTier = clampTier(tier, timer)
   const preset = presetOf(effectiveTier)
@@ -117,7 +198,7 @@ export function DuelSetupView() {
   const meters = (meta?.meters ?? []).filter((m) => m.kind === "bahr")
 
   const begin = () => {
-    startDuel(configFor(effectiveTier, { timer, format, chainMode, filters }))
+    startDuel(configFor(effectiveTier, { timer, format, chainMode, filters, assist }))
     navigate({ view: "duel-play" })
   }
 
@@ -127,7 +208,15 @@ export function DuelSetupView() {
     <div className="view duel-setup">
       <div className="view__head">
         <h1 className="view__title">المساجلة</h1>
-        <p className="view__lede">يُنشد الخصم بيتًا، فتُجيبه ببيت يبدأ برويّه. اضبط الرتبة والقيود، ثم ابدأ.</p>
+        <p className="view__lede">
+          يُنشد الخصم بيتًا، فتُجيبه ببيتٍ يبدأ بحرف رويّه. اضبط الرتبة والقيود، ثم ابدأ.
+        </p>
+        <p className="setup-teach">
+          <button type="button" className="btn btn--ghost setup-teach__btn" onClick={() => setWalkthrough(true)}>
+            كيف تتم المساجلة؟
+          </button>
+          <span className="setup-teach__note">خمس خطوات على بيتٍ حقيقيّ — دقيقة واحدة.</span>
+        </p>
       </div>
       <Rule />
 
@@ -136,6 +225,9 @@ export function DuelSetupView() {
         <h2 className="setup-sect__title" id="setup-tier">
           المستوى
         </h2>
+        <p className="setup-sect__lede">
+          الرتبة تضبط الخصم وحده: من أيّ الديوان يُنشد، وكم يمهلك، وكم روحًا تملك، وبكم تشتري الهمس.
+        </p>
         <ul className="tier-grid">
           {TIER_PRESETS.map((t) => {
             const allowed = tierAllowed(t.tier, timer)
@@ -154,23 +246,23 @@ export function DuelSetupView() {
                   <span className="tier__lede">{t.lede}</span>
                   <dl className="tier__params">
                     <div>
-                      <dt>الديوان</dt>
+                      <dt>ديوان الخصم</dt>
                       <dd>{t.pool}</dd>
                     </div>
                     <div>
-                      <dt>الوقت</dt>
-                      <dd>{timer ? `${formatNumber(t.seconds)} ثانية للبيت` : "بلا وقت"}</dd>
+                      <dt>مهلتك للبيت</dt>
+                      <dd>{timer ? `${formatNumber(t.seconds)} ثانية` : "بلا وقت"}</dd>
                     </div>
                     <div>
-                      <dt>الأرواح</dt>
+                      <dt>أرواحك</dt>
                       <dd>{formatNumber(t.lives)}</dd>
                     </div>
                     <div>
-                      <dt>الهمس</dt>
+                      <dt>الهمس (تلميحٌ بثمن)</dt>
                       <dd>{t.hints}</dd>
                     </div>
                     <div>
-                      <dt>الخصم</dt>
+                      <dt>طبع الخصم</dt>
                       <dd>{t.adversarial}</dd>
                     </div>
                   </dl>
@@ -187,6 +279,13 @@ export function DuelSetupView() {
         <h2 className="setup-sect__title" id="setup-filters">
           القيود <span className="setup-sect__opt">اختيارية</span>
         </h2>
+        {/* The asymmetry is the whole of this section, and it was nowhere on
+            screen: a filter narrows the ديوان the OPPONENT draws from. The
+            player answers out of the whole corpus either way. */}
+        <p className="setup-sect__lede">
+          تحصر ما يُنشده الخصم، لا ما تُجيب به أنت: أنت تُجيب من الديوان كلّه على كل حال. اترك «كل العصور» و«كل
+          البحور» ليُنشد من كلّ شيء.
+        </p>
         <div className="setup-row">
           <span className="setup-row__label">العصر</span>
           <div className="chip-cloud">
@@ -229,6 +328,7 @@ export function DuelSetupView() {
             </>
           )}
         </p>
+        <p className="setup-pool__gloss">أي عدد الأبيات التي يستطيع الخصم أن يُنشد منها بهذه الرتبة وهذه القيود.</p>
       </section>
 
       {/* ── 3+4. الوقت والنمط ────────────────────────────────────────── */}
@@ -236,41 +336,74 @@ export function DuelSetupView() {
         <h2 className="setup-sect__title" id="setup-mode">
           الوقت والنمط
         </h2>
-        <div className="setup-switches">
-          <label className="switch">
-            <input type="checkbox" checked={timer} onChange={(e) => setTimer(e.target.checked)} />
-            <span className="switch__label">
-              الوقت {timer ? `— ${formatNumber(preset.seconds)} ثانية للبيت` : "— مطفأ"}
-            </span>
-          </label>
 
-          <Segmented
-            label="النمط"
-            value={format}
-            onChange={setFormat}
-            options={[
-              { value: "endless", label: "الوصال" },
-              { value: "match", label: "المبارزة" },
-            ]}
-          />
-
-          <Segmented
-            label="قاعدة السلسلة"
-            value={chainMode}
-            onChange={setChainMode}
-            options={[
-              { value: "rhyme", label: "الروي" },
-              { value: "literal", label: "الحرف الأخير" },
-            ]}
-          />
+        <div className="setup-opt">
+          <div className="setup-opt__control">
+            <span className="setup-opt__label">الوقت</span>
+            <label className="switch">
+              <input type="checkbox" checked={timer} onChange={(e) => setTimer(e.target.checked)} />
+              <span className="switch__label">{timer ? `${formatNumber(preset.seconds)} ثانية للبيت` : "مطفأ"}</span>
+            </label>
+          </div>
+          <div className="setup-opt__body">
+            <p className="setup-opt__note">
+              {timer
+                ? "لكلّ بيتٍ مهلة، وما بقي منها يُضاف إلى نقاطك. إن أطفأتَه سقطت رتبتا فحل وسيف، فهما وقتٌ قبل أن يكونا ديوانًا."
+                : "بلا مهلة ولا نقاط وقت — وليس لك إلا رتبتا مبتدئ وشاعر."}
+            </p>
+          </div>
         </div>
-        <p className="setup-note">
-          {format === "endless" ? "الوصال: تُساجل حتى تنفد الأرواح." : "المبارزة: عشرة أبيات، والغلبة بالنقاط."}
-          {" · "}
-          {chainMode === "rhyme"
-            ? "الروي: يُقشَر حرف الوصل، ويُقبل الحرفان معًا."
-            : "الحرف الأخير: كما يُلفظ آخر العجز، بلا قشر."}
-        </p>
+
+        <div className="setup-opt">
+          <div className="setup-opt__control">
+            <span className="setup-opt__label">النمط</span>
+            <Segmented
+              label="النمط"
+              value={format}
+              onChange={setFormat}
+              options={FORMAT_NOTES.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </div>
+          <div className="setup-opt__body">
+            <OptionNotes value={format} options={FORMAT_NOTES} />
+          </div>
+        </div>
+
+        <div className="setup-opt">
+          <div className="setup-opt__control">
+            <span className="setup-opt__label">قاعدة السلسلة</span>
+            <Segmented
+              label="قاعدة السلسلة"
+              value={chainMode}
+              onChange={setChainMode}
+              options={CHAIN_NOTES.map((o) => ({ value: o.value, label: o.label }))}
+            />
+          </div>
+          <div className="setup-opt__body">
+            <OptionNotes value={chainMode} options={CHAIN_NOTES} />
+          </div>
+          <ChainExampleBlock example={example} mode={chainMode} />
+        </div>
+
+        <div className="setup-opt setup-opt--assist">
+          <div className="setup-opt__control">
+            <span className="setup-opt__label">وضع التدريب</span>
+            <label className="switch">
+              <input type="checkbox" checked={assist} onChange={(e) => setAssist(e.target.checked)} />
+              <span className="switch__label">{assist ? "مشتغل" : "مطفأ"}</span>
+            </label>
+          </div>
+          <div className="setup-opt__body">
+            <p className="setup-opt__note">
+              {assist
+                ? "وأنت تكتب، تظهر تحت الحقل أبياتٌ حقيقية من الديوان تبدأ بالحرف المطلوب؛ انقر البيت ليُكتب لك."
+                : "لا اقتراحات ولا أبيات تُعرض عليك — إنّما الهمس بثمنه إن احتجت."}
+            </p>
+            <p className="setup-opt__price" data-on={assist ? "1" : undefined}>
+              نقاطك في هذا الوضع نصفُ نقاطك، وما تدفعه في الهمس بثمنه كاملًا.
+            </p>
+          </div>
+        </div>
       </section>
 
       <Panel quiet className="setup-go">
@@ -288,6 +421,57 @@ export function DuelSetupView() {
           </button>
         </div>
       </Panel>
+
+      {walkthrough ? <Walkthrough onClose={closeWalkthrough} /> : null}
     </div>
+  )
+}
+
+/**
+ * The live example under the chain-mode control (v2.md §1).
+ *
+ * It reads the same بيت twice — once as each mode reads it — so the two words
+ * on the segmented control become two letters a player can see the difference
+ * between. Both letters are derived by `rawiyyOf`, never written down.
+ */
+function ChainExampleBlock({ example, mode }: { example: ChainExample; mode: ChainMode }) {
+  const demanded = mode === "rhyme" ? example.rawiyy : example.lastLetter
+  return (
+    <figure className="chain-ex">
+      <blockquote className="chain-ex__bayt">
+        <span className="chain-ex__half">{example.sadr}</span>
+        <span className="chain-ex__half">{example.ajuz}</span>
+      </blockquote>
+      <figcaption className="chain-ex__read">
+        <span className="chain-ex__who">
+          <span className="chain-ex__eyebrow">مثال من الديوان</span>
+          {example.poet ?? "من الديوان"}
+        </span>
+        <span className="chain-ex__rule">
+          آخر عجزه <bdi className="chain-ex__word">{example.word}</bdi> — الرويّ{" "}
+          <em className="chain-ex__letter">{example.rawiyy}</em>، والحرف الأخير{" "}
+          <em className="chain-ex__letter">{example.lastLetter}</em>.
+        </span>
+        <span className="chain-ex__verdict">
+          {mode === "rhyme" ? (
+            <>
+              فبهذه القاعدة يلزمك بيتٌ يبدأ بـ <em className="chain-ex__letter">{demanded}</em>
+              {example.peeled ? (
+                <>
+                  {" "}
+                  — وتُقبل <em className="chain-ex__letter">{example.lastLetter}</em> أيضًا.
+                </>
+              ) : (
+                "."
+              )}
+            </>
+          ) : (
+            <>
+              فبهذه القاعدة يلزمك بيتٌ يبدأ بـ <em className="chain-ex__letter">{demanded}</em> وحدها.
+            </>
+          )}
+        </span>
+      </figcaption>
+    </figure>
   )
 }

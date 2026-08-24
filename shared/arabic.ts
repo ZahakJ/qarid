@@ -356,20 +356,41 @@ const PHRASE_RE = /"([^"]+)"|«([^»]+)»/g
  * spaces; bare words are single tokens.
  */
 export function ftsTerms(q: string | null | undefined, cap = FTS_TERM_CAP): string[] {
+  return ftsTermRecords(q, cap).map((t) => t.term)
+}
+
+/** One term of a MATCH expression, plus whether the reader starred it. */
+export interface FtsTermRecord {
+  term: string
+  /** the reader typed a trailing `*` on this word — «كتاب*» */
+  starred: boolean
+}
+
+/** A trailing `*`, with any punctuation that trailed it — «كتاب*،». */
+const STAR_TAIL_RE = /\*[^\p{L}\p{N}]*$/u
+
+/**
+ * `ftsTerms` with the star kept. Split out rather than inlined because the star
+ * has to be read off the RAW word: `sanitizeTerm` turns `*` into a space (that
+ * is the whole security model), so by the time a term exists the mark is gone.
+ */
+export function ftsTermRecords(q: string | null | undefined, cap = FTS_TERM_CAP): FtsTermRecord[] {
   if (!q) return []
-  const terms: string[] = []
+  const terms: FtsTermRecord[] = []
 
   PHRASE_RE.lastIndex = 0
   let m: RegExpExecArray | null
   while ((m = PHRASE_RE.exec(q)) !== null) {
     const phrase = sanitizeTerm(normalizeArabic(m[1] ?? m[2] ?? ""))
-    if (phrase !== "") terms.push(phrase)
+    // «عبارة»* — the star sits after the closing quote, which the capture
+    // groups do not reach.
+    if (phrase !== "") terms.push({ term: phrase, starred: q[m.index + m[0].length] === "*" })
   }
 
   const remainder = q.replace(PHRASE_RE, " ")
   for (const word of normalizeArabic(remainder).split(" ")) {
     const t = sanitizeTerm(word).replace(/\s+/g, "")
-    if (t !== "") terms.push(t)
+    if (t !== "") terms.push({ term: t, starred: STAR_TAIL_RE.test(word) })
   }
 
   return terms.slice(0, cap)
@@ -381,6 +402,45 @@ function sanitizeTerm(s: string): string {
 }
 
 /**
+ * Normalised text reduced to bare words — `normalizeArabic` plus the strip
+ * `ftsTerms` applies per term, without the tokenising.
+ *
+ * `normalizeArabic` keeps punctuation (it folds letters and drops marks, and a
+ * comma is neither), so «اعبد الله ، خير من حياتي» normalises with the comma
+ * still in it and a prefix comparison against typed text — which arrives
+ * without one — fails on a بيت that is otherwise a perfect match. 33 of the
+ * 19,664 مطالع on ألف carry such a mark. Both sides of a prefix comparison go
+ * through this, and it stays in `shared/arabic.ts` for the usual reason: a
+ * second spelling of "strip what is not a word" is a bug (CLAUDE.md invariant).
+ */
+export function bareWords(s: string | null | undefined): string {
+  return sanitizeTerm(normalizeArabic(s))
+}
+
+/**
+ * How long a starred term must be before the star is honoured.
+ *
+ * A prefix query costs FTS5 the MERGED doclist of every term that starts with
+ * it, and the merge happens before `LIMIT` and before `bm25()` can rank
+ * anything — so the price is set by the prefix, not by the answer. Measured on
+ * data/qarid.db (3.37M أبيات), ranked, `LIMIT 400`: «الذي»* 41 ms · «الحب»* 30 ms
+ * · «قلبي»* 21 ms · «كانت»* 15 ms, all four ≤ 41 ms; but «الح»* 141 ms, «الذ»*
+ * 58 ms, and at two letters «ال»* is **2,058 ms** — two seconds of a blocked
+ * event loop (every SQLite call is synchronous, CLAUDE.md) for one keystroke.
+ * Four characters is where the cliff ends, so a shorter starred word is
+ * searched as the whole word it is: «ال*» finds «ال», not every ألف لام.
+ */
+export const PREFIX_MIN_LENGTH = 4
+
+export interface FtsQueryOptions {
+  /**
+   * Honour an explicit trailing `*` (v2.md §2's wildcard). OFF by default: a
+   * caller opts in only where it has measured what a prefix scan costs it.
+   */
+  stars?: boolean
+}
+
+/**
  * `ftsQuery(q, mode)` — kalam's `fts_query`, port and contract both.
  *
  * The quoting trick is the whole security model: EVERY term is wrapped in
@@ -389,14 +449,29 @@ function sanitizeTerm(s: string): string {
  * searches for the words NEAR, a and b; they do not get a MATCH syntax error
  * and they do not get to reinterpret the query.
  *
+ * `{stars: true}` (v2.md §2) adds the ONE piece of syntax a reader may have:
+ * a trailing `*` becomes FTS5's prefix operator, emitted OUTSIDE the quotes as
+ * `"كتاب"*`. Everything else stays literal — the star is read off the raw word
+ * by `ftsTermRecords`, never left in the term, so `a*b` is still the word
+ * «ab» and a lone `*` is still nothing at all.
+ *
  * Returns "" when nothing survives — design-server.md §2's "return [] without
  * touching SQLite". Callers MUST short-circuit on the empty string; handing an
  * empty MATCH expression to FTS5 is an error, not an empty result set.
  */
-export function ftsQuery(q: string | null | undefined, mode: "and" | "or" = "and"): string {
-  const terms = ftsTerms(q)
+export function ftsQuery(
+  q: string | null | undefined,
+  mode: "and" | "or" = "and",
+  opts: FtsQueryOptions = {},
+): string {
+  const terms = ftsTermRecords(q)
   if (terms.length === 0) return ""
-  return terms.map((t) => `"${t}"`).join(mode === "or" ? " OR " : " ")
+  const stars = opts.stars === true
+  return terms
+    .map((t) =>
+      stars && t.starred && [...t.term].length >= PREFIX_MIN_LENGTH ? `"${t.term}"*` : `"${t.term}"`,
+    )
+    .join(mode === "or" ? " OR " : " ")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

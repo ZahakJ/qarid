@@ -11,7 +11,9 @@
  * (design-server.md §8 + amendments §7) — no invented tags, and the costs are
  * the ones scoring.ts actually applies.
  */
+import { useState } from "react"
 import { Rule } from "../components/Ornaments.tsx"
+import { Walkthrough } from "../duel/Walkthrough.tsx"
 import { routeHash } from "../router.ts"
 
 /** Each row is a golden case of `rawiyyOf` in shared/arabic.test.ts. */
@@ -34,12 +36,22 @@ const VERDICTS: { tag: string; copy: string; cost: string }[] = [
 ]
 
 export function RulesView() {
+  // v2.md §1 — the same five steps the setup screen offers, from the page a
+  // reader lands on when the setup screen was not enough.
+  const [walkthrough, setWalkthrough] = useState(false)
+
   return (
     <div className="view rules-view">
       <header className="view__head">
         <h1 className="view__title">قواعد المساجلة</h1>
         <p className="view__lede">
           يُنشد الخصمُ بيتًا، فتُجيبَه ببيتٍ يبدأ بحرف رويِّه. فإذا انقطعتَ، ذهبتْ روح؛ وإذا انقطع هو، فقد أفحمتَه.
+        </p>
+        <p className="setup-teach">
+          <button type="button" className="btn btn--ghost setup-teach__btn" onClick={() => setWalkthrough(true)}>
+            كيف تتم المساجلة؟
+          </button>
+          <span className="setup-teach__note">خمس خطوات على بيتٍ حقيقيّ، قبل القواعد المفصّلة.</span>
         </p>
       </header>
 
@@ -135,6 +147,13 @@ export function RulesView() {
             <b>والهمسُ بثمن.</b>
             <span>«من قائله؟» و«أوّل كلمة» و«البحر» تُخصم من نقاط الدور، و«بدّل الحرف» تقطع سلسلتك.</span>
           </li>
+          <li>
+            <b>ووضعُ التدريب بنصف النقاط.</b>
+            <span>
+              إن شغّلتَه من شاشة الإعداد، ظهرت لك وأنت تكتب أبياتٌ حقيقية من الديوان تبدأ بالحرف المطلوب — وكلُّ ما
+              تكسبه حينئذٍ نصفُه. أمّا ما تدفعه في الهمس فبثمنه كاملًا.
+            </span>
+          </li>
         </ul>
       </section>
 
@@ -145,7 +164,12 @@ export function RulesView() {
         <a className="btn" href={routeHash({ view: "daily" })}>
           تحدّي اليوم
         </a>
+        <button type="button" className="btn" onClick={() => setWalkthrough(true)}>
+          كيف تتم المساجلة؟
+        </button>
       </div>
+
+      {walkthrough ? <Walkthrough onClose={() => setWalkthrough(false)} /> : null}
     </div>
   )
 }

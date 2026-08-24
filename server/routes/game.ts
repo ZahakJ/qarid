@@ -2,6 +2,7 @@
  * `/api/game/*` — the مساجلة endpoints (design-server.md §7/§8).
  *
  *   GET  /api/game/pool    amendment 2 — the setup screen's live pool counter
+ *   GET  /api/game/assist  v2.md §2 — وضع التدريب's suggestion rail
  *   POST /api/game/start   the opponent opens
  *   POST /api/game/verify  is the player's بيت in the ديوان, and does it chain?
  *   POST /api/game/reply   the opponent answers
@@ -14,9 +15,11 @@
  * still in their browser. The cost is that `usedBaitIds` grows, which is why the
  * schema clamps every exclude list to `MAX_EXCLUDES` (500) before it is read.
  *
- * All five routes sit behind the token bucket design-server.md §7 specifies:
- * 12 requests per 10 seconds per IP, created per sub-app so two `createApp()`s
- * in one test file cannot bleed counts into each other.
+ * Five of the six routes sit behind the token bucket design-server.md §7
+ * specifies: 12 requests per 10 seconds per IP, created per sub-app so two
+ * `createApp()`s in one test file cannot bleed counts into each other. The
+ * sixth, `/assist`, fires while the player is TYPING and gets its own bucket
+ * for it (`ASSIST_RATE_LIMIT`) — see the note on the middleware below.
  *
  * Every decision lives in `server/game.ts`; this file parses, rate-limits and
  * shapes. Nothing here touches SQLite at construction time — the null-db stub in
@@ -27,9 +30,10 @@ import { Hono, type Context } from "hono"
 import type { z } from "zod"
 
 import { TIER_PREDICATES } from "../../scripts/ingest/ddl.ts"
-import { GAME_RATE_LIMIT } from "../../shared/constants.ts"
+import { ASSIST_RATE_LIMIT, GAME_RATE_LIMIT } from "../../shared/constants.ts"
 import { HIJAI_LETTERS } from "../../shared/letters.ts"
 import {
+  GameAssistQuerySchema,
   GameHintRequestSchema,
   GamePoolQuerySchema,
   GameReplyRequestSchema,
@@ -37,6 +41,7 @@ import {
   GameVerifyRequestSchema,
   HINT_COSTS,
   toErrorBody,
+  type GameAssistResponse,
   type GameHintResponse,
   type GamePoolResponse,
   type GameReplyResponse,
@@ -48,6 +53,7 @@ import type { Db } from "../db.ts"
 import { letterOrNull, meterRef, poetRef } from "../dto.ts"
 import {
   RELAX_TIER,
+  assistSuggest,
   comboByLetter,
   effectiveTailBias,
   firstWordOf,
@@ -142,7 +148,14 @@ async function readBody(c: Context): Promise<{ ok: true; raw: unknown } | { ok: 
 export function gameRoutes(db: Db, _config: Config): Hono {
   const app = new Hono()
   const limiter = createRateLimiter({ tokens: GAME_RATE_LIMIT.tokens, windowMs: GAME_RATE_LIMIT.windowMs })
-  app.use("*", limiter.middleware)
+  const assistLimiter = createRateLimiter({ tokens: ASSIST_RATE_LIMIT.tokens, windowMs: ASSIST_RATE_LIMIT.windowMs })
+  // Two buckets, one middleware. `/assist` fires while the player TYPES, and
+  // spending the duel's twelve tokens on suggestions would 429 the very next
+  // `/verify` — the request the game's outcome depends on. So the rail is
+  // limited (v2.md §2), just not out of the same purse; see ASSIST_RATE_LIMIT.
+  app.use("*", (c, next) =>
+    c.req.path.endsWith("/assist") ? assistLimiter.middleware(c, next) : limiter.middleware(c, next),
+  )
 
   // ── GET /api/game/pool (amendment 2) ─────────────────────────────────────
   //
@@ -182,6 +195,27 @@ export function gameRoutes(db: Db, _config: Config): Hono {
     }
 
     const body: GamePoolResponse = { total, byLetter, effectiveTotal }
+    return c.json(body)
+  })
+
+  // ── GET /api/game/assist (v2.md §2) ──────────────────────────────────────
+  //
+  // وضع التدريب's suggestion rail: real أبيات that open on the required letter
+  // and carry what the player has typed. Everything that decides anything is in
+  // `assistSuggest`; the shape of the answer is the house list envelope, and
+  // `page` is always 1 because the rail is a top-N, not a pager.
+  //
+  // The typed text NEVER reaches SQL: `assistSuggest` folds it with
+  // `shared/arabic.ts` and compares it in JavaScript against a pool it loaded by
+  // letter, and the only values bound to a statement here are the letter (a zod
+  // enum) and up to eight integer primary keys. There is no MATCH expression to
+  // escape and no LIKE pattern to poison.
+  app.get("/assist", (c) => {
+    const parsed = parseQuery(c, GameAssistQuerySchema)
+    if (!parsed.ok) return parsed.res
+    const q = parsed.data
+    const found = assistSuggest(db, { letter: q.letter, q: q.q, limit: q.limit })
+    const body: GameAssistResponse = { items: found.items, total: found.total, page: 1, limit: q.limit }
     return c.json(body)
   })
 

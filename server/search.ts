@@ -505,7 +505,11 @@ function wants(scope: SearchScope, list: "baits" | "poems" | "poets"): boolean {
 }
 
 function onePass(db: Db, q: SearchQuery, mode: SearchMode): SearchResult {
-  const match = ftsQuery(q.q, mode)
+  // v2.md §2: a trailing `*` is the one piece of FTS5 syntax a reader may have,
+  // and `PREFIX_MIN_LENGTH` is what keeps it affordable — a starred term of
+  // four characters or more measured 5–41 ms ranked on the real corpus, while
+  // «ال»* measured 2,058 ms and is therefore searched as the word «ال».
+  const match = ftsQuery(q.q, mode, { stars: true })
   if (match === "") return EMPTY_RESULT(mode)
 
   // Only `baits_fts` gets the guard: it is the 3.57M-row index, and the other
