@@ -21,18 +21,41 @@ export type Db = {
   close(): void
 }
 
+/**
+ * Upper bound on the statement cache.
+ *
+ * Every route builds CONSTANT-SHAPED SQL (values arrive as bound parameters),
+ * so the number of distinct strings is the number of filter *shapes*, not of
+ * filter *values*. But `/api/poems` alone has ten optional filter dimensions
+ * and five sorts, and `/api/facets` runs six variants of each — enumerate them
+ * and an unbounded Map would hold thousands of compiled statements that nothing
+ * will ask for twice. 512 covers every shape a real session emits many times
+ * over; past that the least-recently-used entry is dropped and node:sqlite
+ * finalises it when it is collected.
+ */
+export const STATEMENT_CACHE_MAX = 512
+
 export function openDb(dbPath: string): Db {
   const raw = new DatabaseSync(dbPath, { readOnly: true })
   for (const pragma of READ_PRAGMAS) raw.exec(pragma)
 
+  // Map iteration order is insertion order, which is all an LRU needs: a hit
+  // re-inserts at the end, so the first key is always the coldest.
   const cache = new Map<string, StatementSync>()
   return {
     raw,
     q(sql) {
-      let stmt = cache.get(sql)
-      if (!stmt) {
-        stmt = raw.prepare(sql)
-        cache.set(sql, stmt)
+      const hit = cache.get(sql)
+      if (hit !== undefined) {
+        cache.delete(sql)
+        cache.set(sql, hit)
+        return hit
+      }
+      const stmt = raw.prepare(sql)
+      cache.set(sql, stmt)
+      if (cache.size > STATEMENT_CACHE_MAX) {
+        const coldest = cache.keys().next()
+        if (!coldest.done) cache.delete(coldest.value)
       }
       return stmt
     },

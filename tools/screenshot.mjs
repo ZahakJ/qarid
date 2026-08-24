@@ -7,41 +7,110 @@
  * headless Chromium: wait for `body[data-app-ready="1"]`, fail on any console
  * error or page error, write screenshots/<route>.png.
  *
- *   node tools/screenshot.mjs [--no-build] [--no-db] [--mobile]
+ *   node tools/screenshot.mjs [--no-build] [--no-db] [--mobile] [--full]
+ *                             [--port N] [--db PATH] [--poem ID] [--out DIR]
+ *                             [--routes home,browse,…] [--seed FILE|off]
  *
- * DB selection: data/qarid.db, else data/fixture.db, else fail with a clear
- * message telling you which npm script builds one. `--no-db` deliberately
- * points the server at a path that does not exist, so `openDbIfPresent`
- * returns null, /api/* answers 503 and only the static shell is exercised —
- * that is the Phase-0 mode, before any ingest has run.
+ * DB selection: `--db PATH`, else data/qarid.db, else data/fixture.db, else
+ * fail with a clear message telling you which npm script builds one. `--no-db`
+ * deliberately points the server at a path that does not exist, so
+ * `openDbIfPresent` returns null, /api/* answers 503 and only the static shell
+ * is exercised — that is the Phase-0 mode, before any ingest has run.
  *
- * Port 6750 is fixed (dev API 5750 / vite 5751 / preview-smoke 6750 / prod
- * 8010). The child's PID is the ONLY thing this script kills — other services
- * in the suite share the `server/index.ts` path and a broad pkill takes them
- * all down.
+ * Port 6750 is the DEFAULT (dev API 5750 / vite 5751 / preview-smoke 6750 /
+ * prod 8010); `--port N` moves it, which is how a build agent shoots its own
+ * work without colliding with the human's smoke run. `--poem ID` pins the
+ * قصيدة route to one public id instead of "whatever /api/poems returns first",
+ * so a layout iteration keeps shooting the same page.
+ *
+ * SEEDING: `tools/smoke-seed.json` maps a route name (plus an optional "*" that
+ * applies to every route) to the `qarid:v1:*` localStorage entries that route
+ * should boot with — that is how `duel-play` and `duel-summary` are shot with a
+ * مساجلة in progress without playing one. Seeded state is applied and the page
+ * RELOADED (a hash change would not re-run the stores), and it is cleared again
+ * before the next route, so no two routes can contaminate each other.
+ * `--seed off` disables it; `--seed FILE` points elsewhere.
+ *
+ * The child's PID is the
+ * ONLY thing this script kills — other services in the suite share the
+ * `server/index.ts` path and a broad pkill takes them all down.
  */
 import { spawn, execSync } from "node:child_process"
-import { existsSync, mkdirSync } from "node:fs"
-import { join, dirname } from "node:path"
+import { existsSync, mkdirSync, readFileSync } from "node:fs"
+import { join, dirname, isAbsolute } from "node:path"
 import { fileURLToPath } from "node:url"
 import { chromium } from "playwright"
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..")
-const PORT = 6750
-const ORIGIN = `http://127.0.0.1:${PORT}`
 
 const argv = process.argv.slice(2)
 const noBuild = argv.includes("--no-build")
 const noDb = argv.includes("--no-db")
 const mobile = argv.includes("--mobile")
+// Design iteration wants the WHOLE page; the smoke run wants the fold.
+const full = argv.includes("--full")
+
+/** `--flag value` or `--flag=value`; undefined when the flag is absent. */
+function flag(name) {
+  const i = argv.indexOf(`--${name}`)
+  if (i !== -1 && argv[i + 1] && !argv[i + 1].startsWith("--")) return argv[i + 1]
+  const eq = argv.find((a) => a.startsWith(`--${name}=`))
+  return eq ? eq.slice(name.length + 3) : undefined
+}
+
+const PORT = Number(flag("port") ?? 6750)
+if (!Number.isInteger(PORT) || PORT < 1024 || PORT > 65535) {
+  console.error(`FAIL — --port must be an integer 1024–65535, got ${flag("port")}`)
+  process.exit(1)
+}
+const ORIGIN = `http://127.0.0.1:${PORT}`
+const OUT_DIR = (() => {
+  const o = flag("out") ?? "screenshots"
+  return isAbsolute(o) ? o : join(ROOT, o)
+})()
+const PINNED_POEM = flag("poem")
+/** `--routes home,browse` shoots a subset; undefined shoots them all. */
+const ONLY = flag("routes")?.split(",").map((r) => r.trim()).filter(Boolean)
+
+/** localStorage fixtures per route — see SEEDING above. `--seed off` skips. */
+const SEED_ARG = flag("seed")
+const SEED_FILE = SEED_ARG === "off" ? null : isAbsolute(SEED_ARG ?? "") ? SEED_ARG : join(ROOT, SEED_ARG ?? "tools/smoke-seed.json")
+let SEEDS = null
+if (SEED_FILE) {
+  if (existsSync(SEED_FILE)) {
+    try {
+      SEEDS = JSON.parse(readFileSync(SEED_FILE, "utf8"))
+    } catch (err) {
+      console.error(`FAIL — ${SEED_FILE} is not valid JSON: ${err.message}`)
+      process.exit(1)
+    }
+  } else if (SEED_ARG) {
+    console.error(`FAIL — --seed ${SEED_ARG} does not exist (looked at ${SEED_FILE})`)
+    process.exit(1)
+  }
+}
+
+/** The entries one route boots with: the "*" block, overridden by its own. */
+function seedFor(name) {
+  if (!SEEDS) return {}
+  return { ...(SEEDS["*"] ?? {}), ...(SEEDS[name] ?? {}) }
+}
 
 // ── pick the corpus ────────────────────────────────────────────────────────
 const REAL_DB = join(ROOT, "data", "qarid.db")
 const FIXTURE_DB = join(ROOT, "data", "fixture.db")
+const EXPLICIT_DB = flag("db")
 let dbPath
 if (noDb) {
   dbPath = join(ROOT, "data", "__no-db__.sqlite") // deliberately absent
   console.log("smoke: --no-db — static shell only, /api/* will answer 503")
+} else if (EXPLICIT_DB) {
+  dbPath = isAbsolute(EXPLICIT_DB) ? EXPLICIT_DB : join(ROOT, EXPLICIT_DB)
+  if (!existsSync(dbPath)) {
+    console.error(`FAIL — --db ${EXPLICIT_DB} does not exist (looked at ${dbPath})`)
+    process.exit(1)
+  }
+  console.log(`smoke: using ${dbPath}`)
 } else if (existsSync(REAL_DB)) {
   dbPath = REAL_DB
 } else if (existsSync(FIXTURE_DB)) {
@@ -54,6 +123,7 @@ if (noDb) {
       `  looked for: ${REAL_DB}`,
       `              ${FIXTURE_DB}`,
       "  build one with `npm run ingest` (15–30 min) or `npm run ingest:fixture` (seconds),",
+      "  point at one with `--db data/fixture.db`,",
       "  or run `node tools/screenshot.mjs --no-db` to smoke the static shell only.",
     ].join("\n"),
   )
@@ -64,7 +134,7 @@ if (!noBuild) {
   console.log("building…")
   execSync("npm run build", { cwd: ROOT, stdio: "pipe" })
 }
-mkdirSync(join(ROOT, "screenshots"), { recursive: true })
+mkdirSync(OUT_DIR, { recursive: true })
 
 const server = spawn("node", ["server/index.ts"], {
   cwd: ROOT,
@@ -87,7 +157,7 @@ try {
   // Real ids when a corpus is present; harmless placeholders in --no-db mode
   // (the hash router resolves an unknown poem id to home rather than erroring).
   const poetSlug = (await firstOf("/api/poets?limit=1", (j) => j?.items?.[0]?.slug)) ?? "almutanabbi"
-  const poemId = (await firstOf("/api/poems?limit=1", (j) => j?.items?.[0]?.id)) ?? "1"
+  const poemId = PINNED_POEM ?? (await firstOf("/api/poems?limit=1", (j) => j?.items?.[0]?.id)) ?? "1"
 
   const routes = [
     ["home", "/#/"],
@@ -97,26 +167,64 @@ try {
     ["browse", "/#/browse"],
     ["search", "/#/search?q=%D8%A7%D9%84%D8%AE%D9%8A%D9%84"],
     ["duel", "/#/duel"],
+    ["duel-play", "/#/duel/play"],
+    ["duel-summary", "/#/duel/summary"],
     ["daily", "/#/daily"],
-  ]
+    ["favorites", "/#/favorites"],
+    ["rules", "/#/rules"],
+    ["stats", "/#/stats"],
+  ].filter(([name]) => !ONLY || ONLY.includes(name))
+
+  if (routes.length === 0) {
+    throw new Error(`--routes matched nothing (asked for ${ONLY?.join(", ")})`)
+  }
 
   browser = await chromium.launch()
   const viewport = mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }
-  const page = await browser.newPage({ viewport, deviceScaleFactor: 2, locale: "ar" })
 
   const errors = []
-  page.on("console", (msg) => {
-    if (msg.type() === "error") errors.push(`${page.url()} — ${msg.text()}`)
-  })
-  page.on("pageerror", (err) => errors.push(`${page.url()} — ${String(err)}`))
+  let ctx = null
+  let page = null
+  let applied = null
+
+  /**
+   * A page whose localStorage already holds `seed` BEFORE the app boots. The
+   * stores read storage once, at module load, and `#/duel/play` bounces to
+   * `#/duel` the instant it finds no session — so seeding after navigation is
+   * always a step too late. `addInitScript` runs ahead of every document, which
+   * is why the seed lives on the CONTEXT and a new seed means a new context.
+   */
+  async function pageFor(seed) {
+    const wanted = JSON.stringify(seed)
+    if (page && applied === wanted) return page
+    if (ctx) await ctx.close()
+    ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, locale: "ar" })
+    if (Object.keys(seed).length) {
+      await ctx.addInitScript((entries) => {
+        try {
+          for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, JSON.stringify(v))
+        } catch {
+          /* storage unavailable — the route still renders its empty state */
+        }
+      }, seed)
+    }
+    page = await ctx.newPage()
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(`${page.url()} — ${msg.text()}`)
+    })
+    page.on("pageerror", (err) => errors.push(`${page.url()} — ${String(err)}`))
+    applied = wanted
+    return page
+  }
 
   for (const [name, path] of routes) {
+    const page = await pageFor(seedFor(name))
     await page.goto(`${ORIGIN}${path}`, { waitUntil: "networkidle" })
     await page.waitForSelector('body[data-app-ready="1"]', { timeout: 10000 })
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(150)
-    const file = join(ROOT, "screenshots", mobile ? `${name}-390.png` : `${name}.png`)
-    await page.screenshot({ path: file, fullPage: false })
+    const file = join(OUT_DIR, mobile ? `${name}-390.png` : `${name}.png`)
+    await page.screenshot({ path: file, fullPage: full })
     console.log(`  ✓ ${name}`)
   }
 
@@ -125,7 +233,7 @@ try {
     for (const e of errors) console.error(`  ${e}`)
     failed = true
   } else {
-    console.log("smoke green — screenshots/ updated")
+    console.log(`smoke green — ${OUT_DIR} updated`)
   }
 } catch (err) {
   console.error(`FAIL — ${err instanceof Error ? err.message : err}`)

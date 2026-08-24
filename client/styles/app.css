@@ -95,8 +95,17 @@
   inline-size: min(var(--col-narrow), 100% - 2 * var(--sp-4));
 }
 
+.main--home {
+  inline-size: min(var(--col-home), 100% - 2 * var(--sp-4));
+}
+
+/* An implicit grid column is sized to its WIDEST item, so one child that
+ * overflows silently widens every sibling — and, under RTL, drags the whole
+ * page off its centre. Pin the track: a view is one column, the measure its
+ * `main` was given. */
 .view {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-5);
 }
 

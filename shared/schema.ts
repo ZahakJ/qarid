@@ -348,6 +348,12 @@ export const PoemSummarySchema = z.object({
   langType: LangTypeSchema.nullable(),
   /** modal rawiyy of the poem (tie → bait 1) */
   rhyme: ArabicLetterSchema.nullable(),
+  /**
+   * `poems.rhyme_share` — the share of أبيات whose روي is `rhyme`. A مقطوعة
+   * with a mixed tail scores low; below 0.6 the client hides the قافية chip
+   * instead of claiming a قافية the قصيدة does not have.
+   */
+  rhymeShare: z.number().min(0).max(1).nullable().default(null),
   firstLetter: ArabicLetterSchema.nullable(),
   baitCount: z.number().int().nonnegative(),
   hasTashkeel: z.boolean(),

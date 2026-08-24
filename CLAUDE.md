@@ -42,6 +42,24 @@ numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
   the artefact read-only once and hands out cached prepared statements.
   Route sub-apps live in `server/routes/` and are mounted at the one marked
   block in `app.ts`.
+- Route map (`server/routes/`, all mounted under `/api`): **meta** `/meta`
+  (whole payload precomputed into `meta.meta_json` at ingest, parsed once per
+  process) · **stats** `/stats` (same trick over `stats_json`) · **poets**
+  `/poets`, `/poets/:slug` (poet + signature بيت + first ديوان page + قافية/بحر/غرض
+  chips), `/poets/:slug/poems` · **poems** `/poems`, `/poems/:publicId` (أبيات
+  paired, first 200), `/poems/:publicId/baits` (offset/limit ≤ 300),
+  `/poems/:publicId/similar` (amendment 9) · **baits** `/baits`, `/baits/random`,
+  `/baits/daily`, `/baits/:id` (prev/next) · **facets** `/facets` · **train**
+  `/train/candidates` · plus the `search` and `game` sub-apps other agents own.
+  Shared plumbing: `server/dto.ts` is the only place a column name is spelled
+  (SQL fragments + row→DTO shaping), `server/query.ts` owns query parsing (zod →
+  `400 {error, issues}`), memoised slug→id maps, the poem filter and
+  `listPoems`. Three rules hold everywhere: a list route ALWAYS returns
+  `{items, total, page, limit}`; an unknown *slug* is an empty result, not a
+  400 (only an illegal enum is a 400, because the client cannot emit one); and
+  any route that sorts sorts a narrow id subquery first and joins the surviving
+  ≤100 rows out afterwards — sorting the joined rows cost 2.6 s on the 1.76M-row
+  `game_baits` browse.
 - `client/` React, hash-routed, `<html lang="ar" dir="rtl">`,
   `<body data-app="qarid">`; `BaytPlate` is the only بيت renderer,
   `renderCard.ts` the only share-card renderer. Layout in design-ux.md.

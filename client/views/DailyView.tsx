@@ -1,0 +1,104 @@
+/**
+ * `#/daily` — تحدّي اليوم (design-ux.md §5 Daily, amendments.md §6).
+ *
+ * The same opening بيت for everyone, one life, no clock, one attempt a day,
+ * and a share block at the end. The mechanics are the duel's: this view starts
+ * a session whose `dailyDate` is set, which is what makes `duelStore` seed
+ * every request with `daily:<day>[:turn]` — so the whole chain, opponent
+ * included, is identical for every player of that day.
+ *
+ * The one-attempt rule is enforced against `qarid:v1:profile` and is stated on
+ * screen as what it is: a rail, not a lock (client/duel/daily.ts).
+ */
+import { useMemo, useState } from "react"
+import { formatBaits, formatCount } from "../../shared/format.ts"
+import { writeClipboard } from "../bayt/copy.ts"
+import { Rule } from "../components/Ornaments.tsx"
+import { Panel } from "../components/Panel.tsx"
+import { DuelPlayView } from "../duel/DuelPlayView.tsx"
+import { dailyConfig, playedToday, riyadhDay } from "../duel/daily.ts"
+import { arabicDay, letterRibbon, shareText } from "../duel/share.ts"
+import { loadProfile, startDuel, useDuel } from "../store/duelStore.ts"
+import { toast } from "../store/toastStore.ts"
+import { routeHash } from "../router.ts"
+
+export function DailyView() {
+  const session = useDuel((s) => s.session)
+  const [tick, setTick] = useState(0)
+  const day = useMemo(() => riyadhDay(), [])
+  const profile = useMemo(() => loadProfile(), [tick, session?.phase])
+  const result = profile.dailyResults[day] ?? null
+  const live = session && session.dailyDate === day && session.phase !== "summary" && session.phase !== "idle"
+
+  // A مساجلة already in flight owns the screen — the duel's own view renders it.
+  if (live) return <DuelPlayView />
+
+  const begin = () => {
+    startDuel(dailyConfig(), day)
+    setTick((n) => n + 1)
+  }
+
+  const share = () => {
+    if (!result) return
+    const text = shareText({
+      dayKey: day,
+      letters: result.letters,
+      chainLength: result.chainLength,
+      score: result.score,
+    })
+    void writeClipboard(text).then((ok) => toast(ok ? "نُسخ التحدّي" : "تعذّر النسخ", ok ? "ok" : "warn"))
+  }
+
+  return (
+    <div className="view daily">
+      <div className="view__head">
+        <h1 className="view__title">تحدّي {arabicDay(day)}</h1>
+        <p className="view__lede">مطلعٌ واحد للناس جميعًا، وروحٌ واحدة، بلا وقت. محاولة واحدة في اليوم.</p>
+      </div>
+      <Rule />
+
+      {result ? (
+        <Panel illuminated title="ما بلغتَه اليوم">
+          <div className="daily-result">
+            <p className="daily-result__line">
+              <span className="daily-result__n">{formatCount(result.score)}</span> نقطة ·{" "}
+              {formatBaits(result.chainLength)}
+            </p>
+            {result.letters.length ? (
+              <p className="daily-result__ribbon">
+                <bdi>{letterRibbon(result.letters)}</bdi>
+              </p>
+            ) : null}
+            <pre className="daily-share" aria-label="نص المشاركة">
+              {shareText({
+                dayKey: day,
+                letters: result.letters,
+                chainLength: result.chainLength,
+                score: result.score,
+              })}
+            </pre>
+            <div className="daily-acts">
+              <button type="button" className="btn btn--primary" onClick={share}>
+                انسخ للمشاركة
+              </button>
+              <a className="btn" href={routeHash({ view: "duel" })}>
+                مساجلة بلا قيد
+              </a>
+            </div>
+          </div>
+        </Panel>
+      ) : (
+        <Panel illuminated title="ابدأ التحدّي" note="روحٌ واحدة · بلا وقت · مطلعٌ واحد للجميع">
+          <div className="daily-acts">
+            <button type="button" className="btn btn--primary btn--lg" onClick={begin}>
+              ابدأ تحدّي اليوم
+            </button>
+          </div>
+          <p className="panel__note">
+            {playedToday(profile, day) ? "لعبتَ اليوم." : "المحاولة واحدة، والحساب على شرفك — التحدّي محفوظ في متصفحك وحده."}
+          </p>
+        </Panel>
+      )}
+    </div>
+  )
+}

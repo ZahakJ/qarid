@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import fs from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
-import { openDb, openDbIfPresent, type Db } from "./db.ts"
+import { openDb, openDbIfPresent, STATEMENT_CACHE_MAX, type Db } from "./db.ts"
 
 const TMP = path.join(import.meta.dirname, "..", "data", "test-db")
 const DB_PATH = path.join(TMP, "probe.db")
@@ -52,6 +52,26 @@ describe("openDb", () => {
     const sql = "SELECT value FROM meta WHERE key = ?"
     expect(db.q(sql)).toBe(db.q(sql))
     expect(db.q(sql)).not.toBe(db.q("SELECT key FROM meta WHERE key = ?"))
+  })
+
+  it("bounds the cache and keeps the hot statement across the eviction", () => {
+    // A private handle: evicting from the shared `db` would make the assertions
+    // above depend on test order.
+    const local = openDb(DB_PATH)
+    try {
+      const hot = "SELECT value FROM meta WHERE key = ?"
+      const first = local.q(hot)
+      // Every one of these is a distinct SQL string, so the cache must overflow.
+      for (let i = 0; i < STATEMENT_CACHE_MAX + 50; i++) {
+        local.q(`SELECT value FROM meta WHERE key = ? AND ${i} = ${i}`)
+        local.q(hot) // touched every round — an LRU must never drop it
+      }
+      expect(local.q(hot)).toBe(first)
+      // and the statement still works, i.e. nothing was finalised underneath it
+      expect((local.q(hot).get("build_id") as { value: string }).value).toBe("probe")
+    } finally {
+      local.close()
+    }
   })
 
   it("serves FTS5 MATCH, bm25 and snippet from the read-only handle", () => {

@@ -1,22 +1,40 @@
-/* قريض — the بيت. design-ux.md §3 (Poem).
+/* قريض — the بيت, and the القصيدة page built out of it.
+ * design-ux.md §3 (Poem), amendments.md §12.
  *
- * DOM order is sadr, gutter, ajuz. Under RTL the first grid column is the
- * right-hand one, so the two hemistichs are pushed to the outer margins and
- * the empty gutter becomes a quiet centre channel — the shape of a printed
- * diwan. The gutter carries nothing until hover, when a small gold shamsa
- * fades in at 45%.
+ * ── the shape ──────────────────────────────────────────────────────────────
+ * A row of a قصيدة is three columns:
+ *
+ *     ┌ num ┬──────────────── the بيت ────────────────┬ rail ┐
+ *     │  ٧  │  صدر ……      ·شمسة·      …… عجز        │  ⁚⁚  │
+ *     └─────┴─────────────────────────────────────────┴──────┘
+ *
+ * and the بيت itself is `1fr | gutter | 1fr` in DOM order sadr, gutter, ajuz.
+ * Under RTL the first column is the right-hand one, so the two hemistichs are
+ * pushed to the OUTER margins and the empty gutter becomes the quiet centre
+ * channel of a printed ديوان.
+ *
+ * The two margin columns are RESERVED at all times and are the same width, so
+ * (a) the verse block sits optically centred, and (b) hover shifts nothing.
+ * The action rail is a 2×2 QUAD rather than a horizontal strip precisely
+ * because a strip needs ~7rem: it would either eat the عجز's outer margin or
+ * overlap the قافية word, and a rail tall enough to spill into the بيت above
+ * loses :hover the moment the pointer reaches it.
  */
 
 .bayt-list {
   display: flex;
   flex-direction: column;
+  /* poem rows own their own inline padding; pull the block back to the margin */
+  margin-inline: calc(-1 * var(--sp-2));
 }
 
 .bayt-row {
+  --bayt-num-col: 3.2rem;
+  --bayt-rail-col: 3.2rem;
   display: grid;
-  grid-template-columns: var(--bayt-num-col, 4ch) 1fr;
+  grid-template-columns: var(--bayt-num-col) 1fr var(--bayt-rail-col);
   align-items: baseline;
-  gap: 0 var(--sp-2);
+  gap: 0;
   padding-block: var(--sp-2);
   padding-inline: var(--sp-2);
   border-inline-start: 2px solid transparent;
@@ -28,7 +46,7 @@
    * so Ctrl+F, anchors and text selection all keep working (amendments §12).
    * The intrinsic size keeps the scrollbar honest before a row is laid out. */
   content-visibility: auto;
-  contain-intrinsic-block-size: auto 4.5rem;
+  contain-intrinsic-block-size: auto 4.6rem;
 }
 
 .bayt-row:hover,
@@ -36,6 +54,15 @@
 .bayt-row[data-active="1"] {
   background: var(--accent-wash);
   border-inline-start-color: var(--accent);
+}
+
+/* The row itself is the keyboard target (j/k walk the قصيدة) — give it a ring
+ * that reads as a reading position, not as a form control. */
+.bayt-row:focus-visible {
+  outline: none;
+  background: var(--accent-wash);
+  border-inline-start-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-hair);
 }
 
 .bayt-row[data-pulse="1"] {
@@ -58,8 +85,14 @@
   font-size: var(--fs-ui-2);
   color: var(--text-3);
   text-align: end;
-  padding-inline-end: var(--sp-2);
+  padding-inline-end: var(--sp-3);
   user-select: none;
+  font-variant-numeric: normal;
+}
+
+.bayt-row:hover .bayt-num,
+.bayt-row:focus-within .bayt-num {
+  color: var(--accent-soft);
 }
 
 /* ── the two-hemistich grid ─────────────────────────────────────────── */
@@ -71,6 +104,10 @@
   font-size: var(--fs-bayt-md);
   line-height: var(--lh-bayt);
   color: var(--text-1);
+  /* Arabic is never letter-spaced (design-ux.md §2). Stated, not assumed. */
+  letter-spacing: normal;
+  font-style: normal;
+  text-wrap: pretty;
 }
 
 .bayt .sadr {
@@ -79,6 +116,16 @@
 
 .bayt .ajuz {
   text-align: end;
+}
+
+/* A final بيت with an odd hemistich count (`isPartial`) has no عجز: let the
+ * lone شطر run the full measure instead of stranding it on one margin. */
+.bayt[data-partial="1"] .sadr {
+  grid-column: 1 / -1;
+}
+
+.bayt[data-partial="1"] .gutter {
+  display: none;
 }
 
 .bayt .gutter {
@@ -91,7 +138,9 @@
 }
 
 .bayt-row:hover .gutter,
-.bayt-row:focus-within .gutter {
+.bayt-row:focus-within .gutter,
+.bayt-plate:hover .gutter,
+.bayt-plate:focus-within .gutter {
   opacity: 0.45;
 }
 
@@ -106,7 +155,7 @@
   font-size: var(--fs-bayt-lg);
 }
 
-/* tashkeel needs the taller leading and one size step up */
+/* tashkeel needs the taller leading — and it follows the LINE, not the poem */
 .bayt[data-tashkeel="1"] {
   line-height: var(--lh-bayt-tashkeel);
 }
@@ -115,8 +164,8 @@
 .bayt .rawiyy-mark {
   text-decoration: underline;
   text-decoration-color: var(--lapis);
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 0.3em;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.22em;
 }
 
 /* search hit: lapis UNDERLINE, never a fill (amendment 14) */
@@ -127,6 +176,74 @@
   font-weight: inherit;
   border-block-end: 1.5px solid var(--lapis);
   padding-block-end: 0.06em;
+}
+
+/* ── the action rail ────────────────────────────────────────────────── */
+.bayt-rail {
+  position: relative;
+  align-self: center;
+  block-size: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.bayt-acts {
+  display: grid;
+  gap: 2px;
+}
+
+.bayt-acts[data-layout="quad"] {
+  grid-template-columns: repeat(2, 1.5rem);
+  grid-auto-rows: 1.5rem;
+  opacity: 0;
+  transform: translateY(1px);
+  transition:
+    opacity var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+.bayt-acts[data-layout="row"] {
+  grid-auto-flow: column;
+  grid-auto-columns: 1.65rem;
+  grid-template-rows: 1.65rem;
+  gap: var(--sp-1);
+}
+
+.bayt-row:hover .bayt-acts,
+.bayt-row:focus-within .bayt-acts {
+  opacity: 1;
+  transform: none;
+}
+
+.bayt-act {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: 1rem;
+  transition:
+    color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.bayt-act:hover {
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.bayt-act[data-on="1"] {
+  color: var(--accent);
+}
+
+.bayt-act svg {
+  inline-size: 1em;
+  block-size: 1em;
 }
 
 /* ── BaytPlate — the standalone, framed بيت ─────────────────────────── */
@@ -157,22 +274,22 @@
 }
 
 .bayt-plate__actions {
-  display: flex;
-  gap: var(--sp-1);
+  margin-inline-start: auto;
   opacity: 0;
   transition: opacity var(--dur-2) var(--ease);
 }
 
 .bayt-plate:hover .bayt-plate__actions,
-.bayt-plate:focus-within .bayt-plate__actions,
-.bayt-row:hover .bayt-plate__actions {
+.bayt-plate:focus-within .bayt-plate__actions {
   opacity: 1;
 }
 
-/* Touch has no hover: keep the rail permanently visible but quiet. */
+/* Touch has no hover: keep the rails permanently visible but quiet. */
 @media (hover: none) {
+  .bayt-acts[data-layout="quad"],
   .bayt-plate__actions {
     opacity: 0.55;
+    transform: none;
   }
   .bayt .gutter {
     opacity: 0.2;
@@ -196,33 +313,61 @@
   }
 
   .bayt .ajuz {
-    padding-inline-start: 1.75rem;
+    padding-inline-start: 1.25rem;
     border-inline-start: 1px solid var(--line-1);
   }
 
   .bayt-row {
-    grid-template-columns: 3ch 1fr;
+    --bayt-num-col: 2.1rem;
+    --bayt-rail-col: 2.2rem;
+    /* a stacked بيت is two lines: give أبيات more air than the two شطر have
+     * between them, or the قصيدة reads as one undifferentiated column */
+    padding-block: var(--sp-3);
+    contain-intrinsic-block-size: auto 7rem;
+  }
+
+  /* the size control no longer earns its own line at the far edge */
+  .poem-toolbar .segmented {
+    margin-inline-start: 0;
+  }
+
+  .bayt-num {
+    padding-inline-end: var(--sp-2);
+    /* a stacked بيت is two lines tall; keep the number on the first one */
+    align-self: start;
+  }
+
+  .bayt-rail {
+    align-self: start;
+  }
+
+  .bayt-acts[data-layout="quad"] {
+    grid-template-columns: 1.35rem;
+    grid-auto-rows: 1.35rem;
   }
 }
 
-/* ── skeleton: same geometry as the real plate, gold sweep ──────────── */
-.bayt-skeleton {
-  display: grid;
-  grid-template-columns: 1fr var(--gutter, 3.25rem) 1fr;
-  align-items: center;
-  gap: var(--sp-3);
-  block-size: calc(var(--lh-bayt) * 1em);
+/* ── skeleton: same geometry as the real row, gold sweep ────────────── */
+.bayt-row[data-skeleton="1"] {
+  pointer-events: none;
 }
 
-.bayt-skeleton span {
-  block-size: 0.55em;
+.bayt--skeleton .sadr,
+.bayt--skeleton .ajuz {
+  display: block;
+}
+
+.bayt-bar {
+  display: inline-block;
+  block-size: 0.42em;
+  vertical-align: middle;
   border-radius: var(--r-pill);
   background: var(--line-1);
   position: relative;
   overflow: hidden;
 }
 
-.bayt-skeleton span::after {
+.bayt-bar::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -237,4 +382,273 @@
   to {
     transform: translateX(100%);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * القصيدة — the poem page (design-ux.md §3)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* A بحر طويل hemistich wants ~20rem before it wraps, and the two reserved
+ * margins cost 6rem, so the reading column here is wider than the home column.
+ * Scoped with :has() so app.css keeps owning `.main--narrow` for everyone else. */
+.main--narrow:has(.poem-view) {
+  inline-size: min(64rem, 100% - 2 * var(--sp-4));
+}
+
+.poem-view {
+  gap: var(--sp-4);
+}
+
+.poem-head {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.poem-title {
+  font-family: var(--font-verse);
+  font-size: clamp(1.5rem, 1.2rem + 1.4vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.7;
+  color: var(--text-1);
+}
+
+/* An untitled قصيدة is headed by its own مطلع — set it as verse, not as a
+ * label, and let it go quiet so it does not compete with the أبيات below. */
+.poem-title--matla {
+  font-weight: 400;
+  color: var(--text-2);
+  font-size: clamp(1.25rem, 1.05rem + 1vw, 1.7rem);
+}
+
+.poem-byline {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.poem-byline__poet {
+  color: var(--accent-soft);
+  font-weight: 500;
+}
+
+.poem-byline__poet:hover {
+  color: var(--accent);
+}
+
+.poem-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.badge-link {
+  display: inline-flex;
+  border-radius: var(--r-pill);
+}
+
+.poem-count {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.poem-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.poem-toolbar .btn[aria-pressed="true"] {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--text-1);
+}
+
+.poem-toolbar .segmented {
+  margin-inline-start: auto;
+}
+
+.poem-more {
+  display: grid;
+  justify-items: center;
+  padding-block: var(--sp-4);
+}
+
+.poem-error {
+  display: grid;
+  gap: var(--sp-4);
+  justify-items: start;
+  padding-block: var(--sp-7);
+}
+
+/* ── «قصائد على الوزن والقافية» (amendments §9) ─────────────────────── */
+/* Aref Ruqaa's ascenders and tails run far outside the em box — give the line
+ * box room or the heading reads as clipped (the same note app.css carries). */
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  color: var(--accent-soft);
+  line-height: 2.3;
+  padding-block-start: 0.15em;
+}
+
+.poem-similar {
+  display: grid;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-5);
+}
+
+.poem-similar__list {
+  display: grid;
+  gap: 1px;
+  list-style: none;
+}
+
+/* A فهرس, not a table: the قصيدة's name and its attribution sit side by side in
+ * two aligned columns. Across a 64rem measure, `space-between` opened a void
+ * wide enough to lose the eye in. */
+.poem-similar__row {
+  display: grid;
+  grid-template-columns: minmax(0, 30rem) max-content;
+  justify-content: start;
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-5);
+  padding: var(--sp-3) var(--sp-2);
+  border-radius: var(--r-1);
+  color: var(--text-1);
+  transition: background-color var(--dur-2) var(--ease);
+}
+
+.poem-similar__row:hover {
+  background: var(--accent-wash);
+}
+
+.poem-similar__name {
+  font-size: var(--fs-ui-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poem-similar__name--matla {
+  font-family: var(--font-verse);
+  color: var(--text-2);
+}
+
+.poem-similar__meta {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .poem-similar__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── the بحر popover: تفعيلات + مفتاح (design-ux.md §3) ─────────────── */
+.popover-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.popover {
+  position: absolute;
+  inset-block-start: calc(100% + var(--sp-2));
+  inset-inline-start: 0;
+  z-index: var(--z-sticky);
+  min-inline-size: 17rem;
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  /* --bg-2 is translucent by design; a floating layer needs an opaque ground
+     under it or the verse behind reads straight through the panel. */
+  background: linear-gradient(var(--bg-2), var(--bg-2)), var(--bg-0);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-2);
+  animation: fade-in var(--dur-2) var(--ease);
+}
+
+.popover__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+}
+
+.popover__title {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+}
+
+.popover__variant {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.tafilat {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+}
+
+.tafila {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-3);
+  color: var(--accent-soft);
+  padding: 0.15em 0.55em;
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-1);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.popover__miftah {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 1.9;
+  color: var(--text-2);
+}
+
+.popover__note,
+.popover__link {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.popover__link:hover {
+  color: var(--accent);
+}
+
+/* ── alt-click copy menu ────────────────────────────────────────────── */
+.copy-menu {
+  position: fixed;
+  z-index: var(--z-overlay);
+  display: grid;
+  min-inline-size: 10rem;
+  padding: var(--sp-1);
+  background: linear-gradient(var(--bg-2), var(--bg-2)), var(--bg-0);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-2);
+  animation: fade-in var(--dur-1) var(--ease);
+}
+
+.copy-menu button {
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  font-family: inherit;
+  font-size: var(--fs-ui-2);
+  text-align: start;
+  cursor: pointer;
+}
+
+.copy-menu button:hover {
+  background: var(--accent-dim);
+  color: var(--text-1);
 }

@@ -1,0 +1,1795 @@
+/* قريض — Phase 2, "the browser": home, poets, poet, browse, search, favorites,
+ * rules, stats, plus the four components they own (Omnibox, LetterRail,
+ * LetterGrid, the windowed list shell).
+ *
+ * Two contracts this file is one half of:
+ *
+ *  • ROW HEIGHTS. `useWindowedList` is a pure function of a FIXED row height,
+ *    and the numbers live in client/views/shared.tsx (ROW_POEM 84 / 100,
+ *    ROW_POET 132 / 148). The `--row-*` properties below are the same contract
+ *    written on the CSS side; change one and the other must follow or the
+ *    spacers drift and the scrollbar twitches as the window slides.
+ *
+ *  • FLOATING LAYERS PAINT TWICE. `--bg-2` is translucent, so a dropdown or a
+ *    popover over verse reads straight through to the بيت underneath. Every
+ *    floating layer here paints
+ *    `linear-gradient(var(--bg-2), var(--bg-2)), var(--bg-0)` — the same fix
+ *    bayt.css uses for `.popover` and `.copy-menu`.
+ */
+
+:root {
+  --row-poem: 84px;
+  --row-poet: 156px;
+  --rail-w: 15.5rem;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --row-poem: 100px;
+    --row-poet: 176px;
+  }
+}
+
+/* ══ the windowed list shell ═══════════════════════════════════════════ */
+
+/* The scroller is the PAGE (design-ux.md §6); this is only the box the
+ * spacers and the visible slice live in. `contain: layout` keeps a window
+ * change from invalidating the whole document's layout. */
+.vlist {
+  display: block;
+  contain: layout;
+}
+
+.vlist__row,
+.prow-slot,
+.pcard-row {
+  /* the row's own height is set inline from the JS constant — see header */
+  display: block;
+  overflow: hidden;
+}
+
+.pcard-row {
+  display: grid;
+  gap: var(--sp-3);
+  align-items: stretch;
+  padding-block-end: var(--sp-3);
+}
+
+.prow-slot {
+  padding-block-end: var(--sp-2);
+}
+
+/* ── «المزيد» + the autoload sentinel ──────────────────────────────── */
+.more-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-block: var(--sp-5);
+  min-block-size: 3.5rem;
+}
+
+.more-bar__busy {
+  font-size: var(--fs-ui-2);
+  color: var(--text-3);
+}
+
+.more-bar__end {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding-block: var(--sp-6);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ── loading rows: the geometry of the list they stand in for ─────────── */
+.row-skeleton {
+  display: grid;
+  align-content: center;
+  gap: var(--sp-2);
+  padding-inline: var(--sp-3);
+  border-block-end: 1px solid var(--line-1);
+}
+
+/* ══ PoemRow ═══════════════════════════════════════════════════════════ */
+
+.prow {
+  display: grid;
+  align-content: center;
+  gap: var(--sp-2);
+  block-size: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-2);
+  border: 1px solid transparent;
+  border-block-end-color: var(--line-1);
+  transition:
+    background-color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease);
+}
+
+.prow:hover {
+  background: var(--accent-wash);
+  border-color: var(--accent-hair);
+}
+
+.prow__title {
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Most قصائد in this corpus have no عنوان, so the مطلع standing in for one is
+ * the common case — set it in the verse face rather than apologising for it. */
+.prow__title--matla {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  color: var(--text-2);
+}
+
+.prow:hover .prow__title {
+  color: var(--accent);
+}
+
+.prow__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.prow__poet {
+  color: var(--text-2);
+  white-space: nowrap;
+  max-inline-size: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prow__n {
+  margin-inline-start: auto;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ══ PoetCard ══════════════════════════════════════════════════════════ */
+
+.pcard {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-2);
+  block-size: 100%;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  overflow: hidden;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+.pcard:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+}
+
+/* «إبراهيم بن عبد الرحيم بن الباخرزي» is a normal length in this corpus. One
+ * nowrap line ellipsises most of the ديوان away; two lines of Aref Ruqaa hold
+ * almost all of it, and the row height in ./shared.tsx was raised to match. */
+.pcard__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.75;
+  color: var(--text-1);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.pcard:hover .pcard__name {
+  color: var(--accent);
+}
+
+.pcard__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.pcard__n {
+  color: var(--text-3);
+}
+
+.pcard__bio {
+  font-size: var(--fs-ui-1);
+  line-height: 1.65;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+  overflow: hidden;
+}
+
+.pcard__bio--none {
+  color: var(--text-3);
+}
+
+/* ══ Omnibox ═══════════════════════════════════════════════════════════ */
+
+.omnibox {
+  position: relative;
+  inline-size: 100%;
+}
+
+.omnibox__field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-inline: var(--sp-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--bg-1);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+.omnibox__field:focus-within {
+  border-color: var(--accent-line);
+  box-shadow: var(--accent-glow);
+}
+
+.omnibox__mark {
+  flex: none;
+  color: var(--text-3);
+}
+
+.omnibox__field:focus-within .omnibox__mark {
+  color: var(--accent);
+}
+
+.omnibox__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-block: 0.85rem;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-3);
+}
+
+.omnibox__input::placeholder {
+  color: var(--text-3);
+}
+
+.omnibox__input:focus {
+  outline: none;
+}
+
+/* Chromium's own clear-affordance is a Latin glyph in an Arabic field. */
+.omnibox__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.omnibox__key {
+  flex: none;
+  opacity: 0.55;
+}
+
+.omnibox__field:focus-within .omnibox__key {
+  opacity: 0;
+}
+
+/* The dropdown floats over verse — paint an opaque ground under --bg-2. */
+.omnibox__drop {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: calc(100% + 6px);
+  z-index: var(--z-sticky);
+  max-block-size: min(60dvh, 32rem);
+  overflow-y: auto;
+  padding: var(--sp-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background:
+    linear-gradient(var(--bg-2), var(--bg-2)),
+    var(--bg-0);
+  box-shadow: var(--shadow-2);
+  text-align: start;
+}
+
+.omnibox__group + .omnibox__group {
+  margin-block-start: var(--sp-2);
+  padding-block-start: var(--sp-2);
+  border-block-start: 1px solid var(--line-1);
+}
+
+.omnibox__label {
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-ui-0);
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--accent-soft);
+}
+
+.omnibox__row {
+  display: grid;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-2);
+  border-inline-start: 2px solid transparent;
+}
+
+.omnibox__row[data-cursor="1"] {
+  background: var(--accent-wash);
+  border-inline-start-color: var(--accent);
+}
+
+.omnibox__title {
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A بيت suggestion is verse; a شاعر or a عنوان is not. */
+.omnibox__row[data-kind="bait"] .omnibox__title,
+.omnibox__row[data-kind="bait"] .omnibox__note {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 1.7;
+}
+
+.omnibox__row[data-kind="poet"] .omnibox__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+}
+
+.omnibox__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.omnibox__none {
+  padding: var(--sp-4) var(--sp-3);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.omnibox__all {
+  inline-size: 100%;
+  margin-block-start: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-block-start: 1px solid var(--line-1);
+  text-align: start;
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+  background: none;
+  border-inline: 0;
+  border-block-end: 0;
+}
+
+.omnibox__all:hover {
+  color: var(--accent);
+}
+
+/* ══ LetterRail — the شعراء alphabet strip ═════════════════════════════ */
+
+.letter-rail {
+  display: grid;
+  grid-auto-flow: row;
+  gap: 1px;
+  align-content: start;
+  position: sticky;
+  inset-block-start: 5.5rem;
+  padding: var(--sp-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  max-block-size: calc(100dvh - 8rem);
+  overflow-y: auto;
+}
+
+.letter-rail__key {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 0.18rem 0.5rem;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.letter-rail__key:hover:not([disabled]) {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-1);
+}
+
+.letter-rail__key[data-active="1"] {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.letter-rail__key[disabled] {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.letter-rail__ch {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 1.35;
+}
+
+.letter-rail__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ══ LetterGrid — the 7×4 روي / حرف البداية wells ═══════════════════════ */
+
+.letter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.letter-grid__row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.letter-well {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+}
+
+.letter-well__ch {
+  display: grid;
+  place-items: center;
+  inline-size: 2.05em;
+  block-size: 2.05em;
+  border-radius: 50%;
+  border: 1px solid var(--lapis-line);
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-2);
+  line-height: 1;
+  transition:
+    border-color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease),
+    box-shadow var(--dur-1) var(--ease);
+}
+
+.letter-well:hover:not([disabled]) .letter-well__ch {
+  border-color: var(--accent-line);
+  color: var(--accent);
+}
+
+.letter-well[data-active="1"] .letter-well__ch {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.letter-well[disabled] {
+  opacity: 0.26;
+  cursor: not-allowed;
+}
+
+.letter-well__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.62rem;
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ══ HOME ══════════════════════════════════════════════════════════════ */
+
+.home {
+  gap: var(--sp-7);
+}
+
+.home__mast {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  gap: var(--sp-3);
+  padding-block-start: var(--sp-5);
+}
+
+.home__lede {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  max-inline-size: 34rem;
+}
+
+.home__foot {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  padding-block-start: var(--sp-3);
+}
+
+/* ── بيت اليوم ─────────────────────────────────────────────────────── */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+/* Tighter than the raw `lg` step: the home measure (--col-home, 58rem) split
+ * in two leaves ~26rem a hemistich, and 2.4rem Amiri overflows that on a long
+ * صدر — and a wrapped بيت on the front page is the worst thing this product
+ * can show. */
+.hero__plate .bayt[data-size="lg"] {
+  font-size: clamp(1.3rem, 1.05rem + 1.35vw, 1.95rem);
+}
+
+.hero__head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  color: var(--accent);
+}
+
+.hero__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  line-height: 2.2;
+  color: var(--accent-soft);
+}
+
+.hero__error {
+  padding: var(--sp-5);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-3);
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+}
+
+.hero__plate .bayt-plate {
+  border-color: var(--accent-hair);
+  background:
+    radial-gradient(120% 140% at 50% -20%, rgba(var(--accent-rgb), 0.07), transparent 62%),
+    var(--panel);
+}
+
+.hero__plate .bayt-plate__meta {
+  justify-content: center;
+}
+
+.hero__poet {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+  color: var(--text-1);
+}
+
+.hero__poet:hover {
+  color: var(--accent);
+}
+
+.hero__poem {
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.hero__poem:hover {
+  color: var(--accent);
+}
+
+/* ── أبواب ─────────────────────────────────────────────────────────── */
+.doors {
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+}
+
+.door {
+  gap: var(--sp-3);
+  align-content: start;
+  /* the door is a <section> of links now, not one big link */
+  transition: border-color var(--dur-2) var(--ease);
+}
+
+.door:hover {
+  transform: none;
+}
+
+.door__name {
+  font-family: var(--font-display);
+  line-height: 2;
+  color: var(--accent-soft);
+}
+
+.door__name:hover {
+  color: var(--accent);
+}
+
+.door__top {
+  display: grid;
+  gap: 3px;
+}
+
+.door__line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 2px var(--sp-2);
+  margin-inline: calc(-1 * var(--sp-2));
+  border-radius: var(--r-1);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  transition:
+    background-color var(--dur-1) var(--ease),
+    color var(--dur-1) var(--ease);
+}
+
+.door__line:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.door__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.door__count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.door__more {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.door__more:hover {
+  color: var(--accent);
+}
+
+/* ── المساجلة bar ──────────────────────────────────────────────────── */
+.duel-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+  padding: var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background:
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.06), transparent 60%),
+    var(--panel);
+  text-align: start;
+}
+
+.duel-bar__copy {
+  flex: 1 1 14rem;
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.duel-bar__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.duel-bar__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.duel-bar__stats {
+  display: flex;
+  gap: var(--sp-5);
+  margin: 0;
+}
+
+.duel-bar__stats dt {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.duel-bar__stats dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-5);
+  color: var(--accent);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.ring {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ring svg {
+  flex: none;
+}
+
+.ring__label {
+  display: grid;
+  text-align: start;
+}
+
+.ring__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.ring__cap {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* ── daily row ─────────────────────────────────────────────────────── */
+.daily-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  font-size: var(--fs-ui-2);
+  text-align: start;
+  transition: border-color var(--dur-2) var(--ease);
+}
+
+.daily-row:hover {
+  border-color: var(--accent-line);
+}
+
+.daily-row__label {
+  color: var(--text-1);
+}
+
+.daily-row__note {
+  flex: 1 1 auto;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.daily-row__date {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.daily-row__go {
+  color: var(--accent-soft);
+  font-size: var(--fs-ui-1);
+}
+
+/* ── شاعر اليوم ────────────────────────────────────────────────────── */
+.poet-day {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.poet-day__head {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.poet-day__card {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  text-align: start;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+
+.poet-day__card:hover {
+  border-color: var(--accent-line);
+  transform: translateY(-2px);
+}
+
+.poet-day__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.poet-day__card:hover .poet-day__name {
+  color: var(--accent);
+}
+
+.poet-day__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.poet-day__bio {
+  font-size: var(--fs-ui-2);
+  line-height: 1.7;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+.poet-day__bio--matla {
+  font-family: var(--font-verse);
+  color: var(--text-3);
+}
+
+/* ══ POETS index ═══════════════════════════════════════════════════════ */
+
+.poets-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  padding-block-end: var(--sp-3);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.poets-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.5rem;
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+/* The rail is FIRST in the DOM (it is a nav, and a screen reader should meet
+ * it before 6,997 شعراء) but sits at the inline-END edge — the left, under
+ * RTL — which design-ux.md §3 asks for. Explicit columns, because grid
+ * auto-placement would otherwise put the first child in the wide column. */
+.poets-shell .letter-rail {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.poets-main {
+  grid-column: 1;
+  grid-row: 1;
+  min-inline-size: 0;
+}
+
+/* A heading occupies one full windowed row — that is what makes it read as a
+ * section break rather than a label, and it is also what keeps the window
+ * maths a pure function of one row height. */
+.letter-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  color: var(--accent-soft);
+}
+
+.letter-head .rule {
+  flex: 1 1 auto;
+  opacity: 0.9;
+}
+
+.letter-head__ch {
+  font-family: var(--font-verse);
+  font-size: 2.6rem;
+  line-height: 1.3;
+  color: var(--accent);
+  text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.22);
+}
+
+.letter-head__name {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ══ POET page ═════════════════════════════════════════════════════════ */
+
+/* A ديوان row is title + a few chips + a count; at the full 78rem shell the
+ * count drifts a hand's width away from the title it belongs to. */
+.poet-view {
+  gap: var(--sp-5);
+  inline-size: min(100%, 64rem);
+  margin-inline: auto;
+}
+
+.poet-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.poet-name {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  /* Aref Ruqaa's tails run well outside the em box */
+  line-height: 1.9;
+  color: var(--text-1);
+  padding-block-start: 0.08em;
+}
+
+.poet-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.poet-bio {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  max-inline-size: var(--col-text);
+}
+
+.poet-bio__text {
+  font-size: var(--fs-ui-2);
+  line-height: 1.75;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
+}
+
+.poet-bio__text--open {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  display: block;
+}
+
+.poet-signature {
+  max-inline-size: var(--col-narrow);
+}
+
+.poet-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.poet-facets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.poet-facets:empty {
+  display: none;
+}
+
+.poet-facet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.facet-title {
+  font-size: var(--fs-ui-0);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.facet-empty {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.poet-diwan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.section-title__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+  margin-inline-start: var(--sp-2);
+}
+
+/* ══ BROWSE ════════════════════════════════════════════════════════════ */
+
+.browse-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.browse-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+/* The rail is permanent on wide screens; the toggle is a mobile affordance. */
+.browse-rail-toggle {
+  display: none;
+}
+
+.applied {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.applied__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.25em 0.7em;
+  font-size: var(--fs-ui-1);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-pill);
+}
+
+.applied__chip[data-kind="era"] {
+  border-radius: 2px;
+}
+
+.applied__chip:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
+.applied__x {
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+.applied__clear {
+  padding: 0.25em 0.6em;
+  border: 0;
+  background: none;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.applied__clear:hover {
+  color: var(--text-1);
+}
+
+.browse-shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.facet-rail {
+  position: sticky;
+  inset-block-start: 5.5rem;
+  display: grid;
+  gap: var(--sp-2);
+  max-block-size: calc(100dvh - 8rem);
+  overflow-y: auto;
+  padding-inline-end: var(--sp-1);
+}
+
+.facet {
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: rgba(255, 255, 255, 0.012);
+  overflow: hidden;
+}
+
+.facet[data-open="1"] {
+  border-color: var(--line-2);
+}
+
+.facet__head {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+  text-align: start;
+}
+
+.facet__head:hover {
+  color: var(--accent);
+}
+
+.facet__label {
+  flex: 1 1 auto;
+}
+
+.facet__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.facet__caret {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.facet__body {
+  padding: 0 var(--sp-3) var(--sp-3);
+}
+
+.browse-main {
+  min-inline-size: 0;
+}
+
+.empty__hints {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+}
+
+.empty__hint {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ══ SEARCH ════════════════════════════════════════════════════════════ */
+
+.search-view {
+  gap: var(--sp-4);
+}
+
+/* `minmax(0, 1fr)`, not the implicit `auto`: the modes row is a wrapping flex
+ * whose max-content is the sum of its items, and an auto column sizes to that
+ * — which pushed #/search 39px past a 390px viewport before this line. */
+.search-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.search-modes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.search-modes__side {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.search-count {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.search-count__n {
+  color: var(--text-2);
+}
+
+.search-ms {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* «لا نتيجة بكل الكلمات — هذه نتائج بعضها» */
+.search-note {
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-inline-start: 2px solid var(--lapis);
+  border-radius: var(--r-2);
+  background: rgba(var(--lapis-rgb), 0.06);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.search-facets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.search-facet {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-3);
+}
+
+.search-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.search-poets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: var(--sp-2);
+}
+
+.search-poet {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  transition: border-color var(--dur-2) var(--ease);
+}
+
+.search-poet:hover {
+  border-color: var(--accent-line);
+}
+
+.search-poet__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-poet__n {
+  margin-inline-start: auto;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* ══ the بيت card — a search hit or a بيت-mode browse row ══════════════ */
+
+.bcard {
+  display: grid;
+  gap: var(--sp-1);
+  padding-block-end: var(--sp-3);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.bcard__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding-inline-start: var(--bayt-num-col, 3.2rem);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.bcard__poet {
+  color: var(--text-2);
+}
+
+.bcard__poet:hover {
+  color: var(--accent);
+}
+
+.bcard__poem {
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-inline-size: 22rem;
+}
+
+.bcard__poem:hover {
+  color: var(--accent-soft);
+}
+
+.bcard__go {
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+/* ══ FAVORITES ═════════════════════════════════════════════════════════ */
+
+.fav-view {
+  gap: var(--sp-4);
+}
+
+.fav-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  padding-block-end: var(--sp-3);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.fav-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--bg-1);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.fav-tab:hover {
+  border-color: var(--line-2);
+  color: var(--text-1);
+}
+
+.fav-tab[aria-current="page"] {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.fav-tab__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  opacity: 0.75;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.fav-new {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.fav-new__input {
+  inline-size: 11rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+}
+
+.fav-new__input:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+
+.fav-chips {
+  display: inline-flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+}
+
+.fav-note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ══ RULES ═════════════════════════════════════════════════════════════ */
+
+.rules-view {
+  gap: var(--sp-6);
+}
+
+.rule-sec {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+.rule-sec p {
+  font-size: var(--fs-ui-2);
+  line-height: 1.85;
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+}
+
+.rule-list {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.rule-list li {
+  display: grid;
+  gap: var(--sp-1);
+  padding-inline-start: var(--sp-4);
+  border-inline-start: 2px solid var(--accent-hair);
+  font-size: var(--fs-ui-2);
+  line-height: 1.85;
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+}
+
+.rule-list b {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.rule-ex {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+}
+
+.rule-ex__line {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: var(--lh-bayt);
+  color: var(--text-1);
+}
+
+.rule-ex__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.rule-ex em {
+  font-style: normal;
+  color: var(--lapis);
+  border-block-end: 1.5px solid var(--lapis);
+  padding-block-end: 0.06em;
+}
+
+.verdicts {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-ui-2);
+}
+
+.verdicts th,
+.verdicts td {
+  padding: var(--sp-3);
+  text-align: start;
+  border-block-end: 1px solid var(--line-1);
+  vertical-align: top;
+}
+
+.verdicts th {
+  font-size: var(--fs-ui-0);
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.verdicts td:first-child {
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.verdicts td {
+  color: var(--text-2);
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+/* ══ STATS ═════════════════════════════════════════════════════════════ */
+
+.stats-view {
+  gap: var(--sp-6);
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--sp-3);
+}
+
+.stat-tile {
+  display: grid;
+  gap: var(--sp-1);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+}
+
+.stat-tile__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-6);
+  line-height: 1.2;
+  color: var(--accent);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.stat-tile__cap {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.bars {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 4.5rem;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--fs-ui-1);
+}
+
+.bar__label {
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar__label:hover {
+  color: var(--accent);
+}
+
+.bar__track {
+  block-size: 8px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.bar__fill {
+  display: block;
+  block-size: 100%;
+  border-radius: var(--r-pill);
+  /* the bar grows from the inline-start edge, so the strong end belongs there */
+  background: linear-gradient(to left, rgba(var(--accent-rgb), 0.85), rgba(var(--accent-rgb), 0.34));
+}
+
+.bar__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  text-align: end;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ══ HelpOverlay body ══════════════════════════════════════════════════ */
+
+.help__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.help__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.help__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--sp-5);
+  margin-block-start: var(--sp-4);
+}
+
+.help__section {
+  display: grid;
+  align-content: start;
+}
+
+.help__scope {
+  font-size: var(--fs-ui-0);
+  font-weight: 600;
+  color: var(--accent-soft);
+}
+
+.help__note {
+  margin-block-start: var(--sp-5);
+  padding-block-start: var(--sp-4);
+  border-block-start: 1px solid var(--line-1);
+  font-size: var(--fs-ui-1);
+  line-height: 1.9;
+  color: var(--text-3);
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1100px) {
+  .browse-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .browse-rail-toggle {
+    display: inline-flex;
+  }
+
+  /* On narrow screens the rail is a disclosure, not a column. */
+  .browse-shell .facet-rail {
+    display: none;
+    position: static;
+    max-block-size: none;
+  }
+
+  .browse-shell[data-rail-open="1"] .facet-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    align-items: start;
+  }
+}
+
+@media (max-width: 860px) {
+  .poets-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The alphabet becomes a horizontal strip under the era chips. NOT sticky:
+   * the masthead is two rows tall here and owns the top of the viewport, so a
+   * sticky rail would slide underneath it and disappear. */
+  .letter-rail {
+    position: static;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-block-size: none;
+    order: -1;
+    gap: var(--sp-1);
+    scrollbar-width: thin;
+  }
+
+  .letter-rail__key {
+    display: grid;
+    justify-items: center;
+    gap: 0;
+    padding: 0.25rem 0.4rem;
+    min-inline-size: 2.4rem;
+  }
+
+  .poets-shell .letter-rail {
+    margin-block-end: var(--sp-3);
+  }
+
+  .search-facet {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .bar {
+    grid-template-columns: 6.5rem minmax(0, 1fr) 3.5rem;
+  }
+
+  .bcard__meta {
+    padding-inline-start: var(--bayt-num-col, 2.1rem);
+  }
+
+  .duel-bar {
+    gap: var(--sp-4);
+  }
+
+  .duel-bar__stats {
+    gap: var(--sp-4);
+  }
+}
+
+@media (max-width: 640px) {
+  .home {
+    gap: var(--sp-6);
+  }
+
+  .letter-grid__row {
+    gap: var(--sp-1);
+  }
+
+  .poets-filters {
+    gap: var(--sp-3);
+  }
+
+  .doors {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+}
+
+/* The bloom and the card lifts are motion; honour the setting. */
+@media (prefers-reduced-motion: reduce) {
+  .pcard:hover,
+  .door:hover,
+  .poet-day__card:hover {
+    transform: none;
+  }
+}
+
+[data-reduce-motion="1"] .pcard:hover,
+[data-reduce-motion="1"] .door:hover,
+[data-reduce-motion="1"] .poet-day__card:hover {
+  transform: none;
+}

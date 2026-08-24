@@ -5,6 +5,15 @@ import fs from "node:fs"
 import path from "node:path"
 import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
+import { baitsRoutes } from "./routes/baits.ts"
+import { facetsRoutes } from "./routes/facets.ts"
+import { gameRoutes } from "./routes/game.ts"
+import { metaRoutes } from "./routes/meta.ts"
+import { poemsRoutes } from "./routes/poems.ts"
+import { poetsRoutes } from "./routes/poets.ts"
+import { searchRoutes } from "./routes/search.ts"
+import { statsRoutes } from "./routes/stats.ts"
+import { trainRoutes } from "./routes/train.ts"
 
 // createApp is listen-free so tests can drive app.request() directly.
 // `db` is null when the corpus has not been built — /healthz and the static
@@ -51,20 +60,25 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
   })
 
   // ---------------------------------------------------------------------
-  // ROUTE MOUNT POINTS — later agents add server/routes/<name>.ts, each
-  // exporting a factory `(<name>Routes(db, config)) => Hono` and mount it
-  // here. Keep this block the single place routes are wired.
+  // ROUTE MOUNT POINTS — every sub-app lives in server/routes/<name>.ts and
+  // exports a factory `(db, config) => Hono`. Keep this block the single
+  // place routes are wired.
   //
-  //   app.route("/api/meta",   metaRoutes(db!, config))    // routes/meta.ts
-  //   app.route("/api/poets",  poetsRoutes(db!, config))   // routes/poets.ts
-  //   app.route("/api/poems",  poemsRoutes(db!, config))   // routes/poems.ts
-  //   app.route("/api/baits",  baitsRoutes(db!, config))   // routes/baits.ts
-  //   app.route("/api/facets", facetsRoutes(db!, config))  // routes/facets.ts
-  //   app.route("/api/search", searchRoutes(db!, config))  // routes/search.ts
-  //   app.route("/api/game",   gameRoutes(db!, config))    // routes/game.ts
-  //   app.route("/api/stats",  statsRoutes(db!, config))   // routes/stats.ts
-  //   app.route("/api/train",  trainRoutes(db!, config))   // routes/train.ts
+  // The `db!` is safe: the middleware above already answered 503 for a null
+  // handle, and no factory touches SQLite at construction time (lookup maps
+  // and the meta payload are memoised on first request, not on mount).
   // ---------------------------------------------------------------------
+  if (db) {
+    app.route("/api/meta", metaRoutes(db, config))
+    app.route("/api/poets", poetsRoutes(db, config))
+    app.route("/api/poems", poemsRoutes(db, config))
+    app.route("/api/baits", baitsRoutes(db, config))
+    app.route("/api/facets", facetsRoutes(db, config))
+    app.route("/api/search", searchRoutes(db, config))
+    app.route("/api/game", gameRoutes(db, config))
+    app.route("/api/stats", statsRoutes(db, config))
+    app.route("/api/train", trainRoutes(db, config))
+  }
 
   // client bundle — hashed assets immutable, index no-cache (hash-routed SPA)
   const distDir = path.join(import.meta.dirname, "..", "dist")

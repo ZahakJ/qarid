@@ -74,6 +74,7 @@ const poem: PoemSummary = {
   era: eraRef,
   langType: "فصيح",
   rhyme: "م",
+  rhymeShare: 1,
   firstLetter: "ع",
   baitCount: 46,
   hasTashkeel: true,

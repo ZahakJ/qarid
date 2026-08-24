@@ -1,24 +1,39 @@
 /**
- * Phase-0 shell (design-ux.md §9). Every route in §1 resolves to a placeholder
- * view with its real Arabic heading; the later phases replace the bodies one at
- * a time without touching the shell.
+ * The shell (design-ux.md §9). `Body` is the one route switch in قريض: a view
+ * that exists is mounted, a view that does not yet gets `ViewStub` with its
+ * real Arabic heading and the phase that fills it. Later phases replace stub
+ * branches one at a time and touch nothing else in this file.
  *
  * Contracts this file owns and must keep:
  *  • `document.body.dataset.appReady = '1'` after the first render settles —
  *    tools/screenshot.mjs waits on `body[data-app-ready="1"]`.
- *  • `?` opens HelpOverlay everywhere.
+ *  • `?` opens HelpOverlay everywhere; `/` focuses the omnibox if one is on
+ *    screen and otherwise goes to #/search; `g` chords jump between doors.
+ *    All three refuse to fire while the reader is typing into a field.
  *  • body data-attributes mirror the settings slice so CSS can react without
  *    every component subscribing.
  */
 import { useEffect, useState } from "react"
-import { HOME, initRouter, routeHash, routeTitle, useRoute, type Route } from "./router.ts"
+import { HOME, initRouter, navigate, routeHash, routeTitle, useRoute, type Route } from "./router.ts"
 import { motionReduced, useSettings } from "./store/settingsStore.ts"
 import { Toasts } from "./components/Toasts.tsx"
 import { HelpOverlay } from "./components/HelpOverlay.tsx"
 import { Nib, Rule } from "./components/Ornaments.tsx"
-import { Panel } from "./components/Panel.tsx"
-import { Chip } from "./components/Chip.tsx"
-import { BUHUR } from "./data/buhur.ts"
+import { focusOmnibox } from "./components/Omnibox.tsx"
+import { useKeyboard } from "./hooks/useKeyboard.ts"
+import { DuelPlayView } from "./duel/DuelPlayView.tsx"
+import { DuelSetupView } from "./duel/DuelSetupView.tsx"
+import { DuelSummaryView } from "./duel/DuelSummaryView.tsx"
+import { BrowseView } from "./views/BrowseView.tsx"
+import { FavoritesView } from "./views/FavoritesView.tsx"
+import { DailyView } from "./views/DailyView.tsx"
+import { HomeView } from "./views/HomeView.tsx"
+import { PoemView } from "./views/PoemView.tsx"
+import { PoetView } from "./views/PoetView.tsx"
+import { PoetsView } from "./views/PoetsView.tsx"
+import { RulesView } from "./views/RulesView.tsx"
+import { SearchView } from "./views/SearchView.tsx"
+import { StatsView } from "./views/StatsView.tsx"
 
 /** Masthead nav — the doors that exist from day one. */
 const NAV: { route: Route; label: string }[] = [
@@ -27,7 +42,7 @@ const NAV: { route: Route; label: string }[] = [
   { route: { view: "browse", query: {} }, label: "التصفح" },
   { route: { view: "search", q: "", page: 1 }, label: "البحث" },
   { route: { view: "duel" }, label: "المساجلة" },
-  { route: { view: "train" }, label: "التحفيظ" },
+  { route: { view: "favorites" }, label: "المختارات" },
 ]
 
 /** One line of Arabic per route, so a placeholder still says what it is for. */
@@ -105,55 +120,6 @@ function Masthead({ route }: { route: Route }) {
   )
 }
 
-/** The four أبواب of the home screen; counts arrive with the API in Phase 2. */
-const DOORS: { label: string; note: string; route: Route }[] = [
-  { label: "العصور", note: "من الجاهلي إلى الحديث", route: { view: "browse", query: {} } },
-  { label: "البحور", note: "ستة عشر بحرًا", route: { view: "browse", query: {} } },
-  { label: "الأغراض", note: "مدحٌ ورثاءٌ وغزل", route: { view: "browse", query: {} } },
-  { label: "القوافي", note: "ثمانية وعشرون حرفًا", route: { view: "browse", query: {} } },
-]
-
-function HomeStub({ ready }: { ready: boolean }) {
-  return (
-    <div className="view view--centred">
-      <div style={{ opacity: ready ? 1 : 0, transition: "opacity var(--dur-3) var(--ease)" }}>
-        <Wordmark hero />
-      </div>
-      <p className="view__lede">{LEDE.home}</p>
-      <Panel illuminated title="بيت اليوم" note="يصل مع الديوان — المرحلة ٢">
-        <div className="bayt" data-size="md" aria-hidden="true">
-          <span className="sadr">وما نيلُ المطالبِ بالتمنّي</span>
-          <span className="gutter" />
-          <span className="ajuz">ولكن تُؤخذُ الدنيا غِلابا</span>
-        </div>
-        <div className="bayt-plate__meta">
-          <Chip variant="asr" label="العصر الحديث" />
-          <Chip variant="bahr" slug="wafir" label="الوافر" />
-          <Chip variant="gharad" label="حكمة" />
-          <Chip variant="rawiyy" label="ب" title="الرويّ: الباء" />
-          <span>أحمد شوقي</span>
-        </div>
-      </Panel>
-      <nav className="doors" aria-label="أبواب الديوان">
-        {DOORS.map((d) => (
-          <a className="door" key={d.label} href={routeHash(d.route)}>
-            <span className="door__name">{d.label}</span>
-            <span className="door__note">{d.note}</span>
-          </a>
-        ))}
-      </nav>
-      <Panel quiet>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-3)", alignItems: "center", justifyContent: "center" }}>
-          <span className="panel__note">يُنشد الخصم بيتًا، فتُجيبه ببيت يبدأ برويّه.</span>
-          <a className="btn btn--primary" href={routeHash({ view: "duel" })}>
-            ساجِلني
-          </a>
-        </div>
-      </Panel>
-    </div>
-  )
-}
-
 function ViewStub({ route }: { route: Route }) {
   const view = route.view
   return (
@@ -166,22 +132,53 @@ function ViewStub({ route }: { route: Route }) {
       <div className="stub">
         <span>هذه الصفحة قيد الإنشاء — {PHASE[view]}.</span>
         <span className="stub__route">{routeHash(route)}</span>
-        {view === "browse" ? (
-          <div className="chip-cloud">
-            {BUHUR.slice(0, 6).map((b) => (
-              <Chip key={b.slug} variant="bahr" slug={b.slug} label={b.name} title={b.miftah} />
-            ))}
-          </div>
-        ) : null}
       </div>
     </div>
   )
 }
 
+/**
+ * The one route switch. Every branch that renders a real view is keyed on the
+ * thing that makes the view a different page (a slug, a poem id, the whole
+ * facet query), so navigating between two قصائد remounts rather than trying to
+ * reconcile one poem's state onto another's.
+ */
+function Body({ route }: { route: Route }) {
+  switch (route.view) {
+    case "home":
+      return <HomeView />
+    case "poets":
+      return <PoetsView era={route.era} letter={route.letter} />
+    case "poet":
+      return <PoetView key={route.slug} slug={route.slug} />
+    case "poem":
+      return <PoemView key={route.id} id={route.id} bayt={route.bayt} />
+    case "browse":
+      return <BrowseView query={route.query} />
+    case "duel":
+      return <DuelSetupView />
+    case "duel-play":
+      return <DuelPlayView />
+    case "duel-summary":
+      return <DuelSummaryView />
+    case "daily":
+      return <DailyView />
+    case "search":
+      return <SearchView q={route.q} page={route.page} />
+    case "favorites":
+      return <FavoritesView collection={route.collection} />
+    case "rules":
+      return <RulesView />
+    case "stats":
+      return <StatsView />
+    default:
+      return <ViewStub route={route} />
+  }
+}
+
 export function App() {
   const route = useRoute((s) => s.route)
   const settings = useSettings()
-  const [ready, setReady] = useState(false)
   const [help, setHelp] = useState(false)
 
   useEffect(() => initRouter(), [])
@@ -192,7 +189,6 @@ export function App() {
     let live = true
     const mark = () => {
       if (!live) return
-      setReady(true)
       document.body.dataset.appReady = "1"
     }
     const fonts = typeof document !== "undefined" ? document.fonts : undefined
@@ -206,20 +202,29 @@ export function App() {
     }
   }, [])
 
-  // `?` opens help anywhere it is not being typed into a field.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement | null
-      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
-      if (typing) return
-      if (e.key === "?") {
-        e.preventDefault()
-        setHelp((v) => !v)
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [])
+  // The global keymap (client/data/shortcuts.ts is the same list, rendered by
+  // HelpOverlay). `useKeyboard` refuses every key that arrives from a field, so
+  // typing `/` or `?` into the omnibox types it.
+  //
+  // `/` prefers the omnibox already on screen — home and search both mount one
+  // — and only navigates when there is none to focus, because moving the reader
+  // to another page to give them a text field they already had is rude.
+  useKeyboard({
+    keys: {
+      "?": () => setHelp((v) => !v),
+      "/": () => {
+        if (!focusOmnibox()) navigate({ view: "search", q: "", page: 1 })
+      },
+    },
+    chords: {
+      h: () => navigate(HOME),
+      p: () => navigate({ view: "poets" }),
+      b: () => navigate({ view: "browse", query: {} }),
+      d: () => navigate({ view: "duel" }),
+      f: () => navigate({ view: "favorites" }),
+      s: () => navigate({ view: "stats" }),
+    },
+  })
 
   // Mirror settings onto <body> so CSS reacts without a subscription per node.
   useEffect(() => {
@@ -233,13 +238,21 @@ export function App() {
     document.title = route.view === "home" ? "قريض" : `${routeTitle(route)} — قريض`
   }, [route])
 
-  const narrow = route.view === "home" || route.view === "poem" || route.view === "rules"
+  // Three measures: the ديوان's wide shell, the 46rem reading column for a
+  // قصيدة and the قواعد, and a middle one for home — the بيت اليوم plate is set
+  // at `lg`, and 46rem is not enough for two hemistichs of Amiri at that size.
+  const measure =
+    route.view === "home"
+      ? "main main--home"
+      : route.view === "poem" || route.view === "rules"
+        ? "main main--narrow"
+        : "main"
 
   return (
     <div className="app">
       <Masthead route={route} />
-      <main className={narrow ? "main main--narrow" : "main"}>
-        {route.view === "home" ? <HomeStub ready={ready} /> : <ViewStub route={route} />}
+      <main className={measure}>
+        <Body route={route} />
       </main>
       <footer className="footer">
         <span>قريض — ديوان الشعر العربي ومساجلته</span>
