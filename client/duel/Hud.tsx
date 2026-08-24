@@ -13,8 +13,16 @@
  * The score shown is `displayScore`: hints are deducted the instant they are
  * bought even though they are only settled against the award later, so the
  * number a player watches always tells the truth about what they have spent.
+ *
+ * It COUNTS UP to each new total (v2.md §6) over 420ms — never past it, always
+ * landing on the exact figure (client/hooks/useCountUp.ts), tabular so the
+ * strip cannot twitch while it runs, and switched off entirely when motion is
+ * reduced. The count is a decoration on a number that is already decided; no
+ * turn, no keystroke and no request ever waits for it.
  */
 import { Nib } from "../components/Ornaments.tsx"
+import { useCountUp } from "../hooks/useCountUp.ts"
+import { motionReduced, useSettings } from "../store/settingsStore.ts"
 import { formatScore } from "../../shared/format.ts"
 
 export function Hud({
@@ -32,6 +40,8 @@ export function Hud({
   used: number
   onAbandon?: () => void
 }) {
+  const settings = useSettings()
+  const shownScore = useCountUp(score, { enabled: !motionReduced(settings) })
   return (
     <div className="duel-hud">
       <div className="duel-hud__lives" role="img" aria-label={`${formatScore(lives)} من ${formatScore(maxLives)} أرواح`}>
@@ -54,7 +64,7 @@ export function Hud({
 
       <div className="duel-hud__stat">
         <span className="duel-hud__label">النقاط</span>
-        <span className="duel-hud__score">{formatScore(score)}</span>
+        <span className="duel-hud__score countup">{formatScore(shownScore)}</span>
       </div>
 
       <div className="duel-hud__stat duel-hud__stat--quiet">

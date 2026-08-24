@@ -8,8 +8,10 @@
  *  • `document.body.dataset.appReady = '1'` after the first render settles —
  *    tools/screenshot.mjs waits on `body[data-app-ready="1"]`.
  *  • `?` opens HelpOverlay everywhere; `/` focuses the omnibox if one is on
- *    screen and otherwise goes to #/search; `g` chords jump between doors.
- *    All three refuse to fire while the reader is typing into a field.
+ *    screen and otherwise opens the global palette; `g` chords jump between
+ *    doors. All three refuse to fire while the reader is typing into a field —
+ *    the palette's own Ctrl+K / Ctrl+F does NOT, and is registered in
+ *    `PaletteHost`, not here.
  *  • body data-attributes mirror the settings slice so CSS can react without
  *    every component subscribing.
  */
@@ -20,6 +22,9 @@ import { Toasts } from "./components/Toasts.tsx"
 import { HelpOverlay } from "./components/HelpOverlay.tsx"
 import { Nib, Rule } from "./components/Ornaments.tsx"
 import { focusOmnibox } from "./components/Omnibox.tsx"
+import { PaletteHost, openPalette } from "./components/Palette.tsx"
+import { AuthDialog } from "./components/AuthDialog.tsx"
+import { initialOf, useAuth } from "./store/authStore.ts"
 import { useKeyboard } from "./hooks/useKeyboard.ts"
 import { DuelPlayView } from "./duel/DuelPlayView.tsx"
 import { DuelSetupView } from "./duel/DuelSetupView.tsx"
@@ -34,18 +39,24 @@ import { HomeView } from "./views/HomeView.tsx"
 import { PoemView } from "./views/PoemView.tsx"
 import { PoetView } from "./views/PoetView.tsx"
 import { PoetsView } from "./views/PoetsView.tsx"
+import { ProfileView } from "./views/ProfileView.tsx"
 import { RulesView } from "./views/RulesView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { StatsView } from "./views/StatsView.tsx"
 import { TrainHubView } from "./views/TrainHubView.tsx"
 import { WanderView } from "./views/WanderView.tsx"
 
-/** Masthead nav — the doors that exist from day one. */
+/**
+ * Masthead nav — the doors that exist from day one.
+ *
+ * «البحث» is NOT among them any more (v2.md §3): the search door is the ⌕
+ * trigger beside the nav, which opens the global palette, and `#/search` is
+ * kept for deep links and the full result list rather than for navigation.
+ */
 const NAV: { route: Route; label: string }[] = [
   { route: { view: "home" }, label: "الديوان" },
   { route: { view: "poets" }, label: "الشعراء" },
   { route: { view: "browse", query: {} }, label: "التصفح" },
-  { route: { view: "search", q: "", page: 1 }, label: "البحث" },
   { route: { view: "duel" }, label: "المساجلة" },
   { route: { view: "train" }, label: "التحفيظ" },
   { route: { view: "favorites" }, label: "المختارات" },
@@ -70,6 +81,7 @@ const LEDE: Record<Route["view"], string> = {
   stats: "إحصاءات الديوان: البحور والأعصر والقوافي.",
   favorites: "ما اخترته من الأبيات، ومجموعاتك.",
   rules: "قواعد المساجلة: كيف يُشتقّ الرويّ، وما يُقبل وما يُردّ.",
+  profile: "صفحة الحساب: الاسم، ويوم الانضمام، وسجلّ المساجلة.",
 }
 
 /** Phase-0 body: says plainly which phase fills this view in. */
@@ -91,6 +103,7 @@ const PHASE: Record<Route["view"], string> = {
   stats: "المرحلة 4",
   favorites: "المرحلة 2",
   rules: "المرحلة 4",
+  profile: "المرحلة 5",
 }
 
 function Wordmark({ hero = false }: { hero?: boolean }) {
@@ -99,6 +112,60 @@ function Wordmark({ hero = false }: { hero?: boolean }) {
       <span className="wordmark__word">قريض</span>
       <span className="wordmark__rule" />
     </span>
+  )
+}
+
+/** The ⌕ of the masthead trigger — inline SVG, never a font glyph. */
+function SearchGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M15.4 15.4 20 20" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+
+/**
+ * The masthead's account door (v2.md §4).
+ *
+ * Signed out it is one word, «دخول». Signed in it is the gold نِيب disc with
+ * your initial in it, and it LINKS to your page rather than opening a menu —
+ * one press, one destination, and «اخرج» lives on that page beside the other
+ * things only you can do.
+ *
+ * It renders nothing at all until `/api/auth/me` has answered (`status` is
+ * "unknown"), and nothing ever on a deployment with no writable users database:
+ * a door that cannot open is worse than no door.
+ */
+function AccountControl() {
+  const status = useAuth((s) => s.status)
+  const available = useAuth((s) => s.available)
+  const user = useAuth((s) => s.user)
+  const openDialog = useAuth((s) => s.openDialog)
+
+  if (status === "unknown" || !available) return <span className="masthead__account-slot" aria-hidden="true" />
+
+  if (!user) {
+    return (
+      <button type="button" className="masthead__signin" onClick={() => openDialog("login")}>
+        دخول
+      </button>
+    )
+  }
+
+  return (
+    <a
+      className="masthead__account"
+      href={routeHash({ view: "profile", username: user.username })}
+      aria-label={`صفحتك — ${user.displayName}`}
+      title={user.displayName}
+    >
+      <span className="masthead__disc" aria-hidden="true">
+        {initialOf(user.displayName)}
+      </span>
+      <span className="masthead__account-name">{user.displayName}</span>
+    </a>
   )
 }
 
@@ -121,6 +188,18 @@ function Masthead({ route }: { route: Route }) {
             </a>
           ))}
         </nav>
+        {/* The two affordances that are not navigation: the search trigger the
+            «البحث» navlink used to be (it opens the palette, not a page), and
+            the account door. They share one row so the phone masthead can put
+            the wordmark and both of them on a single line. */}
+        <div className="masthead__tools">
+          <button type="button" className="masthead__search" onClick={() => openPalette()} aria-label="ابحث في الديوان">
+            <SearchGlyph />
+            <span className="masthead__search-label">ابحث</span>
+            <kbd className="keys-only">⌃K</kbd>
+          </button>
+          <AccountControl />
+        </div>
       </div>
     </header>
   )
@@ -187,6 +266,9 @@ function Body({ route }: { route: Route }) {
       return <ArsenalView />
     case "wander":
       return <WanderView />
+    case "profile":
+      // Keyed on the name: «صفحتي» from someone else's page is a new page.
+      return <ProfileView key={route.username} username={route.username} />
     default:
       return <ViewStub route={route} />
   }
@@ -198,6 +280,13 @@ export function App() {
   const [help, setHelp] = useState(false)
 
   useEffect(() => initRouter(), [])
+
+  // Who is signed in — one request, on boot. The session is an HttpOnly cookie
+  // and the server is the only thing that can say whether it is still live, so
+  // nothing about it is cached in localStorage (client/store/authStore.ts).
+  useEffect(() => {
+    void useAuth.getState().refresh()
+  }, [])
 
   // First render settled → tell the smoke harness. Gated on document.fonts so
   // the screenshot never catches قريض in a fallback face.
@@ -231,7 +320,9 @@ export function App() {
     keys: {
       "?": () => setHelp((v) => !v),
       "/": () => {
-        if (!focusOmnibox()) navigate({ view: "search", q: "", page: 1 })
+        // A field already on screen wins; otherwise the palette IS the field,
+        // and moving the reader to another page to give them one would be rude.
+        if (!focusOmnibox()) openPalette()
       },
     },
     chords: {
@@ -298,7 +389,14 @@ export function App() {
       </a>
       <Masthead route={route} />
       <main className={measure} id="main" tabIndex={-1}>
-        <Body route={route} />
+        {/* The route-change transition (v2.md §6). The key is the VIEW, not
+            `pageKey`: switching views already swaps the component, so this
+            costs no state, while a filter change inside one view (#/poets by
+            عصر, #/browse by بحر) keeps its DOM and must NOT flash the page the
+            reader is standing on. motion.css owns the 300ms rise. */}
+        <div className="route-swap" key={route.view}>
+          <Body route={route} />
+        </div>
       </main>
       <footer className="footer">
         <span>قريض — ديوان الشعر العربي ومساجلته</span>
@@ -308,6 +406,8 @@ export function App() {
       </footer>
       <Toasts />
       <ShareCardHost />
+      <PaletteHost />
+      <AuthDialog />
       {help ? <HelpOverlay onClose={() => setHelp(false)} /> : null}
     </div>
   )

@@ -76,8 +76,11 @@ was assembled rather than written. See the invariant below.
   `/poems/:publicId/similar` (amendment 9) · **baits** `/baits`,
   `/baits/random` (era/meter/**poet**/rhyme/first/fame/seed — the three
   #/wander doors), `/baits/daily`, `/baits/:id` (prev/next) · **facets**
-  `/facets` · **train** `/train/candidates` · plus the `search` and `game`
-  sub-apps other agents own.
+  `/facets` · **train** `/train/candidates` · **auth** `/auth/register`,
+  `/auth/login`, `/auth/logout`, `/auth/me` (the only routes that take a cookie;
+  `/auth/me` is ALWAYS 200, `user: null` means nobody) · **profile**
+  `/profile/:username`, `/profile/update`, `/profile/arsenal` · plus the
+  `search` and `game` sub-apps other agents own.
   Shared plumbing: `server/dto.ts` is the only place a column name is spelled
   (SQL fragments + row→DTO shaping), `server/query.ts` owns query parsing (zod →
   `400 {error, issues}`), memoised slug→id maps, the poem filter and
@@ -95,6 +98,20 @@ was assembled rather than written. See the invariant below.
   goes through `openShareCard(bayt)` in `client/share/ShareDialog.tsx` — the
   preview IS the canvas the download reads — and `<ShareCardHost/>` is mounted
   once, in App.tsx. Layout in design-ux.md.
+- **Stylesheets, in cascade order** (`client/main.tsx`): tokens · base ·
+  components · bayt · views · **poets** · app · duel · training · palette ·
+  **motion**. `poets.css` owns #/poets and #/poet whole — `.poets-*`,
+  `.pcard*`, `.letter-rail*`, `.letter-head*`, `.medallion*`, `.era-*`,
+  `.poet-*` — and the `--row-poet` half of the row-height contract.
+  `motion.css` is LAST and owns the app's motion vocabulary: `--dur-micro`
+  180ms / `--dur-enter` 360ms / `--ease-enter` `cubic-bezier(.22,1,.36,1)`,
+  the `qr-*` keyframes, the `data-enter` + `--enter-i` entrance utility (at
+  most EIGHT staggered steps, 60ms apart), and the hover micro-interactions
+  it can add to chips, buttons and letter wells without editing their sheets.
+  Reduced motion is honoured in two places: base.css collapses every duration,
+  and motion.css sets `--stagger: 0ms` and drops the hover transforms — a
+  collapsed duration with a live DELAY leaves the element invisible for the
+  delay and then snaps it in.
 - `vite.config.ts` also trims the bundle: `dropWoffFallbacks()` is an
   `enforce: "pre"` transform that strips fontsource's `, url(…woff)
   format('woff')` fallback before `vite:css` reads the url()s, so `dist/` is
@@ -108,13 +125,26 @@ was assembled rather than written. See the invariant below.
   `#/poem/<publicId>?bayt=N` · `#/browse?era&meter&theme&rawiyy&letter&sort&p` ·
   `#/search?q&p` · `#/duel` `#/duel/play` `#/duel/summary` · `#/daily` ·
   `#/favorites?collection` · `#/rules` · `#/stats` · `#/wander` ·
-  `#/train` `#/train/drill?letter=<L>` `#/train/arsenal`. All of them render a
+  `#/train` `#/train/drill?letter=<L>` `#/train/arsenal` · `#/u/<username>`.
+  All of them render a
   real view now; «التحفيظ» is in the masthead nav and `#/wander` is reached by
   `g w` (the arsenal's «تدرّب» is what carries the `?letter`).
   The switch is the `Body` function in `client/App.tsx`: add a `case`, touch
   nothing else. The keymap is `useKeyboard` in `App.tsx` **and**
   `client/data/shortcuts.ts` (HelpOverlay renders the latter) — add to both or
   to neither, and make the label say what the key does.
+- **A MODIFIER chord cannot live in `useKeyboard`.** It returns early on
+  `ctrlKey`/`metaKey` and on every key that arrives from a field — right for
+  `/` and `?`, wrong for `Ctrl+K`/`Ctrl+F`, which must fire while the reader is
+  typing into the duel's answer box AND must beat Chromium's find bar. Those
+  two live in `PaletteHost` (`client/components/Palette.tsx`) as ONE
+  window listener in the **capture** phase that `preventDefault`s and
+  `stopPropagation`s — which is also what keeps them from reaching the
+  bubble-phase window listeners the views own (RecitationReveal's «any key
+  skips», the drill's grades). They are still listed in `shortcuts.ts`.
+  The palette is the search door: «البحث» is no longer a navlink (the masthead's
+  ⌕ trigger opens the palette instead), and `#/search` is kept for the full
+  result list and deep links.
 
 ### Invariants (hard-won)
 
@@ -148,6 +178,24 @@ was assembled rather than written. See the invariant below.
   never written at runtime. A missing `data/qarid.db` is tolerated at boot
   (`openDbIfPresent` → null); `/healthz` and the static client still serve and
   `/api/*` answers 503, so systemd never crash-loops on a fresh box.
+- **`data/qarid-users.db` (`USERS_DB_PATH`) is the ONE writable database** —
+  accounts, sessions, the opt-in ترسانة snapshot and v2 §5's `rooms` /
+  `match_turns`, all created by `server/users.ts`'s `PRAGMA user_version`
+  migrations (WAL, `foreign_keys = ON`). It fails the same tolerant way the
+  corpus does: `openUsersDbIfWritable` returns null on a read-only `data/` and
+  `/api/auth/*` answers 503 rather than crashing the boot — and it PROBES with
+  a `BEGIN IMMEDIATE`, because a file that opens and reads fine in a directory
+  the process cannot write to only fails at the first INSERT, in front of a
+  reader who just typed a password. `/api/auth/*` and `/api/profile/*` are the
+  two prefixes exempt from the corpus 503 gate in `app.ts` (they need no
+  corpus) and the two that are `private, no-store` (they are per-cookie).
+  Passwords are scrypt + `timingSafeEqual`; the sessions table stores only the
+  SHA-256 of the cookie's token. There is no email and therefore no reset —
+  the owner edits a row (README §Accounts). One trap when you SMOKE a
+  signed-in flow: the cookie carries `Secure` whenever `PUBLIC_ORIGIN` is https
+  (the default), and a browser silently drops a `Secure` cookie from
+  `http://127.0.0.1` — so a screenshot run that has to log in must pass
+  `PUBLIC_ORIGIN=http://127.0.0.1:<port>` alongside `USERS_DB_PATH`.
 - Derived accent vars live on `body`, NOT `:root` — the `[data-app]` override
   must compute first (family pitfall).
 - Never `ORDER BY RANDOM()` on 2M+ rows; sample by the precomputed `bucket`
@@ -191,6 +239,19 @@ was assembled rather than written. See the invariant below.
   element sized in `em` (the drill's ruled blank) feeds that minimum, while the
   same width as a **percentage** does not — which is why `blankWidth()` returns
   one.
+- **A windowed row CLIPS the card inside it.** `.vlist__row` / `.prow-slot` /
+  `.pcard-row` are `overflow: hidden` so nothing can break the fixed height —
+  which also eats the four pixels a `.pcard` lifts by on hover, and with them
+  the gold hairline that sweeps its top edge. The poets grid therefore sets
+  `overflow: visible` on its own row (the card is exactly 100% of it, so only
+  the lift and its shadow can ever spill). The other half of that geometry:
+  a letter heading inside the list is a WHOLE row of `--row-poet`, and the
+  FIRST heading is lifted out of the list and rendered above it — 188px of
+  heading directly under the toolbar would push the first شاعر below the fold.
+- **`block-size: 100%` inside a stretched grid item resolves against the whole
+  column.** `.letter-head` carries its row height as an inline style; adding a
+  percentage height "for the rows that have one" made the lead heading 6,392px
+  tall and the شعراء index looked empty.
 - **`BaytPlate` already owns j/k/c/f/s on a focused بيت row.** A view that adds
   its own window-level handler for those keys gets them fired TWICE (add, then
   remove). What a view may add is the way *in* — j/k when nothing is focused —

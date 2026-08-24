@@ -12,10 +12,11 @@
  * Two contracts this file is one half of:
  *
  *  • ROW HEIGHTS. `useWindowedList` is a pure function of a FIXED row height,
- *    and the numbers live in client/views/shared.tsx (ROW_POEM 84 / 100,
- *    ROW_POET 132 / 148). The `--row-*` properties below are the same contract
- *    written on the CSS side; change one and the other must follow or the
- *    spacers drift and the scrollbar twitches as the window slides.
+ *    and the numbers live in client/views/shared.tsx (ROW_POEM 84 / 100; the
+ *    شاعر card's own pair moved to client/views/poetsGrid.ts with the rest of
+ *    #/poets). The `--row-*` properties below are the same contract written on
+ *    the CSS side; change one and the other must follow or the spacers drift
+ *    and the scrollbar twitches as the window slides.
  *
  *  • FLOATING LAYERS PAINT TWICE. `--bg-2` is translucent, so a dropdown or a
  *    popover over verse reads straight through to the بيت underneath. Every
@@ -26,14 +27,12 @@
 
 :root {
   --row-poem: 84px;
-  --row-poet: 156px;
   --rail-w: 15.5rem;
 }
 
 @media (max-width: 860px) {
   :root {
     --row-poem: 100px;
-    --row-poet: 176px;
   }
 }
 
@@ -53,13 +52,6 @@
   /* the row's own height is set inline from the JS constant — see header */
   display: block;
   overflow: hidden;
-}
-
-.pcard-row {
-  display: grid;
-  gap: var(--sp-3);
-  align-items: stretch;
-  padding-block-end: var(--sp-3);
 }
 
 .prow-slot {
@@ -91,22 +83,35 @@
 }
 
 /* ── loading rows: the geometry of the list they stand in for ─────────── */
+/* Same two bands and the same 4px between them as the `.prow` it stands in for,
+ * so the list does not shift when the real rows arrive. */
 .row-skeleton {
   display: grid;
   align-content: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   padding-inline: var(--sp-3);
   border-block-end: 1px solid var(--line-1);
 }
 
 /* ══ PoemRow ═══════════════════════════════════════════════════════════ */
 
+/* TWO DECLARED BANDS, not two `auto` rows (v2 §8: no uneven gaps, nothing
+ * cramped). A قصيدة row is a fixed-height slot, and what used to sit in it was
+ * a pair of content-sized rows whose height changed with the row's CONTENT:
+ * the heading band was 32px under a مطلع set in Amiri and 26px under a real
+ * عنوان set in the UI face, the meta band 21px bare and 34px the moment the
+ * قصيدة kept its قافية — and 32 + 8 + 34 does not fit in 76px, so the grid
+ * overflowed a slot with `overflow: hidden` on it and clipped the قافية well
+ * top and bottom. Declaring both bands fixes the rhythm AND the clipping: every
+ * row in every list is 2rem of heading, 4px, 2rem of metadata, whatever it
+ * carries. `--meta-band` is a token, so the chips below can match it exactly. */
 .prow {
   display: grid;
+  grid-template-rows: var(--meta-band) var(--meta-band);
   align-content: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   block-size: 100%;
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-1) var(--sp-3);
   border-radius: var(--r-2);
   border: 1px solid transparent;
   border-block-end-color: var(--line-1);
@@ -120,8 +125,12 @@
   border-color: var(--accent-hair);
 }
 
+/* The heading is centred IN its band rather than filling it, so the two faces
+ * — 20px Amiri and 16px Plex — sit on the same optical line down the list. */
 .prow__title {
+  align-self: center;
   font-size: var(--fs-ui-3);
+  line-height: 1.5;
   color: var(--text-1);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -129,7 +138,9 @@
 }
 
 /* Most قصائد in this corpus have no عنوان, so the مطلع standing in for one is
- * the common case — set it in the verse face rather than apologising for it. */
+ * the common case — set it in the verse face rather than apologising for it.
+ * ONE verse size for every preview in the app (v2 §6): `--fs-bayt-sm`, here,
+ * in `.bcard`'s بيت and in the قصيدة's own مطلع. */
 .prow__title--matla {
   font-family: var(--font-verse);
   font-size: var(--fs-bayt-sm);
@@ -148,6 +159,26 @@
   gap: var(--sp-2);
   font-size: var(--fs-ui-1);
   color: var(--text-2);
+}
+
+/* ── the meta band, and the one rule that keeps it one band tall ────────
+ * A chip is intrinsically sized — a pill's height is a property of the pill —
+ * but a LIST is a rhythm, and the قافية well's 1.9em of --fs-ui-4 (34px) beside
+ * the بحر pill's 29px is what staggered every بيت and قصيدة list in the app.
+ * Inside a meta band every chip is exactly `--meta-band` tall, and the قافية
+ * well becomes a --meta-band circle: same shape, same optical weight, one line.
+ */
+.prow__meta > .chip,
+.bcard__meta > .chip {
+  min-block-size: var(--meta-band);
+}
+
+.prow__meta > .chip--rawiyy,
+.bcard__meta > .chip--rawiyy {
+  inline-size: var(--meta-band);
+  block-size: var(--meta-band);
+  padding-block-end: 0.18em;
+  font-size: var(--fs-ui-3);
 }
 
 .prow__poet {
@@ -184,83 +215,6 @@
 .view-error__msg {
   color: var(--text-1);
   font-size: var(--fs-ui-3);
-}
-
-/* ══ PoetCard ══════════════════════════════════════════════════════════ */
-
-/* Rows of these are a FIXED height (ROW_POET in ./shared.tsx), so the card's
- * own tracks are declared rather than left to the content: name, meta, bio. A
- * poet with no عصر and a one-line ترجمة then sits in the same shape as one with
- * both, instead of leaving a ~60px void at the bottom of its cell. */
-.pcard {
-  display: grid;
-  grid-template-rows: auto auto 1fr;
-  align-content: stretch;
-  gap: var(--sp-2);
-  block-size: 100%;
-  padding: var(--sp-4);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-2);
-  background: var(--panel);
-  overflow: hidden;
-  transition:
-    border-color var(--dur-2) var(--ease),
-    background-color var(--dur-2) var(--ease),
-    transform var(--dur-2) var(--ease);
-}
-
-.pcard:hover {
-  border-color: var(--accent-line);
-  transform: translateY(-2px);
-}
-
-/* «إبراهيم بن عبد الرحيم بن الباخرزي» is a normal length in this corpus. One
- * nowrap line ellipsises most of the ديوان away; two lines of Aref Ruqaa hold
- * almost all of it, and the row height in ./shared.tsx was raised to match. */
-.pcard__name {
-  font-family: var(--font-display);
-  font-size: var(--fs-ui-3);
-  line-height: 1.75;
-  color: var(--text-1);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-}
-
-.pcard:hover .pcard__name {
-  color: var(--accent);
-}
-
-.pcard__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-  font-size: var(--fs-ui-1);
-  color: var(--text-2);
-}
-
-.pcard__n {
-  color: var(--text-3);
-}
-
-/* TWO lines, which is what design-ux.md §3 asks for — one clamped «…من أهل»
- * mid-word and told the reader nothing about the شاعر. */
-.pcard__bio {
-  font-size: var(--fs-ui-1);
-  line-height: 1.65;
-  color: var(--text-2);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-}
-
-.pcard__bio--none {
-  color: var(--text-3);
 }
 
 /* ══ Omnibox ═══════════════════════════════════════════════════════════ */
@@ -300,7 +254,9 @@
 .omnibox__input {
   flex: 1 1 auto;
   min-inline-size: 0;
-  padding-block: 0.85rem;
+  /* the field's whole block padding lives here, on the scale — the shell only
+     pads inline, so the ⌕ mark and the input share one line box */
+  padding-block: var(--sp-3);
   border: 0;
   background: none;
   color: var(--text-1);
@@ -382,7 +338,7 @@
 
 .omnibox__row {
   display: grid;
-  gap: 2px;
+  gap: var(--sp-1);
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r-2);
   border-inline-start: 2px solid transparent;
@@ -446,65 +402,6 @@
   color: var(--accent);
 }
 
-/* ══ LetterRail — the شعراء alphabet strip ═════════════════════════════ */
-
-.letter-rail {
-  display: grid;
-  grid-auto-flow: row;
-  gap: 1px;
-  align-content: start;
-  position: sticky;
-  inset-block-start: 5.5rem;
-  padding: var(--sp-2);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-2);
-  background: var(--panel);
-  max-block-size: calc(100dvh - 8rem);
-  overflow-y: auto;
-}
-
-.letter-rail__key {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--sp-2);
-  padding: 0.18rem 0.5rem;
-  border: 0;
-  border-radius: var(--r-1);
-  background: none;
-  color: var(--text-2);
-  transition:
-    background-color var(--dur-1) var(--ease),
-    color var(--dur-1) var(--ease);
-}
-
-.letter-rail__key:hover:not([disabled]) {
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text-1);
-}
-
-.letter-rail__key[data-active="1"] {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-
-.letter-rail__key[disabled] {
-  opacity: 0.28;
-  cursor: not-allowed;
-}
-
-.letter-rail__ch {
-  font-family: var(--font-verse);
-  font-size: var(--fs-ui-4);
-  line-height: 1.35;
-}
-
-.letter-rail__n {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-ui-0);
-  color: var(--text-3);
-}
-
 /* ══ LetterGrid — the 7×4 روي / حرف البداية wells ═══════════════════════ */
 
 /* The شكل is 7×4, but only where 7 fit. The browse facet rail is 15.5rem and
@@ -533,10 +430,16 @@
   }
 }
 
+/* NOTE for anyone adding a rule to duel.css: `.letter-well` is this element AND
+ * the duel's 4.25rem required-letter disc, and duel.css loads after this file.
+ * Every rule over there is scoped under `.letter-ind` for exactly that reason —
+ * un-scoped, its disc reached all 28 of these cells and each one became a 68px
+ * gold circle in a 15.5rem rail, overlapping its neighbours and clipping its
+ * own count. Keep it scoped. */
 .letter-well {
   display: grid;
   justify-items: center;
-  gap: 2px;
+  gap: var(--sp-1);
   padding: 0;
   border: 0;
   background: none;
@@ -546,11 +449,20 @@
   min-inline-size: 0;
 }
 
+/* An Arabic letter in a disc is BASELINE-set, not box-centred: with
+ * `line-height: 1` Amiri's line-box centre sits 0.25em above its baseline, so a
+ * plainly centred letter renders low (measured across all 28 isolated forms —
+ * the note on `.letter-ind .letter-well__glyph` in duel.css carries the
+ * arithmetic). The correction is 0.09em UP, and because the circle itself must
+ * not move it is spent as block-end padding inside a border-box: the content
+ * box shrinks by 0.18em, and what `place-items: center` centres rises by half
+ * of that. Same rule, same number, wherever a letter sits in a well. */
 .letter-well__ch {
   display: grid;
   place-items: center;
   inline-size: min(2.05em, 100%);
   aspect-ratio: 1;
+  padding-block-end: 0.18em;
   border-radius: 50%;
   border: 1px solid var(--lapis-line);
   font-family: var(--font-verse);
@@ -580,17 +492,30 @@
   cursor: not-allowed;
 }
 
+/* Four wells across a 15.5rem rail leaves ~50px a cell, and «22,209» has to fit
+ * inside it: this is the one size in the file below `--fs-ui-0`, and it is a
+ * measured intrinsic rather than a step of the UI scale. */
 .letter-well__n {
   font-variant-numeric: tabular-nums;
   font-size: 0.62rem;
+  line-height: 1.4;
   color: var(--text-3);
   max-inline-size: 100%;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ══ HOME ══════════════════════════════════════════════════════════════ */
 
-.home {
+/* ── the view-level rhythm overrides ────────────────────────────────────
+ * Each of these needs BOTH classes. `.view` (app.css) sets `gap: var(--sp-5)`,
+ * app.css loads after this file, and `.home`/`.search-view`/… are the same
+ * specificity — so as single-class rules every one of them was dead and five
+ * views had been rendering on a rhythm their CSS did not describe. Found in the
+ * v2 §8 sweep; the same trap is why `.browse-head` below has to say
+ * `.view__head.browse-head`. */
+.view.home {
   gap: var(--sp-7);
 }
 
@@ -711,7 +636,7 @@
 
 .door__top {
   display: grid;
-  gap: 3px;
+  gap: var(--sp-1);
 }
 
 .door__line {
@@ -939,159 +864,14 @@
   color: var(--text-3);
 }
 
-/* ══ POETS index ═══════════════════════════════════════════════════════ */
-
-.poets-filters {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-  flex-wrap: wrap;
-  padding-block-end: var(--sp-3);
-  border-block-end: 1px solid var(--line-1);
-}
-
-.poets-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 6.5rem;
-  gap: var(--sp-5);
-  align-items: start;
-}
-
-/* The rail is FIRST in the DOM (it is a nav, and a screen reader should meet
- * it before 6,997 شعراء) but sits at the inline-END edge — the left, under
- * RTL — which design-ux.md §3 asks for. Explicit columns, because grid
- * auto-placement would otherwise put the first child in the wide column. */
-.poets-shell .letter-rail {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.poets-main {
-  grid-column: 1;
-  grid-row: 1;
-  min-inline-size: 0;
-}
-
-/* A heading occupies one full windowed row — that is what makes it read as a
- * section break rather than a label, and it is also what keeps the window
- * maths a pure function of one row height. */
-.letter-head {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  font-family: var(--font-display);
-  font-size: var(--fs-ui-4);
-  color: var(--accent-soft);
-}
-
-.letter-head .rule {
-  flex: 1 1 auto;
-  opacity: 0.9;
-}
-
-.letter-head__ch {
-  font-family: var(--font-verse);
-  font-size: 2.6rem;
-  line-height: 1.3;
-  color: var(--accent);
-  text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.22);
-}
-
-.letter-head__name {
-  font-size: var(--fs-ui-1);
-  color: var(--text-3);
-}
-
-/* ══ POET page ═════════════════════════════════════════════════════════ */
-
-/* A ديوان row is title + a few chips + a count; at the full 78rem shell the
- * count drifts a hand's width away from the title it belongs to. */
-.poet-view {
-  gap: var(--sp-5);
-  inline-size: min(100%, 64rem);
-  margin-inline: auto;
-}
-
-.poet-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
-  justify-items: start;
-}
-
-.poet-name {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
-  /* Aref Ruqaa's tails run well outside the em box */
-  line-height: 1.9;
-  color: var(--text-1);
-  padding-block-start: 0.08em;
-}
-
-.poet-badges {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-  font-size: var(--fs-ui-1);
-  color: var(--text-2);
-}
-
-.poet-bio {
-  display: grid;
-  justify-items: start;
-  gap: var(--sp-2);
-  max-inline-size: var(--col-text);
-}
-
-.poet-bio__text {
-  font-size: var(--fs-ui-2);
-  line-height: 1.75;
-  color: var(--text-2);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 5;
-  line-clamp: 5;
-  overflow: hidden;
-}
-
-.poet-bio__text--open {
-  -webkit-line-clamp: unset;
-  line-clamp: unset;
-  display: block;
-}
-
-.poet-signature {
-  max-inline-size: var(--col-narrow);
-}
-
-.poet-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  flex-wrap: wrap;
-}
-
-.poet-facets {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-4);
-  padding: var(--sp-4);
-  border: 1px solid var(--line-1);
-  border-radius: var(--r-2);
-  background: rgba(255, 255, 255, 0.012);
-}
-
-.poet-facets:empty {
-  display: none;
-}
-
-.poet-facet {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-2);
-}
+/* ══ POETS / POET — see client/styles/poets.css ════════════════════════
+ *
+ * The شعراء index and the شاعر page moved out of this file at v2 (the «super
+ * epic» pass): `.poets-*`, `.pcard*`, `.letter-rail*`, `.letter-head*`,
+ * `.medallion*`, `.era-*` and `.poet-*` all live in poets.css now, with the
+ * row-height contract (`--row-poet`) beside them. Three rules those two views
+ * share with browse and search — `.facet-title`, `.facet-empty` and
+ * `.section-title__n` — stay HERE, where their other callers can find them. */
 
 .facet-title {
   font-size: var(--fs-ui-0);
@@ -1104,33 +884,49 @@
   color: var(--text-3);
 }
 
-.poet-diwan {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
-}
-
+/* The count is a grid CELL of the header now, not a run of text after it with
+ * a margin — that is what lets the rule start after it and keeps every group
+ * heading in the app on the same two columns. */
 .section-title__n {
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-ui-1);
+  line-height: 1;
   color: var(--text-3);
   margin-inline-start: var(--sp-2);
 }
 
+.search-group > .section-title .section-title__n {
+  margin-inline-start: 0;
+}
+
 /* ══ BROWSE ════════════════════════════════════════════════════════════ */
 
-.browse-head {
+/* Heading block on the inline-start edge, controls on the inline-end, ONE line
+ * until there is genuinely no room. The title block has to be a shrinkable flex
+ * item with a zero minimum (`.view__lede` is capped at `--col-text` = 38rem, and
+ * that cap is a MAX-content contribution, so as a rigid item it pushed the sort
+ * control onto a line of its own at 1440 and left the whole inline-end half of
+ * the header empty). */
+.view__head.browse-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--sp-4);
+  gap: var(--sp-3) var(--sp-5);
   flex-wrap: wrap;
+}
+
+.browse-head > :first-child {
+  display: grid;
+  gap: var(--sp-2);
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }
 
 .browse-tools {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  flex: 0 0 auto;
   flex-wrap: wrap;
 }
 
@@ -1139,6 +935,9 @@
   display: none;
 }
 
+/* One band, one baseline: every token in the applied-قيود row is `--meta-band`
+ * tall, so a removable chip and the امسح الكل ghost sit on the same two edges
+ * however the row wraps (v2 §8 alignment). */
 .applied {
   display: flex;
   align-items: center;
@@ -1146,11 +945,17 @@
   flex-wrap: wrap;
 }
 
+.applied__chip,
+.applied__clear {
+  min-block-size: var(--meta-band);
+}
+
 .applied__chip {
   display: inline-flex;
   align-items: center;
   gap: 0.45em;
-  padding: 0.25em 0.7em;
+  padding-block: 0;
+  padding-inline: 0.8em;
   font-size: var(--fs-ui-1);
   color: var(--accent);
   background: var(--accent-dim);
@@ -1174,7 +979,10 @@
 /* A ghost button at the end of the chip row it clears — it was the ONE
  * underlined link in the app, and it sat at the far inline-end of the bar. */
 .applied__clear {
-  padding: 0.25em 0.7em;
+  display: inline-flex;
+  align-items: center;
+  padding-block: 0;
+  padding-inline: 0.8em;
   border: 1px dashed var(--line-2);
   border-radius: var(--r-pill);
   background: none;
@@ -1194,14 +1002,18 @@
   align-items: start;
 }
 
+/* A scroller with a themed 10px bar needs a gutter wide enough to hold it, or
+ * the gold rides on the accordion's own border (v2 §6). */
 .facet-rail {
   position: sticky;
   inset-block-start: 5.5rem;
   display: grid;
   gap: var(--sp-2);
+  align-content: start;
   max-block-size: calc(100dvh - 8rem);
   overflow-y: auto;
-  padding-inline-end: var(--sp-1);
+  overscroll-behavior: contain;
+  padding-inline-end: var(--sp-3);
 }
 
 .facet {
@@ -1268,8 +1080,25 @@
 
 /* ══ SEARCH ════════════════════════════════════════════════════════════ */
 
-.search-view {
-  gap: var(--sp-4);
+/* The v2 §6 visual pass. What it fixes, in the order a reader meets it:
+ *
+ *   • the search bar is one block — field, mode row, count line — on the 24px
+ *     step, instead of three things at three different distances;
+ *   • the count sits ON the results it counts. It used to live at the far
+ *     inline-END of a `space-between` mode row, which on a 1,248px column put
+ *     «555 نتيجة» a full 800px away from the first hit, alone at the opposite
+ *     edge of an empty line — the same mistake `.prow__n` carries a note about;
+ *   • every group announces itself the same way: one `.section-title` with a
+ *     dissolving gold rule running off it, and its count in the rule's own
+ *     colour. أبيات used to be the only group with a rule, and it was a
+ *     separate `<Rule/>` element on a line of its own;
+ *   • the شعراء strip is a strip — content-sized cards that wrap — and not a
+ *     `minmax(13rem, 1fr)` grid, which on both 1440 and 1024 left the sixth
+ *     شاعر alone on a second row four fifths empty.
+ */
+
+.view.search-view {
+  gap: var(--sp-5);
 }
 
 /* `minmax(0, 1fr)`, not the implicit `auto`: the modes row is a wrapping flex
@@ -1295,13 +1124,25 @@
   gap: var(--sp-3);
 }
 
+/* The ledger line: what was found, and how long it took. Sits at the foot of
+ * the search bar, above the first result, on the container's inline-start edge
+ * like every other line in the column. */
 .search-count {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
   font-size: var(--fs-ui-1);
   color: var(--text-3);
 }
 
 .search-count__n {
-  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-soft);
+}
+
+.search-count__sep {
+  color: var(--line-2);
 }
 
 /* the build hash is genuinely Latin — an LTR run of its own inside Arabic */
@@ -1331,11 +1172,15 @@
   color: var(--text-2);
 }
 
+/* The القيود drawer. Its rows are label + values on one 5rem gutter, so the
+ * three facet names line up down the inline-start edge and the chip clouds all
+ * start on the same column — the alignment rule of v2 §8, applied to the one
+ * panel in the app that stacks three unrelated control shapes. */
 .search-facets {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
+  gap: var(--sp-4);
+  padding: var(--sp-4);
   border: 1px solid var(--line-1);
   border-radius: var(--r-2);
   background: rgba(255, 255, 255, 0.012);
@@ -1343,41 +1188,86 @@
 
 .search-facet {
   display: grid;
-  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-columns: 5rem minmax(0, 1fr);
   align-items: start;
   gap: var(--sp-3);
+}
+
+.search-facet .facet-title {
+  padding-block-start: 0.35em;
 }
 
 .search-group {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
 
-.search-poets {
+/* One header shape for شعراء, قصائد and أبيات: the name, its count, and a gold
+ * hairline dissolving away from both into the column's far edge. */
+.search-group > .section-title {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  grid-template-columns: auto auto minmax(var(--sp-5), 1fr);
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.search-group > .section-title::after {
+  content: "";
+  block-size: 1px;
+  border-radius: 1px;
+  /* the app is `dir="rtl"`; the rule runs away from the heading, i.e. leftward */
+  background: linear-gradient(
+    to left,
+    rgba(var(--accent-rgb), 0.3),
+    rgba(var(--accent-rgb), 0.06) 62%,
+    transparent
+  );
+}
+
+/* A STRIP: content-sized cards that wrap and fill from the inline-start edge.
+ * As a `minmax(13rem, 1fr)` grid the six شعراء the server returns became five
+ * plus one orphan at 1440 AND at 1024, which is the worst of both. */
+.search-poets {
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--sp-2);
 }
 
+/* JUSTIFIED, not ragged: `flex: 1 1 auto` lets each row of the strip grow out
+ * to both edges of the column, so six شعراء are one full row at 1440, two full
+ * rows at 1024 and six full-width rows on a phone — never four cards and a
+ * 300px hole. The growth falls at the card's TAIL, not between its two pieces:
+ * the شاعر and his ديوان size stay one phrase instead of drifting to opposite
+ * edges of a stretched row. */
 .search-poet {
   display: flex;
   align-items: baseline;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  gap: var(--sp-3);
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  padding-block: var(--sp-2);
+  padding-inline: var(--sp-4);
   border: 1px solid var(--line-1);
   border-radius: var(--r-2);
   background: var(--panel);
-  transition: border-color var(--dur-2) var(--ease);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
 }
 
 .search-poet:hover {
   border-color: var(--accent-line);
+  background: var(--accent-wash);
 }
 
+/* Aref Ruqaa's tails run well below its em box: the line box is what keeps the
+ * ن of «الطفيل الغنوي» off the card's own border, not padding. */
 .search-poet__name {
   flex: 0 1 auto;
   min-inline-size: 0;
+  max-inline-size: 18rem;
   font-family: var(--font-display);
   font-size: var(--fs-ui-3);
   line-height: 1.9;
@@ -1387,7 +1277,12 @@
   white-space: nowrap;
 }
 
+.search-poet:hover .search-poet__name {
+  color: var(--accent);
+}
+
 .search-poet__n {
+  flex: none;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
   white-space: nowrap;
@@ -1395,18 +1290,25 @@
 
 /* ══ the بيت card — a search hit or a بيت-mode browse row ══════════════ */
 
+/* بيت, then its attribution band, then the hairline that ends the card — 8 /
+ * 24 on the scale. It used to be 4 above the band and 12 below it, which read
+ * as the metadata belonging to the بيت BELOW rather than the one above. */
 .bcard {
   display: grid;
-  gap: var(--sp-1);
-  padding-block-end: var(--sp-3);
+  gap: var(--sp-2);
+  padding-block-end: var(--sp-5);
   border-block-end: 1px solid var(--line-1);
 }
 
+/* The band is inset by the بيت's own number gutter, so the شاعر starts on the
+ * same column as the verse and not on the card's edge. One band tall, like
+ * every other meta band in the app — see `.prow__meta` above. */
 .bcard__meta {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   flex-wrap: wrap;
+  min-block-size: var(--meta-band);
   padding-inline-start: var(--bayt-num-col, 3.2rem);
   font-size: var(--fs-ui-1);
   color: var(--text-3);
@@ -1444,8 +1346,8 @@
 
 /* ══ FAVORITES ═════════════════════════════════════════════════════════ */
 
-.fav-view {
-  gap: var(--sp-4);
+.view.fav-view {
+  gap: var(--sp-5);
 }
 
 .fav-bar {
@@ -1461,7 +1363,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45em;
-  padding: 0.3rem 0.85rem;
+  /* one band tall, like the browse قيود row and every meta band — the tabs, the
+     «مجموعة جديدة» field and the chips beside them share one baseline */
+  min-block-size: var(--meta-band);
+  padding-block: 0;
+  padding-inline: var(--sp-4);
   border: 1px solid var(--line-1);
   border-radius: var(--r-pill);
   background: var(--bg-1);
@@ -1495,7 +1401,9 @@
 
 .fav-new__input {
   inline-size: 11rem;
-  padding: 0.35rem 0.7rem;
+  min-block-size: var(--meta-band);
+  padding-block: 0;
+  padding-inline: var(--sp-3);
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
   background: var(--bg-1);
@@ -1556,7 +1464,7 @@
 
 /* ══ RULES ═════════════════════════════════════════════════════════════ */
 
-.rules-view {
+.view.rules-view {
   gap: var(--sp-6);
 }
 
@@ -1657,7 +1565,7 @@
 
 /* ══ STATS ═════════════════════════════════════════════════════════════ */
 
-.stats-view {
+.view.stats-view {
   gap: var(--sp-6);
 }
 
@@ -1825,60 +1733,7 @@
 }
 
 @media (max-width: 860px) {
-  .poets-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  /* The wide layout PLACES both children explicitly (rail in column 2, main in
-   * column 1) so auto-placement cannot put the 6,997 شعراء in the 6.5rem rail.
-   * Collapsing to one track is therefore not enough: `grid-column: 2` on the
-   * rail creates an IMPLICIT second track sized to the rail's max-content, and
-   * the single explicit `minmax(0, 1fr)` track that `.poets-main` lives in
-   * collapses to ZERO — a black page of correct height and no visible poet, on
-   * every phone and every tablet in portrait. Re-place both children here.
-   * (`order` is inert on explicitly-placed items, which is why the `order: -1`
-   * below never moved anything either.) */
-  .poets-shell .letter-rail {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .poets-main {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  /* The alphabet becomes a horizontal strip under the era chips. NOT sticky:
-   * the masthead is two rows tall here and owns the top of the viewport, so a
-   * sticky rail would slide underneath it and disappear. */
-  .letter-rail {
-    position: static;
-    grid-auto-flow: column;
-    grid-auto-columns: max-content;
-    overflow-x: auto;
-    overflow-y: hidden;
-    max-block-size: none;
-    gap: var(--sp-1);
-    scrollbar-width: thin;
-    /* Eight of twenty-eight letters fit at 390px and a touch device draws no
-     * scrollbar, so the strip has to say for itself that it continues: both
-     * edges dissolve, and `LetterRail` scrolls the active key into view. */
-    mask-image: linear-gradient(to left, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
-    scroll-padding-inline: 1.5rem;
-    min-inline-size: 0;
-  }
-
-  .letter-rail__key {
-    display: grid;
-    justify-items: center;
-    gap: 0;
-    padding: 0.25rem 0.4rem;
-    min-inline-size: 2.4rem;
-  }
-
-  .poets-shell .letter-rail {
-    margin-block-end: var(--sp-3);
-  }
+  /* #/poets and #/poet keep their own narrow rules in poets.css. */
 
   .search-facet {
     grid-template-columns: minmax(0, 1fr);
@@ -1891,6 +1746,13 @@
 
   .bcard__meta {
     padding-inline-start: var(--bayt-num-col, 2.1rem);
+  }
+
+  /* `--row-poem` is 100px here (touch), and the two bands only need 68 of it:
+     spend the difference as real padding so the row has an even top and bottom
+     instead of 16px of `align-content` slack floating in the middle. */
+  .prow {
+    padding-block: var(--sp-3);
   }
 
   .duel-bar {
@@ -1907,12 +1769,10 @@
     gap: var(--sp-6);
   }
 
-  .letter-grid__row {
+  /* `.letter-grid__row` is `display: contents` — a gap on it has never done
+     anything. The grid that actually owns the tracks is the one to tighten. */
+  .letter-grid {
     gap: var(--sp-1);
-  }
-
-  .poets-filters {
-    gap: var(--sp-3);
   }
 
   .doors {
@@ -1920,16 +1780,15 @@
   }
 }
 
-/* The bloom and the card lifts are motion; honour the setting. */
+/* The bloom and the card lifts are motion; honour the setting. (`.pcard`'s own
+ * pair moved to poets.css with the card.) */
 @media (prefers-reduced-motion: reduce) {
-  .pcard:hover,
   .door:hover,
   .poet-day__card:hover {
     transform: none;
   }
 }
 
-[data-reduce-motion="1"] .pcard:hover,
 [data-reduce-motion="1"] .door:hover,
 [data-reduce-motion="1"] .poet-day__card:hover {
   transform: none;

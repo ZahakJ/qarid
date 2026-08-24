@@ -1,0 +1,908 @@
+/* قريض — الشعراء: the index, the شاعر page, and the two ornaments they share
+ * (v2.md §6 «POETS tab super epic», §8 design bar).
+ *
+ * Loaded after views.css and before motion.css, and it owns EVERY selector on
+ * these two routes — `.poets-*`, `.pcard*`, `.letter-rail*`, `.letter-head*`,
+ * `.medallion*`, `.era-*`, `.poet-*`. Nothing here is shared with browse or
+ * search except `.medallion`, which the duel summary may borrow later.
+ *
+ * ROW HEIGHTS ARE A CONTRACT WRITTEN TWICE. `--row-poet` below and `ROW_POET`
+ * in client/views/poetsGrid.ts are the same number: `useWindowedList` is a pure
+ * function of a fixed row height and the card's own tracks have to add up to
+ * it, or the last line of a ترجمة is sliced in half by `overflow: hidden` —
+ * which is exactly what 156px did before this pass.
+ * `client/views/poetsGrid.test.ts` reads this file and fails if they drift.
+ *
+ * THE SPACING IS THE 4/8 SCALE and nothing else: --sp-1…--sp-8, --r-1/--r-2,
+ * and the two shadow steps. There is no magic number in this file that is not
+ * an intrinsic size (a medallion's diameter, a rail key's minimum).
+ */
+
+:root {
+  --row-poet: 188px;
+  /* the enlarged active letter rises OUT of the rail; the band reserves it */
+  --rail-key-h: 3.5rem;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --row-poet: 172px;
+  }
+}
+
+/* ══ المدالية — one illuminated letter ═════════════════════════════════ */
+
+/* A gold disc with a letter of the alphabet set in Aref Ruqaa inside it: the
+ * hero's active حرف, and the mark on every letter section heading. The ring is
+ * its own element rather than a border on the box, because the glyph has to be
+ * free to sit on its own optical centre — Aref Ruqaa hangs its letters well
+ * above the em box's middle, so a `place-items: center` on the box alone puts
+ * every letter visibly too high. */
+.medallion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-items: center;
+  gap: var(--sp-2);
+  --medallion-size: 4rem;
+}
+
+.medallion__ring,
+.medallion__ch,
+.medallion__shamsa {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.medallion__ring {
+  inline-size: var(--medallion-size);
+  block-size: var(--medallion-size);
+  border-radius: 50%;
+  border: 1px solid var(--accent-hair);
+  background: radial-gradient(circle at 50% 46%, rgba(var(--accent-rgb), 0.13), rgba(var(--accent-rgb), 0.02) 62%, transparent 72%);
+  box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.06);
+}
+
+.medallion__ch {
+  place-self: center;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: calc(var(--medallion-size) * 0.44);
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 22px rgba(var(--accent-rgb), 0.3);
+  /* the glyph's optical centre, not the line box's */
+  padding-block-end: 0.12em;
+}
+
+.medallion__shamsa {
+  place-self: center;
+  color: var(--accent);
+  opacity: 0.75;
+  display: grid;
+  place-items: center;
+}
+
+.medallion__cap {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.medallion--hero {
+  --medallion-size: 7rem;
+}
+
+/* The شاعر's seal sits at the inline-END edge and is centred against BOTH the
+ * name and the tiles under it, so it anchors the header block instead of
+ * floating in the corner above an empty half-page. */
+.medallion--poet {
+  --medallion-size: 5rem;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+.medallion--head {
+  --medallion-size: 3.5rem;
+  flex: none;
+}
+
+/* ══ POETS index ═══════════════════════════════════════════════════════ */
+
+.poets-view {
+  gap: var(--sp-5);
+}
+
+/* ── hero ────────────────────────────────────────────────────────────── */
+.poets-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-6);
+}
+
+.poets-hero__text {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+.poets-hero__title {
+  margin: 0;
+}
+
+/* ── the alphabet band ───────────────────────────────────────────────── */
+
+/* The rail spans the page. Its own block-size is reserved so that enlarging
+ * the active letter — which is a TRANSFORM, not a font-size — never changes
+ * the band's height and pushes 6,941 شاعر down the page. */
+.poets-rail {
+  padding-block: var(--sp-3);
+  border-block: 1px solid var(--line-1);
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.035), transparent 70%);
+}
+
+.letter-rail {
+  display: grid;
+  grid-template-columns: repeat(28, minmax(0, 1fr));
+  gap: 2px;
+  align-items: end;
+}
+
+.letter-rail__key {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: 1px;
+  min-block-size: var(--rail-key-h);
+  /* a grid item's automatic minimum is its min-content width (CLAUDE.md) */
+  min-inline-size: 0;
+  padding-block: var(--sp-1);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  transition:
+    color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    background-color var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.letter-rail__key:hover:not([disabled]) {
+  color: var(--text-1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.letter-rail__key[disabled] {
+  opacity: 0.26;
+  cursor: not-allowed;
+}
+
+.letter-rail__ch {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-ui-4);
+  line-height: 1.5;
+  transform-origin: center bottom;
+  transition:
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease),
+    color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    text-shadow var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.letter-rail__key:hover:not([disabled]) .letter-rail__ch {
+  transform: scale(1.18);
+}
+
+/* THE ACTIVE LETTER, enlarged in Aref Ruqaa gold — the one thing v2.md §6 asks
+ * this rail for by name. It grows out of the band on its baseline. */
+.letter-rail__key[data-active="1"] {
+  color: var(--accent);
+  /* the letter grows OUT of the band, so the mark under it is a plinth that
+   * fades upward — a filled box would be a lid on a letter half its height */
+  background: linear-gradient(to top, rgba(var(--accent-rgb), 0.16), transparent 78%);
+  box-shadow: inset 0 -1px 0 0 var(--accent);
+}
+
+.letter-rail__key[data-active="1"] .letter-rail__ch {
+  transform: scale(1.75);
+  color: var(--accent);
+  text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.4);
+}
+
+.letter-rail__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  color: var(--text-3);
+  max-inline-size: 100%;
+  overflow: hidden;
+}
+
+.letter-rail__key[data-active="1"] .letter-rail__n {
+  color: var(--accent-soft);
+}
+
+/* ── العصر strip ─────────────────────────────────────────────────────── */
+.era-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.era-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 0.34rem 0.7rem;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-1);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font-size: var(--fs-ui-1);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    border-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    background-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    box-shadow var(--dur-micro, 180ms) var(--ease-enter, ease),
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.era-chip:hover {
+  color: var(--text-1);
+  border-color: var(--line-2);
+  transform: translateY(-1px);
+}
+
+.era-chip:active {
+  transform: translateY(0);
+}
+
+.era-chip[data-active="1"] {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.era-chip__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.era-chip[data-active="1"] .era-chip__n {
+  color: var(--accent-soft);
+}
+
+/* ── the context line: what is on screen, and in what order ──────────── */
+.poets-context {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.poets-context__what {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.poets-context__where {
+  color: var(--accent-soft);
+}
+
+.poets-context__rule {
+  flex: 1 1 4rem;
+  min-inline-size: 2rem;
+  block-size: 1px;
+  background: var(--rule-gold);
+  transform-origin: right center;
+}
+
+.poets-context__clear {
+  flex: none;
+}
+
+.poets-main {
+  min-inline-size: 0;
+}
+
+/* ── letter section heading ──────────────────────────────────────────── */
+
+/* A heading occupies one full windowed row — that is what makes it read as a
+ * section break rather than a label, and it is also what keeps the window
+ * maths a pure function of one row height. */
+.letter-head {
+  display: flex;
+  /* The heading owns a whole windowed row; its content sits at the BOTTOM of
+   * that row, so the space above reads as the break between two sections and
+   * the mark stays within a hand's width of the cards it names. */
+  align-items: flex-end;
+  gap: var(--sp-3);
+  /* NO `block-size: 100%` here: a heading inside the list carries the row
+   * height as an inline style, and a percentage against a stretched grid item
+   * resolves against the whole column — 6,392px of empty page, measured. */
+  padding-block-end: var(--sp-4);
+  font-weight: 400;
+}
+
+/* The first heading is not a row of the list (see PoetsView): it is a compact
+ * band under the toolbar, so the شعراء start above the fold. */
+.letter-head--lead {
+  padding-block: var(--sp-2) var(--sp-4);
+}
+
+.letter-head__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1.6;
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.letter-head__n {
+  font-size: var(--fs-ui-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.letter-head__rule {
+  flex: 1 1 auto;
+  block-size: 1px;
+  margin-block-end: 0.9rem;
+  background: var(--rule-gold);
+}
+
+/* The windowed row a grid of cards sits in: `.vlist__row`'s block-size comes
+ * from the JS constant (views.css owns that shared rule), the columns from
+ * `cols` in PoetsView. */
+.pcard-row {
+  display: grid;
+  gap: var(--sp-3);
+  align-items: stretch;
+  padding-block-end: var(--sp-3);
+  /* views.css clips every windowed row so a tall child cannot break the fixed
+   * height. A card is exactly 100% of its row, so nothing here can spill
+   * except the four pixels the hover LIFTS it by — and clipping those took the
+   * gold hairline off the top edge with them. */
+  overflow: visible;
+}
+
+/* ══ PoetCard ══════════════════════════════════════════════════════════ */
+
+/* Rows of these are a FIXED height (ROW_POET in ../views/poetsGrid.ts), so the
+ * card's own tracks are declared rather than left to the content: name, meta,
+ * and a foot that is pinned to the bottom edge. A شاعر with no عصر and no
+ * ترجمة then sits in the same shape as one with both, and — because the foot
+ * is bottom-aligned — every ترجمة in a row starts on the same line.
+ *
+ * `--panel` is translucent, so the card is painted over --bg-0: a card that
+ * reads through to the page's own bloom has no edge where it lifts. */
+.pcard {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: var(--sp-2);
+  block-size: 100%;
+  min-block-size: 100%;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background:
+    linear-gradient(var(--panel), var(--panel)),
+    var(--bg-0);
+  --seal-size: 6.25rem;
+  overflow: hidden;
+  transition:
+    border-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    background-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    box-shadow var(--dur-micro, 180ms) var(--ease-enter, ease),
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+/* Layer 1 of the hover: the lift. The border stays quiet on purpose — the
+ * gold belongs to the hairline sweeping the top edge, and a card that turns
+ * gold on all four sides drowns it. */
+.pcard:hover {
+  border-color: var(--line-2);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-2);
+}
+
+/* Layer 2: a gold hairline sweeping the block-start edge, right to left —
+ * the direction the reader's eye already travels. */
+.pcard__sweep {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--accent-rgb), 0.9) 22%,
+    rgba(var(--accent-rgb), 0.9) 78%,
+    transparent
+  );
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.35);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform 320ms var(--ease-enter, ease);
+}
+
+.pcard:hover .pcard__sweep {
+  transform: scaleX(1);
+}
+
+/* The illumination: the شاعر's own حرف الشهرة as a SEAL — the letter inside a
+ * hairline ring, half of it off the corner of the card, the way a ختم sits on
+ * the corner of a folio. The ring is what makes it read as a mark and not as
+ * a stray stroke: «ا» and «ل» alone are a vertical bar, and nine cards in ten
+ * are filed under a letter like that. z-index -1 keeps it above the card's
+ * background and below every line of text. */
+.pcard__watermark {
+  position: absolute;
+  z-index: -1;
+  inset-block-end: calc(var(--seal-size) * -0.24);
+  inset-inline-start: calc(var(--seal-size) * -0.2);
+  inline-size: var(--seal-size);
+  block-size: var(--seal-size);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(var(--accent-rgb), 0.07);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: calc(var(--seal-size) * 0.44);
+  line-height: 1;
+  padding-block-end: 0.1em;
+  color: rgba(var(--accent-rgb), 0.09);
+  pointer-events: none;
+  transition:
+    color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    border-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.pcard:hover .pcard__watermark {
+  color: rgba(var(--accent-rgb), 0.16);
+  border-color: rgba(var(--accent-rgb), 0.12);
+  transform: translateY(-3px);
+}
+
+/* «إبراهيم بن عبد الرحيم بن الباخرزي» is a normal length in this corpus. One
+ * nowrap line ellipsises most of the ديوان away; two lines of Aref Ruqaa hold
+ * almost all of it, and --row-poet was raised to match. */
+.pcard__name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-ui-3);
+  line-height: 1.7;
+  color: var(--text-1);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-block-size: 3.4em;
+  overflow: hidden;
+  transition: color var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.pcard__fame {
+  display: inline-flex;
+  align-items: center;
+  margin-inline-end: 0.35em;
+  color: var(--accent);
+  opacity: 0.75;
+  vertical-align: -0.1em;
+}
+
+.pcard:hover .pcard__fame {
+  opacity: 1;
+}
+
+.pcard:hover .pcard__name {
+  color: var(--accent);
+}
+
+.pcard__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.pcard__n {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pcard__n--baits::before {
+  content: "·";
+  margin-inline-end: 0.5em;
+  color: var(--line-2);
+}
+
+/* Layer 3: the ترجمة, dim and clamped, coming up to reading colour beside a
+ * «الديوان ←» that was not on the card a moment ago. The text does not MOVE —
+ * only its colour changes — because a line being read never animates (§8). */
+.pcard__foot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  align-self: start;
+  min-inline-size: 0;
+}
+
+.pcard__bio {
+  font-size: var(--fs-ui-1);
+  line-height: 1.6;
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-block-size: 3.2em;
+  overflow: hidden;
+  transition: color var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.pcard:hover .pcard__bio {
+  color: var(--text-2);
+}
+
+.pcard__bio--place {
+  color: var(--text-3);
+  opacity: 0.85;
+}
+
+/* Pinned to the corner rather than carried by the foot: the ترجمة is two
+ * lines on one card in nine and absent on the rest, and an affordance that
+ * moves with it is an affordance the reader has to look for. */
+.pcard__go {
+  position: absolute;
+  inset-block-end: var(--sp-3);
+  inset-inline-end: var(--sp-4);
+  font-size: var(--fs-ui-0);
+  color: var(--accent);
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity var(--dur-micro, 180ms) var(--ease-enter, ease),
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.pcard:hover .pcard__go,
+.pcard:focus-visible .pcard__go {
+  opacity: 1;
+  transform: none;
+}
+
+/* A phone has no hover, so the two layers that depend on one are simply on. */
+@media (hover: none), (pointer: coarse) {
+  .pcard__go {
+    opacity: 0.75;
+    transform: none;
+  }
+
+  .pcard__bio {
+    color: var(--text-2);
+  }
+}
+
+/* ══ POET page ═════════════════════════════════════════════════════════ */
+
+/* A ديوان row is title + a few chips + a count; at the full 78rem shell the
+ * count drifts a hand's width away from the title it belongs to. */
+.poet-view {
+  gap: var(--sp-5);
+  inline-size: min(100%, 64rem);
+  margin-inline: auto;
+}
+
+.poet-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--sp-5);
+  row-gap: var(--sp-4);
+  padding-block-end: var(--sp-4);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.poet-hero__id {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+  min-inline-size: 0;
+}
+
+.poet-name {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  /* Aref Ruqaa's tails run well outside the em box */
+  line-height: 1.7;
+  color: var(--text-1);
+  padding-block-start: 0.08em;
+}
+
+.poet-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+/* The ديوان in four tiles. The tile itself is `.stat-tile` from views.css —
+ * the same one الإحصاءات uses — so a figure means the same thing on both
+ * pages; what this adds is the row they sit in and the word variant, because
+ * «الطويل» is a name and must not be set in the figure face. */
+.poet-stats {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.poet-stats .stat-tile {
+  min-inline-size: 8rem;
+}
+
+.stat-tile__n--word {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.poet-bio {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  max-inline-size: var(--col-text);
+}
+
+.poet-bio__text {
+  font-size: var(--fs-ui-2);
+  line-height: 1.75;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+  overflow: hidden;
+}
+
+.poet-bio__text--open {
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  display: block;
+}
+
+.poet-signature {
+  max-inline-size: var(--col-narrow);
+}
+
+.poet-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.poet-facets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: rgba(255, 255, 255, 0.012);
+}
+
+.poet-facets:empty {
+  display: none;
+}
+
+.poet-facet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.poet-diwan {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3);
+}
+
+/* ── a section heading with the dissolving rule running off its end ──── */
+/* `.facet-title`, `.facet-empty` and `.section-title__n` stay in views.css:
+ * browse, search and the إحصاءات all use them, and a second copy here would
+ * quietly win the cascade over whatever those views' owners write there. */
+.sect-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.sect-head__rule {
+  flex: 1 1 auto;
+  block-size: 1px;
+  background: var(--rule-gold);
+  transform-origin: right center;
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1080px) {
+  .poets-hero {
+    gap: var(--sp-5);
+  }
+
+  .medallion--hero {
+    --medallion-size: 6rem;
+  }
+}
+
+@media (max-width: 860px) {
+  /* The hero puts the medallion FIRST, at the inline-start edge, so the page
+   * still opens on the letter the reader chose. */
+  .poets-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sp-4);
+  }
+
+  .poets-hero__text {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .medallion--hero {
+    grid-column: 1;
+    grid-row: 1;
+    --medallion-size: 4.5rem;
+  }
+
+  .medallion--hero .medallion__cap {
+    font-size: var(--fs-ui-0);
+  }
+
+  /* Eight of twenty-eight letters fit at 390px and a touch device draws no
+   * scrollbar, so the strip has to say for itself that it continues: both
+   * edges dissolve, and `LetterRail` scrolls the active key into view. */
+  .letter-rail {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 2.5rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: var(--sp-1);
+    mask-image: linear-gradient(to left, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+    scroll-padding-inline: 1.5rem;
+    min-inline-size: 0;
+  }
+
+  .poets-context {
+    gap: var(--sp-3);
+  }
+
+  /* The عصر chips wrap into a ragged staircase at 390px. One row that
+   * SCROLLS, the way the alphabet above it already does, is both calmer and
+   * quicker to reach the twelfth عصر with. */
+  .era-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    mask-image: linear-gradient(to left, transparent 0, #000 1.5rem, #000 calc(100% - 1.5rem), transparent 100%);
+    scroll-padding-inline: 1.5rem;
+    min-inline-size: 0;
+    padding-block-end: var(--sp-1);
+  }
+
+  .era-chip {
+    flex: none;
+  }
+
+  .poet-hero {
+    column-gap: var(--sp-4);
+  }
+
+  .medallion--poet {
+    --medallion-size: 4rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .letter-head {
+    padding-block-end: var(--sp-3);
+  }
+
+  /* the card is 160px tall on a phone; a 100px seal in it is a coin, not a
+   * watermark */
+  .pcard {
+    --seal-size: 4.25rem;
+  }
+
+  /* One line, one number: the card is 326px wide here and the أبيات count is
+   * what pushes the meta onto a second line — which the fixed row height has
+   * no room for. The شاعر page carries both figures anyway. */
+  .pcard__n--baits {
+    display: none;
+  }
+
+  /* the count, then the sort, each on its own line — the dissolving rule has
+   * no width left to dissolve into */
+  .poets-context {
+    display: grid;
+    justify-items: start;
+    gap: var(--sp-3);
+  }
+
+  .poets-context__rule {
+    display: none;
+  }
+
+  .poet-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .medallion--head {
+    --medallion-size: 2.75rem;
+  }
+
+  .poet-stats .stat-tile {
+    min-inline-size: 6.5rem;
+    padding: var(--sp-3);
+  }
+}
+
+/* ══ reduced motion ════════════════════════════════════════════════════ */
+
+/* base.css collapses the durations; what has to go too is every TRANSFORM a
+ * hover would otherwise apply instantly. The gold hairline still sweeps —
+ * it just arrives already drawn. */
+@media (prefers-reduced-motion: reduce) {
+  .pcard:hover,
+  .pcard:hover .pcard__watermark,
+  .era-chip:hover,
+  .letter-rail__key:hover:not([disabled]) .letter-rail__ch {
+    transform: none;
+  }
+
+  .pcard__go {
+    transform: none;
+  }
+}
+
+body[data-reduce-motion="1"] .pcard:hover,
+body[data-reduce-motion="1"] .pcard:hover .pcard__watermark,
+body[data-reduce-motion="1"] .era-chip:hover,
+body[data-reduce-motion="1"] .letter-rail__key:hover:not([disabled]) .letter-rail__ch {
+  transform: none;
+}
+
+body[data-reduce-motion="1"] .pcard__go {
+  transform: none;
+}

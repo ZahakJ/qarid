@@ -1,7 +1,13 @@
 /**
- * The شعراء index's alphabet rail (design-ux.md §3 Poets): a vertical strip on
- * the inline-end edge on wide screens, a horizontal sticky strip under the era
- * chips on narrow ones. Same component, same DOM — only CSS moves it.
+ * The شعراء index's alphabet rail (design-ux.md §3 Poets, redesigned at
+ * v2.md §6): a BAND across the top of the page — twenty-eight equal cells
+ * under the hero — that becomes a scrolling strip below 860px. Same component,
+ * same DOM as the 6.5rem side column it replaced; only poets.css moves it.
+ *
+ * The active letter is enlarged in Aref Ruqaa gold, and that is a TRANSFORM,
+ * not a font-size: the band reserves its height once (`--rail-key-h`), so
+ * picking a letter grows the glyph out of the alphabet without moving the
+ * 6,941 شاعر underneath it by a pixel.
  *
  * The letter is the شهرة letter: `sortName()` in shared/arabic.ts strips a
  * leading ال and folds, which is exactly how `poets.letter` was computed at
@@ -26,10 +32,10 @@ export function LetterRail({
   const railRef = useRef<HTMLElement | null>(null)
 
   /**
-   * On a phone the rail is a horizontal strip that shows eight of its
-   * twenty-eight keys, so a reader who arrived on ?letter=م must be shown where
-   * م is rather than left to guess that the strip scrolls. Harmless on the wide
-   * layout, where the whole alphabet is already in view.
+   * On a phone the band scrolls and shows eight of its twenty-eight keys, so a
+   * reader who arrived on ?letter=م must be shown where م is rather than left
+   * to guess that the strip continues. Harmless on the wide layout, where the
+   * whole alphabet is already in view.
    */
   useEffect(() => {
     if (!active) return

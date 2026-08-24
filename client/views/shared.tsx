@@ -12,6 +12,7 @@ import type { BaitDto, MetaResponse, PoemSummary, PoetSummary } from "../../shar
 import { formatBaits, formatCount, formatPoems } from "../../shared/format.ts"
 import { BaytPlate, type BaytSize } from "../bayt/BaytPlate.tsx"
 import { Chip } from "../components/Chip.tsx"
+import { Nib } from "../components/Ornaments.tsx"
 import { routeHash } from "../router.ts"
 
 /** «بلا عنوان» is what the ingest writes when the source had no title. */
@@ -20,8 +21,6 @@ export const UNTITLED = "بلا عنوان"
 /** Row heights in px — desktop / ≤860px. Mirrored in views.css. */
 export const ROW_POEM = 84
 export const ROW_POEM_NARROW = 100
-export const ROW_POET = 156
-export const ROW_POET_NARROW = 176
 
 export type Heading = { text: string; isMatla: boolean }
 
@@ -105,28 +104,58 @@ export function PoemRow({
 }
 
 /**
- * One شاعر in the index grid: name, عصر, ديوان size, and a two-line ترجمة.
+ * One شاعر in the index grid: name, عصر, ديوان size, and a two-line ترجمة —
+ * with THREE LAYERS THAT ONLY EXIST ON HOVER (v2.md §6): the card lifts, a gold
+ * hairline sweeps across its block-start edge, and the ترجمة comes up out of
+ * its dim to full colour beside a «الديوان ←» that was not there before.
  *
  * Every card renders all three rows even when the corpus has neither an عصر
  * (`era` is null for 107,209 rows) nor a ترجمة (only 791 شعراء carry one), so
  * the grid's fixed-height cells hold the same shape whatever the source knew.
- * The عصر slot falls back to the ديوان's size, which is always true.
+ * The ترجمة slot falls back to the بلد, and then to nothing at all: nine cards
+ * in ten would otherwise carry the same apology, and the watermark is a better
+ * use of that corner than «لا ترجمة» repeated down the page.
+ *
+ * The watermark is the شاعر's own حرف الشهرة — the letter his card is filed
+ * under — set in Aref Ruqaa inside a hairline ring and half off the corner
+ * the ترجمة never reaches, the way a ختم sits on a folio (poets.css draws it).
+ * It is `poet.letter` as the ingest derived it, never recomputed here
+ * (CLAUDE.md invariant), and `aria-hidden`: it is illumination, not content.
  */
 export function PoetCard({ poet }: { poet: PoetSummary }) {
   return (
     <a className="pcard" href={routeHash({ view: "poet", slug: poet.slug })}>
+      <span className="pcard__sweep" aria-hidden="true" />
+      <span className="pcard__watermark" aria-hidden="true">
+        {poet.letter}
+      </span>
       <span className="pcard__name">
+        {/* fame 3 is the curated canon (shared/famousPoets.ts) — the شعراء a
+            reader came here for. One gold نِيب in front of the name is the
+            whole mark; it inherits the clamp, so a long name still wraps to
+            two lines and the row height holds. */}
+        {poet.fame >= 3 ? (
+          <span className="pcard__fame" title="من المشاهير">
+            <Nib size={13} />
+          </span>
+        ) : null}
         <bdi>{poet.name}</bdi>
       </span>
       <span className="pcard__meta">
         {poet.era ? <Chip variant="asr" label={poet.era.name} /> : null}
         <span className="pcard__n">{formatPoems(poet.poemCount)}</span>
+        <span className="pcard__n pcard__n--baits">{formatBaits(poet.baitCount)}</span>
       </span>
-      {poet.description ? (
-        <span className="pcard__bio">{poet.description}</span>
-      ) : (
-        <span className="pcard__bio pcard__bio--none">{formatBaits(poet.baitCount)} في الديوان</span>
-      )}
+      <span className="pcard__foot">
+        {poet.description ? (
+          <span className="pcard__bio">{poet.description}</span>
+        ) : poet.location ? (
+          <span className="pcard__bio pcard__bio--place">{poet.location}</span>
+        ) : null}
+        <span className="pcard__go" aria-hidden="true">
+          الديوان ←
+        </span>
+      </span>
     </a>
   )
 }

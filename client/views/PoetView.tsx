@@ -1,10 +1,16 @@
 /**
- * #/poet/<slug> — one شاعر (design-ux.md §3 Poet).
+ * #/poet/<slug> — one شاعر (design-ux.md §3 Poet, redesigned at v2.md §6).
  *
- * Header (name in Aref Ruqaa, عصر, بلد) → ترجمة clamped to five lines with
- * «المزيد» → the signature بيت as a framed plate → a toolbar of sort orders and
- * بحر/غرض/قافية chips SCOPED TO THIS POET with their counts → the ديوان itself,
- * windowed.
+ * Header — the شاعر's own حرف الشهرة in a gold medallion beside his name in
+ * Aref Ruqaa, عصر and بلد under it, and the ديوان in three counted-up numbers —
+ * → ترجمة clamped to five lines with «المزيد» → the signature بيت as a framed
+ * plate → a toolbar of sort orders and بحر/غرض/قافية chips SCOPED TO THIS POET
+ * with their counts → the ديوان itself, windowed.
+ *
+ * The medallion's letter is `poet.letter` as the ingest derived it — the same
+ * letter his card is filed under in #/poets, never recomputed here (CLAUDE.md
+ * invariant). Every section arrives on the §6 stagger, eight steps at most, and
+ * the numbers count up only when motion is allowed.
  *
  * The ديوان rows show the مطلع when a قصيدة is untitled, which is the common
  * case in this corpus rather than the exception — `headingOf` in ./shared.tsx
@@ -25,6 +31,7 @@ import { ChipCloud } from "../components/ChipCloud.tsx"
 import { EmptyState } from "../components/EmptyState.tsx"
 import { Rule } from "../components/Ornaments.tsx"
 import { Segmented } from "../components/Segmented.tsx"
+import { useCountUp } from "../hooks/useCountUp.ts"
 import { useIntersection } from "../hooks/useIntersection.ts"
 import { useNarrow } from "../hooks/useMediaQuery.ts"
 import { useWindowedList } from "../hooks/useWindowedList.ts"
@@ -32,9 +39,16 @@ import { openShareCard } from "../share/ShareDialog.tsx"
 import { useCollections } from "../store/collectionsStore.ts"
 import { loadMeta, loadPoet } from "../store/libraryStore.ts"
 import { toast } from "../store/toastStore.ts"
-import { useSettings } from "../store/settingsStore.ts"
+import { motionReduced, useSettings } from "../store/settingsStore.ts"
 import { routeHash } from "../router.ts"
-import { formatBaits, formatCount, formatPoems } from "../../shared/format.ts"
+import {
+  BAYT_FORMS,
+  QASIDA_FORMS,
+  countedUnit,
+  formatCount,
+  formatNumber,
+  formatPoems,
+} from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { MetaResponse, PoemSummary, PoemsSort, PoetPageResponse } from "../../shared/schema.ts"
 import { PoemRow, ROW_POEM, ROW_POEM_NARROW, RowSkeleton, themeLabel } from "./shared.tsx"
@@ -148,6 +162,13 @@ export function PoetView({ slug }: { slug: string }) {
     return m
   }, [meta])
 
+  // The two ديوان numbers count up as the page settles — from 0, once, and
+  // never while `reduceMotion` is on. Both hooks run before the early returns
+  // below: a hook order that depends on whether the شاعر has loaded is a bug.
+  const reduced = motionReduced(settings)
+  const poemsUp = useCountUp(data?.poet.poemCount ?? 0, { initial: 0, enabled: !reduced })
+  const baitsUp = useCountUp(data?.poet.baitCount ?? 0, { initial: 0, enabled: !reduced })
+
   if (error) {
     return (
       <div className="view">
@@ -171,6 +192,16 @@ export function PoetView({ slug }: { slug: string }) {
   }
 
   const poet = data.poet
+  // The breakdowns arrive in the canon's own order (بحور by their classical
+  // sequence, قوافي by the alphabet), so «أكثر بحوره» is a max here, not a [0].
+  const topMeter = data.meters.reduce<(typeof data.meters)[number] | null>(
+    (best, m) => (best === null || m.count > best.count ? m : best),
+    null,
+  )
+  const topRhyme = data.rhymes.reduce<(typeof data.rhymes)[number] | null>(
+    (best, r) => (best === null || r.count > best.count ? r : best),
+    null,
+  )
   const signatureSaved = data.signatureBait
     ? favorites.some((f) => f.baytKey === data.signatureBait!.baytKey)
     : false
@@ -187,24 +218,65 @@ export function PoetView({ slug }: { slug: string }) {
     <div className="view poet-view">
       <Breadcrumbs items={crumbs} />
 
-      <header className="poet-head">
-        <h1 className="poet-name">
-          <bdi>{poet.name}</bdi>
-        </h1>
-        <div className="poet-badges">
-          {poet.era ? (
-            <a className="badge-link" href={routeHash({ view: "poets", era: poet.era.slug })}>
-              <Chip variant="asr" label={poet.era.name} />
-            </a>
-          ) : null}
-          {poet.location ? <Chip variant="gharad" label={poet.location} /> : null}
-          <span className="poet-count">
-            {formatPoems(poet.poemCount)} · {formatBaits(poet.baitCount)}
+      <header className="poet-hero" data-enter="rise" style={enterStep(0)}>
+        <div className="poet-hero__id">
+          <h1 className="poet-name">
+            <bdi>{poet.name}</bdi>
+          </h1>
+          <div className="poet-badges">
+            {poet.era ? (
+              <a className="badge-link" href={routeHash({ view: "poets", era: poet.era.slug })}>
+                <Chip variant="asr" label={poet.era.name} />
+              </a>
+            ) : null}
+            {poet.location ? <Chip variant="gharad" label={poet.location} /> : null}
+          </div>
+        </div>
+
+        {/* His حرف الشهرة, enlarged in Aref Ruqaa gold — the same medallion the
+            شعراء index puts over each letter section, so arriving here from a
+            letter jump lands on the mark you clicked. It sits at the inline-END
+            edge so that the name, the tiles and the ترجمة all start on the one
+            edge the eye follows down the page. */}
+        <span className="medallion medallion--poet" data-enter="illuminate" style={enterStep(1)}>
+          <span className="medallion__ring" aria-hidden="true" />
+          <span className="medallion__ch" aria-hidden="true">
+            {poet.letter}
           </span>
+          <span className="medallion__cap">{LETTER_NAMES[poet.letter as HijaiLetter] ?? poet.letter}</span>
+        </span>
+
+        {/* The ديوان in four tiles, in the app's own tile shape (`.stat-tile`,
+            shared with الإحصاءات): the figure first, its تمييز under it —
+            «364 قصيدة», never «قصيدة 364». The two counts run up from zero as
+            the page settles; a بحر and a قافية are words and simply arrive. */}
+        <div className="poet-stats" data-enter="rise" style={enterStep(2)}>
+          <div className="stat-tile">
+            <span className="stat-tile__n countup">{formatNumber(poemsUp)}</span>
+            <span className="stat-tile__cap">{countedUnit(poet.poemCount, QASIDA_FORMS)}</span>
+          </div>
+          <div className="stat-tile">
+            <span className="stat-tile__n countup">{formatNumber(baitsUp)}</span>
+            <span className="stat-tile__cap">{countedUnit(poet.baitCount, BAYT_FORMS)}</span>
+          </div>
+          {topMeter ? (
+            <div className="stat-tile">
+              <span className="stat-tile__n stat-tile__n--word">{topMeter.name}</span>
+              <span className="stat-tile__cap">أكثر بحوره</span>
+            </div>
+          ) : null}
+          {topRhyme ? (
+            <div className="stat-tile">
+              <span className="stat-tile__n stat-tile__n--word">
+                {LETTER_NAMES[topRhyme.letter as HijaiLetter] ?? topRhyme.letter}
+              </span>
+              <span className="stat-tile__cap">أكثر قوافيه</span>
+            </div>
+          ) : null}
         </div>
 
         {poet.description ? (
-          <div className="poet-bio">
+          <div className="poet-bio" data-enter="rise" style={enterStep(3)}>
             <p className={bioOpen ? "poet-bio__text poet-bio__text--open" : "poet-bio__text"}>{poet.description}</p>
             <button type="button" className="btn btn--ghost" onClick={() => setBioOpen((v) => !v)}>
               {bioOpen ? "أقلّ" : "المزيد"}
@@ -214,7 +286,7 @@ export function PoetView({ slug }: { slug: string }) {
       </header>
 
       {data.signatureBait ? (
-        <section className="poet-signature" aria-label="بيت مختار">
+        <section className="poet-signature" aria-label="بيت مختار" data-enter="rise" style={enterStep(4)}>
           {/* The rail the same بيت gets everywhere else it appears — بيت اليوم,
               التجوال, a قصيدة row. Without it the شاعر's own signature بيت was
               the one بيت in قريض a reader could not save, copy or share. ♥ goes
@@ -271,7 +343,7 @@ export function PoetView({ slug }: { slug: string }) {
         </section>
       ) : null}
 
-      <section className="poet-toolbar" aria-label="ترتيب الديوان وتصفيته">
+      <section className="poet-toolbar" aria-label="ترتيب الديوان وتصفيته" data-enter="rise" style={enterStep(5)}>
         <Segmented label="الترتيب" value={sort} onChange={setSort} options={SORTS} />
         {anyFilter ? (
           <button type="button" className="btn btn--ghost" onClick={() => setFilters({})}>
@@ -280,7 +352,7 @@ export function PoetView({ slug }: { slug: string }) {
         ) : null}
       </section>
 
-      <div className="poet-facets">
+      <div className="poet-facets" data-enter="rise" style={enterStep(6)}>
         {data.meters.length > 1 ? (
           <div className="poet-facet">
             <h2 className="facet-title">البحر</h2>
@@ -322,11 +394,13 @@ export function PoetView({ slug }: { slug: string }) {
         ) : null}
       </div>
 
-      <div className="poet-diwan">
-        <h2 className="section-title">
-          الديوان <span className="section-title__n">{formatPoems(total)}</span>
-        </h2>
-        <Rule />
+      <div className="poet-diwan" data-enter="rise" style={enterStep(7)}>
+        <div className="sect-head">
+          <h2 className="section-title">
+            الديوان <span className="section-title__n">{formatPoems(total)}</span>
+          </h2>
+          <span className="sect-head__rule" aria-hidden="true" data-enter="draw" style={enterStep(7)} />
+        </div>
 
         {loadingList ? (
           <RowSkeleton rows={6} height={rowHeight} />
@@ -362,4 +436,9 @@ export function PoetView({ slug }: { slug: string }) {
       </div>
     </div>
   )
+}
+
+/** One step of the entrance stagger, as the custom property motion.css reads. */
+function enterStep(i: number): React.CSSProperties {
+  return { "--enter-i": i } as React.CSSProperties
 }

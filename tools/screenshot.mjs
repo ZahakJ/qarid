@@ -251,6 +251,23 @@ try {
     await page.goto(`${ORIGIN}${path}`, { waitUntil: "networkidle" })
     await page.waitForSelector('body[data-app-ready="1"]', { timeout: 10000 })
     await page.evaluate(() => document.fonts.ready)
+    // Entrance animations (client/styles/motion.css: a 360ms rise on up to
+    // eight staggered steps) are still running when the app reports ready, and
+    // a shot taken through one is a page of half-faded boxes. Wait for every
+    // FINITE animation to finish — the page's own bloom drifts forever, so it
+    // is filtered out — with a ceiling so a stuck animation cannot hang a run.
+    await page.evaluate(
+      () =>
+        Promise.race([
+          Promise.all(
+            document
+              .getAnimations()
+              .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+              .map((a) => a.finished.catch(() => {})),
+          ),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]),
+    )
     await page.waitForTimeout(150)
     const file = join(OUT_DIR, mobile ? `${name}-390.png` : `${name}.png`)
     await page.screenshot({ path: file, fullPage: full })
