@@ -8,7 +8,7 @@
  */
 import { create } from "zustand"
 import { isHijaiLetter } from "../shared/letters.ts"
-import { PoetSlugSchema, PublicPoemIdSchema, SlugSchema } from "../shared/schema.ts"
+import { PoetSlugSchema, PublicPoemIdSchema, SlugSchema, UsernameSchema } from "../shared/schema.ts"
 
 export type BrowseSort = "fame" | "recent" | "length" | "random"
 const SORTS: readonly BrowseSort[] = ["fame", "recent", "length", "random"]
@@ -45,6 +45,8 @@ export type Route =
   | { view: "stats" }
   | { view: "favorites"; collection?: string }
   | { view: "rules" }
+  /** `#/u/<username>` — an account's page (v2.md §4) */
+  | { view: "profile"; username: string }
 
 export const HOME: Route = { view: "home" }
 
@@ -66,6 +68,11 @@ function isPoetSlug(v: string | undefined): v is string {
 
 function isPoemId(v: string | undefined): v is string {
   return v !== undefined && PublicPoemIdSchema.safeParse(v).success
+}
+
+/** A username is a path segment, so the hash is validated like every other. */
+function isUsername(v: string | undefined): v is string {
+  return v !== undefined && UsernameSchema.safeParse(v).success
 }
 
 function isSort(v: string | undefined): v is BrowseSort {
@@ -170,6 +177,12 @@ export function parseHash(raw: string): Route {
     case "rules":
       return { view: "rules" }
 
+    case "u": {
+      // `#/u/<username>` — one letter, because it is typed and shared by hand.
+      const username = seg[1]
+      return isUsername(username) ? { view: "profile", username } : HOME
+    }
+
     default:
       return HOME
   }
@@ -271,6 +284,8 @@ export function routeHash(r: Route): string {
     }
     case "rules":
       return "#/rules"
+    case "profile":
+      return `#/u/${encodeURIComponent(r.username)}`
   }
 }
 
@@ -311,6 +326,8 @@ export function routeTitle(r: Route): string {
       return "المختارات"
     case "rules":
       return "قواعد المساجلة"
+    case "profile":
+      return "الحساب"
   }
 }
 
@@ -339,6 +356,8 @@ export function pageKey(r: Route): string {
       return `train-drill:${r.letter ?? ""}`
     case "favorites":
       return `favorites:${r.collection ?? ""}`
+    case "profile":
+      return `profile:${r.username}`
     default:
       return r.view
   }

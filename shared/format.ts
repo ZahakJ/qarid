@@ -172,6 +172,26 @@ export function countedUnit(n: number, forms: CountedNounForms): string {
   return k >= 3 && mod100 >= 3 && mod100 <= 10 ? forms.few : forms.many
 }
 
+/** مساجلات الملف الشخصي — «3 مساجلات», «11 مساجلة» (v2.md §4). */
+export const MUSAJALA_FORMS: CountedNounForms = {
+  zero: "لا مساجلات",
+  one: "مساجلة واحدة",
+  two: "مساجلتان",
+  twoGenitive: "مساجلتين",
+  few: "مساجلات",
+  many: "مساجلة",
+}
+
+/** الانتصارات — «3 انتصارات», «11 فوزًا». */
+export const FAWZ_FORMS: CountedNounForms = {
+  zero: "لا انتصارات",
+  one: "فوز واحد",
+  two: "فوزان",
+  twoGenitive: "فوزين",
+  few: "انتصارات",
+  many: "فوزًا",
+}
+
 /** «لا نتائج» · «نتيجة واحدة» · «4 نتائج» · «129 نتيجة» — the search count. */
 export const NATIJA_FORMS: CountedNounForms = {
   zero: "لا نتائج",

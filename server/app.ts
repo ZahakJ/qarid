@@ -5,12 +5,15 @@ import fs from "node:fs"
 import path from "node:path"
 import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
+import type { UsersDb } from "./users.ts"
+import { authRoutes } from "./routes/auth.ts"
 import { baitsRoutes } from "./routes/baits.ts"
 import { facetsRoutes } from "./routes/facets.ts"
 import { gameRoutes } from "./routes/game.ts"
 import { metaRoutes } from "./routes/meta.ts"
 import { poemsRoutes } from "./routes/poems.ts"
 import { poetsRoutes } from "./routes/poets.ts"
+import { profileRoutes } from "./routes/profile.ts"
 import { searchRoutes } from "./routes/search.ts"
 import { statsRoutes } from "./routes/stats.ts"
 import { trainRoutes } from "./routes/train.ts"
@@ -18,7 +21,7 @@ import { trainRoutes } from "./routes/train.ts"
 // createApp is listen-free so tests can drive app.request() directly.
 // `db` is null when the corpus has not been built — /healthz and the static
 // client still work, every /api route answers 503.
-export function createApp(config: Config, db: Db | null): { app: Hono } {
+export function createApp(config: Config, db: Db | null, users: UsersDb | null = null): { app: Hono } {
   const app = new Hono()
 
   // security headers on every response
@@ -118,10 +121,21 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
   })
 
   // Every /api route needs the corpus; answer honestly when it is absent.
+  // Except the two that do not touch it: accounts live in their own writable
+  // database (server/users.ts), so a box with no corpus can still say who you
+  // are — and a box with no writable users db still serves the whole ديوان.
   app.use("/api/*", async (c, next) => {
-    if (!db) return c.json({ error: "corpus_unavailable" }, 503)
+    if (!db && !CORPUS_FREE.some((prefix) => c.req.path.startsWith(prefix))) {
+      return c.json({ error: "corpus_unavailable" }, 503)
+    }
     await next()
   })
+
+  // Accounts + profiles (v2.md §4). Mounted whether or not `users` opened: the
+  // sub-apps answer 503 themselves, which is what keeps a read-only data/ a log
+  // line rather than a crash loop.
+  app.route("/api/auth", authRoutes(users, config))
+  app.route("/api/profile", profileRoutes(users, config))
 
   // ---------------------------------------------------------------------
   // ROUTE MOUNT POINTS — every sub-app lives in server/routes/<name>.ts and
@@ -178,9 +192,15 @@ export function createApp(config: Config, db: Db | null): { app: Hono } {
   return { app }
 }
 
+/** The `/api` prefixes that answer without the corpus artefact (v2.md §4). */
+const CORPUS_FREE = ["/api/auth/", "/api/profile/"] as const
+
 /** How long one `/api` response may be reused. See the middleware above. */
 function cachePolicy(path: string, method: string): string {
   if (method !== "GET" && method !== "HEAD") return "no-store"
+  // Who is signed in is per-reader and per-cookie: a shared cache holding
+  // /api/auth/me for a minute would hand one player another player's masthead.
+  if (path.startsWith("/api/auth/") || path.startsWith("/api/profile/")) return "private, no-store"
   if (path.startsWith("/api/game/")) return path === "/api/game/pool" ? "public, max-age=3600" : "no-store"
   if (path === "/api/baits/random") return "no-store"
   if (path === "/api/meta" || path === "/api/stats" || path === "/api/facets") {

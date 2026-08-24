@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   BAYT_FORMS,
+  FAWZ_FORMS,
+  MUSAJALA_FORMS,
   BITAQA_FORMS,
   copyableBayt,
   countedNoun,
@@ -165,5 +167,20 @@ describe("counted nouns in the shapes the views actually need", () => {
     expect(formatDayStreak(2)).toBe("يومان متتاليان")
     expect(formatDayStreak(3)).toBe("3 أيام متتالية")
     expect(formatDayStreak(12)).toBe("12 يومًا متتاليًا")
+  })
+})
+
+describe("the profile page's counted nouns (v2.md §4)", () => {
+  it("counts مساجلات and انتصارات the way a reader would say them", () => {
+    expect(countedNoun(0, MUSAJALA_FORMS)).toBe("لا مساجلات")
+    expect(countedNoun(1, MUSAJALA_FORMS)).toBe("مساجلة واحدة")
+    expect(countedNoun(2, MUSAJALA_FORMS)).toBe("مساجلتان")
+    expect(countedNoun(5, MUSAJALA_FORMS)).toBe("5 مساجلات")
+    expect(countedNoun(11, MUSAJALA_FORMS)).toBe("11 مساجلة")
+    // The stat tile prints the digits itself, so only the WORD is wanted.
+    expect(countedUnit(0, MUSAJALA_FORMS)).toBe("مساجلة")
+    expect(countedUnit(4, MUSAJALA_FORMS)).toBe("مساجلات")
+    expect(countedUnit(12, FAWZ_FORMS)).toBe("فوزًا")
+    expect(countedUnit(3, FAWZ_FORMS)).toBe("انتصارات")
   })
 })

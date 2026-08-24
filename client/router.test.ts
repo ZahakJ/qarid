@@ -43,6 +43,8 @@ const CANONICAL: Route[] = [
   { view: "favorites" },
   { view: "favorites", collection: "المفضلة الأولى" },
   { view: "rules" },
+  { view: "profile", username: "labid" },
+  { view: "profile", username: "المتنبي" },
 ]
 
 describe("parseHash / routeHash", () => {
@@ -205,7 +207,31 @@ describe("pageKey — what counts as arriving somewhere new (App.tsx scroll rese
       pageKey({ view: "favorites", collection: "c1" }),
       pageKey({ view: "duel" }),
       pageKey({ view: "duel-summary" }),
+      pageKey({ view: "profile", username: "labid" }),
+      pageKey({ view: "profile", username: "khansa" }),
     ]
     expect(new Set(keys).size).toBe(keys.length)
+  })
+})
+
+describe("#/u/<username> (v2.md §4)", () => {
+  it("round-trips a Latin and an Arabic handle", () => {
+    expect(parseHash("#/u/labid")).toEqual({ view: "profile", username: "labid" })
+    expect(routeHash({ view: "profile", username: "المتنبي" })).toBe(`#/u/${encodeURIComponent("المتنبي")}`)
+    expect(parseHash(routeHash({ view: "profile", username: "المتنبي" }))).toEqual({
+      view: "profile",
+      username: "المتنبي",
+    })
+  })
+
+  it("falls back to home for anything that is not a legal username", () => {
+    // The shape is UsernameSchema's, so the router refuses what the API would.
+    for (const bad of ["#/u/", "#/u/ab", "#/u/-nope", "#/u/" + "x".repeat(25)]) {
+      expect(parseHash(bad)).toEqual({ view: "home" })
+    }
+  })
+
+  it("is titled الحساب", () => {
+    expect(routeTitle({ view: "profile", username: "labid" })).toBe("الحساب")
   })
 })

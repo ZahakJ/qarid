@@ -1,0 +1,584 @@
+/* قريض — الحسابات: the masthead door, the auth dialog, the profile page
+ * (v2.md §4). Loaded LAST, after app.css, because the masthead's own layout
+ * gains a third slot here (`.masthead__tools`) and that override has to win.
+ *
+ * Everything is on the one 4/8 spacing scale (v2 §8) and the two radii; the
+ * only intrinsic sizes are the discs, which are circles and therefore carry
+ * `aspect-ratio` and a fixed inline-size rather than a padding guess.
+ */
+
+/* ══ masthead: the search trigger and the account door ═════════════════ */
+
+.masthead__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  /* a flex item's automatic minimum is min-content (CLAUDE.md); this row
+     carries a name that may be long, so it must be allowed to shrink */
+  min-inline-size: 0;
+}
+
+.masthead__signin {
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  white-space: nowrap;
+  transition:
+    color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.masthead__signin:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+/* Keeps the row's width steady while `/api/auth/me` is in flight, so the nav
+   does not jump sideways the instant the answer lands. It is the «دخول» pill's
+   own width, because that is what usually replaces it. */
+.masthead__account-slot {
+  display: block;
+  inline-size: 4.5rem;
+}
+
+.masthead__account {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.2rem;
+  padding-inline-end: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  min-inline-size: 0;
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.masthead__account:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+/* The نِيب disc: a perfect circle at every size, so `aspect-ratio` + a fixed
+   inline-size rather than padding (the letter-well lesson, CLAUDE.md). */
+.masthead__disc {
+  display: grid;
+  place-items: center;
+  inline-size: 1.75rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 28%, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.12));
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-2);
+  line-height: 1;
+  /* Aref Ruqaa sits high in its em; nudge the glyph onto the optical centre */
+  padding-block-start: 0.1em;
+}
+
+.masthead__account-name {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  max-inline-size: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.masthead__account:hover .masthead__account-name {
+  color: var(--text-1);
+}
+
+/* On a phone the shell is a column (app.css), which would give the wordmark,
+   the nav and these two tools three separate rows and eat a third of the
+   viewport. One grid instead: wordmark and tools share the first line, the
+   scrolling nav takes the second. */
+@media (max-width: 640px) {
+  .masthead__inner {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "brand tools"
+      "nav nav";
+    align-items: center;
+    column-gap: var(--sp-3);
+  }
+
+  .masthead__inner > a:first-child {
+    grid-area: brand;
+  }
+
+  .masthead__nav {
+    grid-area: nav;
+  }
+
+  .masthead__tools {
+    grid-area: tools;
+    justify-content: flex-end;
+  }
+
+  .masthead__account-name {
+    display: none;
+  }
+}
+
+/* ══ the auth dialog ═══════════════════════════════════════════════════ */
+
+.auth {
+  position: relative; /* the four PanelCorners hang off this */
+  inline-size: min(28rem, 100%);
+  padding: var(--sp-5);
+}
+
+.auth__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-3);
+}
+
+.auth__nib {
+  color: var(--accent);
+  opacity: 0.75;
+  margin-block-start: 0.15rem;
+}
+
+.auth__headings {
+  display: grid;
+  gap: var(--sp-1);
+  min-inline-size: 0;
+}
+
+.auth__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1.35;
+  color: var(--text-1);
+}
+
+.auth__lede {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+}
+
+.auth__close {
+  align-self: start;
+}
+
+.auth__rule {
+  margin-block: var(--sp-4);
+}
+
+.auth__modes {
+  display: flex;
+  justify-content: center;
+  margin-block-end: var(--sp-4);
+}
+
+.auth__form {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.auth-field {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.auth-field__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.auth-field__optional {
+  color: var(--text-3);
+}
+
+.auth-field__input {
+  inline-size: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-size: var(--fs-ui-3);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+.auth-field__input::placeholder {
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.auth-field__input:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: var(--accent-glow);
+}
+
+/* A password is masked, so what is on screen is a row of bullets: the mono
+   face keeps them evenly spaced instead of falling through to an OS serif.
+   No letter-spacing — the app-wide rule holds even where the glyphs are dots. */
+.auth-field__input[type="password"] {
+  font-family: var(--font-mono);
+}
+
+.auth-field__note {
+  font-size: var(--fs-ui-0);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+}
+
+.auth__error {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid rgba(var(--danger-rgb), 0.45);
+  border-radius: var(--r-2);
+  background: var(--danger-dim);
+  color: var(--text-1);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+}
+
+.auth__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.auth__submit {
+  padding-inline: var(--sp-5);
+}
+
+.auth__switch {
+  font-size: var(--fs-ui-1);
+}
+
+/* ══ the profile page ══════════════════════════════════════════════════ */
+
+/* A profile is a PAGE ABOUT ONE PERSON, not an index: at the ديوان's full
+ * 78rem the four stat tiles were 330px wide around a single «0» and the hero's
+ * own controls sat 1,400px from the name they belong to. The reading column of
+ * the home screen is the right measure for it. */
+.profile-view {
+  inline-size: min(var(--col-home), 100%);
+  margin-inline: auto;
+}
+
+.profile-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-4);
+  padding-block: var(--sp-2) var(--sp-5);
+}
+
+.profile-hero__disc,
+.profile-hero__disc-skeleton {
+  position: relative;
+  inline-size: 4.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.profile-hero__disc {
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 30% 26%, rgba(var(--accent-rgb), 0.4), rgba(var(--accent-rgb), 0.08));
+  border: 1px solid var(--accent-line);
+  box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.12);
+}
+
+.profile-hero__initial {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--accent);
+  padding-block-start: 0.12em;
+}
+
+/* The nib rides the rim, at the قريض corner — an illuminated seal, not a badge */
+.profile-hero__nib {
+  position: absolute;
+  inset-block-end: -0.25rem;
+  inset-inline-start: -0.25rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--bg-0);
+  border: 1px solid var(--accent-hair);
+  color: var(--accent);
+}
+
+.profile-hero__id {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.profile-hero__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  line-height: 1.3;
+  color: var(--text-1);
+}
+
+.profile-hero__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.profile-hero__handle {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+  /* a handle may be Latin or Arabic; isolate it so the dot separator after it
+     stays on the correct side under RTL */
+  unicode-bidi: isolate;
+}
+
+.profile-hero__sep {
+  opacity: 0.6;
+}
+
+.profile-hero__acts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.profile-hero__you {
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  font-size: var(--fs-ui-0);
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.profile-rename {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.profile-rename__input {
+  inline-size: min(18rem, 100%);
+}
+
+.profile-rule {
+  margin-block-end: var(--sp-6);
+}
+
+.profile-section {
+  display: grid;
+  gap: var(--sp-4);
+  margin-block-end: var(--sp-7);
+}
+
+.profile-section__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  line-height: 1.4;
+  color: var(--text-2);
+}
+
+.profile-note {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+}
+
+/* Text on the reading edge, the way OUT on the far edge — an empty panel that
+ * is one column of text hugging the inline-start leaves a wide dead field
+ * beside it at 58rem. */
+.profile-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.profile-empty__text {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.profile-empty__line {
+  font-size: var(--fs-ui-3);
+  color: var(--text-2);
+}
+
+.profile-empty__note {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  max-inline-size: var(--col-text);
+}
+
+.profile-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ── recent مساجلات ─────────────────────────────────────────────────── */
+
+.match-list {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.match-row {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 3rem auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+}
+
+.match-row__result {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.match-row[data-result="win"] .match-row__result {
+  color: var(--ok);
+}
+
+.match-row[data-result="loss"] .match-row__result {
+  color: var(--danger);
+}
+
+.match-row__foe {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.match-row__turns,
+.match-row__when {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the published ترسانة ───────────────────────────────────────────── */
+
+/* Fourteen and fourteen. `auto-fill` gave 24 cells on one row and orphaned the
+ * last four; the alphabet is 28, so the only two grids that come out even are
+ * 14×2 and 7×4 — one for the column, one for the phone. */
+.arsenal-strip {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.arsenal-cell {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  padding-block: var(--sp-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-1);
+  background: var(--bg-1);
+  /* a grid item's automatic minimum is min-content (CLAUDE.md) */
+  min-inline-size: 0;
+}
+
+.arsenal-cell[data-level="1"] {
+  border-color: rgba(var(--accent-rgb), 0.22);
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.arsenal-cell[data-level="2"] {
+  border-color: rgba(var(--accent-rgb), 0.34);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+
+.arsenal-cell[data-level="3"] {
+  border-color: var(--accent-line);
+  background: rgba(var(--accent-rgb), 0.2);
+}
+
+.arsenal-cell__letter {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 1;
+  color: var(--text-1);
+}
+
+.arsenal-cell[data-level="0"] .arsenal-cell__letter {
+  color: var(--text-3);
+}
+
+.arsenal-cell__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  line-height: 1;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── narrow ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .profile-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--sp-3);
+  }
+
+  .profile-hero__acts {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .profile-hero__disc,
+  .profile-hero__disc-skeleton {
+    inline-size: 3.5rem;
+  }
+
+  .profile-hero__initial {
+    font-size: 1.6rem;
+  }
+
+  .match-row {
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    row-gap: var(--sp-1);
+  }
+
+  /* the count is the least load-bearing column on a phone; the date stays */
+  .match-row__turns {
+    display: none;
+  }
+
+  .arsenal-strip {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+}

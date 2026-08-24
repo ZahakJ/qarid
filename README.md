@@ -121,6 +121,31 @@ Zero Trust dashboard.
 qarid.service`. The server reads `dist/index.html` exactly once, at boot — skip
 the restart and every hashed asset 404s.
 
+### Accounts (v2 §4)
+
+Everything the ديوان does is readable without an account; an account exists for
+1v1 مساجلة and for a page with your name on it (`#/u/<username>`). It lives in
+a **second, writable** database — `data/qarid-users.db`, `USERS_DB_PATH` — while
+the corpus artefact stays `readOnly` + `query_only=1`. If that file cannot be
+created (a read-only `data/`), the server logs one line, keeps serving the whole
+site, and answers `/api/auth/*` with 503.
+
+Registration is **open by default**. `REQUIRE_INVITE=1` closes it and
+`INVITE_CODES=a,b,c` reopens it to those codes (with no codes set, to nobody).
+
+**There is no email, so there is no password reset.** To remove or rename an
+account, edit the row:
+
+```sh
+sqlite3 data/qarid-users.db "DELETE FROM users WHERE username = 'labid';"
+# sessions, the arsenal snapshot and match rows go with it (ON DELETE CASCADE)
+```
+
+Passwords are `node:crypto` scrypt (N=16384, per-user salt, `timingSafeEqual`);
+the session cookie `qarid_sess` is HttpOnly + SameSite=Lax + Secure whenever
+`PUBLIC_ORIGIN` is https, 90 days, rolling, and the table stores only the
+SHA-256 of the token it carries.
+
 ### License
 
 Code is the author's. The corpus is `arbml/ashaar`'s and the poems are, as
