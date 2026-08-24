@@ -230,7 +230,7 @@ export function PoetsView({ era, letter }: { era?: string; letter?: string }) {
                 <span className="more-bar__busy">…يُجلب المزيد</span>
               ) : (
                 <button type="button" className="btn" onClick={fetchMore}>
-                  المزيد — بقي {formatCount(total - items.length)} شاعرًا
+                  المزيد — بقي {formatPoets(total - items.length)}
                 </button>
               )}
             </div>

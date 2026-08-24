@@ -11,9 +11,10 @@ import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 import { HINT_COSTS, ExchangeSchema, TIER_DIFFICULTY, type Exchange } from "../../shared/schema.ts"
-import { MUBARAZA_EXCHANGES } from "../../shared/constants.ts"
+import { MUBARAZA_EXCHANGES, THIN_POOL_WARNING } from "../../shared/constants.ts"
 import { RLM } from "../../shared/format.ts"
 import { clampTier, configFor, presetOf, tierAllowed, TIER_PRESETS } from "./tiers.ts"
+import { poolIsThin } from "./DuelSetupView.tsx"
 import { REVEAL, revealTiming, wordCount } from "./RecitationReveal.tsx"
 import { ExchangeLog, poetRevealed } from "./ExchangeLog.tsx"
 import { COSTS_LIFE, RejectionCard, titleOf } from "./RejectionCard.tsx"
@@ -23,7 +24,7 @@ import { dailyConfig, playedToday, riyadhDay } from "./daily.ts"
 import { headlineOf, lettersGained, poetsOf } from "./DuelSummaryView.tsx"
 import { pricedHint } from "./scoring.ts"
 import type { DuelState, Rejection } from "./machine.ts"
-import { newDuel } from "./machine.ts"
+import { fromSlice, newDuel, toSlice } from "./machine.ts"
 
 // ── fixtures ────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ function bait(over: Record<string, unknown> = {}) {
     lastLetter: "ن",
     firstLetter: "م",
     isPartial: false,
-    poem: { id: "q77", title: "قصيدة" },
+    poem: { id: "q77", poemId: 77, title: "قصيدة" },
     poet: { slug: "mutanabi", name: "المتنبي" },
     meter: { slug: "basit", name: "البسيط", variant: null },
     era: null,
@@ -182,6 +183,44 @@ describe("the exchange log", () => {
     const html = renderToStaticMarkup(createElement(ExchangeLog, { exchanges: [ex()] }))
     expect(html).toContain('data-exchange-key="q101:1"')
   })
+
+  it("says «خرج عن القيود» on an opponent's بيت the server had to relax", () => {
+    const relaxed = renderToStaticMarkup(
+      createElement(ExchangeLog, { exchanges: [ex({ relaxed: true })], ended: true }),
+    )
+    expect(relaxed).toContain("خرج عن القيود")
+    expect(relaxed).toContain("exchange__relaxed")
+
+    const inside = renderToStaticMarkup(createElement(ExchangeLog, { exchanges: [ex()], ended: true }))
+    expect(inside).not.toContain("خرج عن القيود")
+  })
+
+  it("withholds the note while the بيت is still standing — it is the شاعر's own beat", () => {
+    // the same rule as the attribution: naming anything about the opponent's
+    // بيت before it has been answered is a hint
+    const html = renderToStaticMarkup(createElement(ExchangeLog, { exchanges: [ex({ relaxed: true })] }))
+    expect(html).not.toContain("خرج عن القيود")
+  })
+
+  it("defaults `relaxed` to false, so a session written before the field parses", () => {
+    expect(ex().relaxed).toBe(false)
+  })
+})
+
+// ── the setup screen's thin-pool warning (amendments.md §2) ────────────────
+
+describe("«العدد المتاح»", () => {
+  it("warns off the EFFECTIVE pool, not the tier's own", () => {
+    // مبتدئ is 95K أبيات but relaxes into سيف's 1.7M, so a combination that
+    // looks thin at the chosen رتبة still plays
+    expect(poolIsThin({ total: 10, effective: THIN_POOL_WARNING + 1, stale: false })).toBe(false)
+    expect(poolIsThin({ total: 10_000_000, effective: THIN_POOL_WARNING - 1, stale: false })).toBe(true)
+    expect(poolIsThin({ total: 0, effective: 0, stale: false })).toBe(true)
+  })
+
+  it("warns about nothing while the count is still unknown", () => {
+    expect(poolIsThin(null)).toBe(false)
+  })
 })
 
 // ── the letter indicator (the most important element) ──────────────────────
@@ -259,12 +298,30 @@ describe("the rejection card", () => {
     for (const r of REJECTIONS) expect(titleOf(r)).toMatch(/\p{Script=Arabic}/u)
   })
 
-  it("spends a life for exactly not_found, incomplete_bait and timeout", () => {
-    expect([...COSTS_LIFE].sort()).toEqual(["incomplete_bait", "not_found", "timeout"])
+  it("spends a life for exactly not_found and timeout", () => {
+    expect([...COSTS_LIFE].sort()).toEqual(["not_found", "timeout"])
     // amendments.md §4.3 — a network error must never cost anything
     expect(COSTS_LIFE.has("network")).toBe(false)
     expect(COSTS_LIFE.has("wrong_letter")).toBe(false)
     expect(COSTS_LIFE.has("near_miss")).toBe(false)
+    // …and neither must the corpus's own damage: the بيت is real, the ديوان
+    // simply holds it with no عجز
+    expect(COSTS_LIFE.has("incomplete_bait")).toBe(false)
+  })
+
+  it("marks the incomplete_bait card «لا تُحتسب», with the mutilated بيت shown", () => {
+    const html = renderToStaticMarkup(
+      createElement(RejectionCard, {
+        rejection: { kind: "incomplete_bait", bait: bait({ ajuz: null, isPartial: true }) } as Rejection,
+        livesLeft: 3,
+        onFill: () => {},
+        onCommit: () => {},
+        onDismiss: () => {},
+      }),
+    )
+    expect(html).toContain('data-cost="none"')
+    expect(html).toContain("لا تُحتسب")
+    expect(html).not.toContain("−روح")
   })
 
   it("renders each tag without throwing, and marks the cost honestly", () => {
@@ -323,6 +380,25 @@ describe("the summary's reads", () => {
     expect(headlineOf(null, 6)).toContain("سلسلة")
   })
 
+  /**
+   * The backlog's «a duel summary that survived a reload degrades its
+   * headline». `outcome` is persisted now, so the reloaded session must
+   * headline with the SAME string, not with the «سلسلة من N بيتًا» fallback.
+   */
+  it("keeps the exact headline across a reload, for every ending", () => {
+    const base = stateWith([ex(), ex({ side: "player", baytKey: "q102:1" })])
+    const chain = 1
+    for (const outcome of ["stumped", "defeat", "abandoned", "match"] as const) {
+      const ended: DuelState = { ...base, phase: "summary", outcome, endedAt: T0 + 30_000 }
+      const before = headlineOf(ended.outcome, chain)
+      const reloaded = fromSlice(JSON.parse(JSON.stringify(toSlice(ended))) as never, T0 + 90_000)
+      expect(reloaded.phase).toBe("summary")
+      expect(headlineOf(reloaded.outcome, chain)).toBe(before)
+      expect(headlineOf(reloaded.outcome, chain)).not.toContain("سلسلة")
+      expect(reloaded.endedAt).toBe(T0 + 30_000)
+    }
+  })
+
   it("lists شعراء once each, in the order they were recited", () => {
     const s = stateWith([
       ex(),
@@ -368,6 +444,16 @@ describe("the share block", () => {
     // client/bayt/copy.ts states the rule and formatPoem obeys it: one prefix
     // for the whole block leaves lines two and three to a Latin-first editor
     for (const line of text.split("\n")) expect(line.startsWith(RLM)).toBe(true)
+  })
+
+  it("puts the dual in the genitive after «من» — «سلسلة من بيتين»", () => {
+    // «سلسلة من بيتان» shipped, and the share text is the one string that
+    // leaves the app and is read by someone who never opened it.
+    const two = shareText({ letters: ["ر", "م"], chainLength: 2, score: 247 })
+    expect(two).toContain("سلسلة من بيتين")
+    expect(two).not.toContain("بيتان")
+    expect(shareText({ letters: ["ر"], chainLength: 1, score: 5 })).toContain("سلسلة من بيت واحد · 5 نقاط")
+    expect(shareText({ letters: ["ر"], chainLength: 6, score: 740 })).toContain("سلسلة من 6 أبيات · 740 نقطة")
   })
 
   it("says أفحمتُ الخصم only when the opponent actually ran dry", () => {

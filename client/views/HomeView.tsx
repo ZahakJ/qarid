@@ -32,7 +32,7 @@ import { useProfile } from "../store/profileStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { routeHash, type BrowseQuery, type Route } from "../router.ts"
-import { formatCount, formatNumber, formatPoems, formatPoets, formatScore } from "../../shared/format.ts"
+import { formatBaits, formatCount, formatNumber, formatPoems, formatPoets, formatScore } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { DailyResponse, FacetsResponse, MetaResponse } from "../../shared/schema.ts"
 import { headingOf } from "./shared.tsx"
@@ -99,7 +99,7 @@ export function HomeView() {
         </h1>
         <p className="home__lede">
           {meta
-            ? `${formatNumber(meta.counts.poems)} قصيدة، و${formatNumber(meta.counts.baits)} بيتًا، لـ${formatNumber(meta.counts.poets)} شاعرًا — تُقرأ وتُساجَل.`
+            ? `${formatPoems(meta.counts.poems)}، و${formatBaits(meta.counts.baits)}، لـ${formatPoets(meta.counts.poets)} — تُقرأ وتُساجَل.`
             : "ديوان الشعر العربي: يُقرأ ويُساجَل."}
         </p>
       </header>
@@ -260,7 +260,7 @@ export function HomeView() {
               {daily.poetOfTheDay.era ? <Chip variant="asr" label={daily.poetOfTheDay.era.name} /> : null}
               <span>{formatPoems(daily.poetOfTheDay.poemCount)}</span>
               <span aria-hidden="true">·</span>
-              <span>{formatCount(daily.poetOfTheDay.baitCount)} بيتًا</span>
+              <span>{formatBaits(daily.poetOfTheDay.baitCount)}</span>
             </span>
             {daily.poetOfTheDay.description ? (
               <span className="poet-day__bio">{daily.poetOfTheDay.description}</span>
@@ -273,7 +273,7 @@ export function HomeView() {
 
       {meta ? (
         <p className="home__foot">
-          {formatPoets(meta.counts.poets)} · {formatPoems(meta.counts.poems)} · {formatCount(meta.counts.baits)} بيتًا
+          {formatPoets(meta.counts.poets)} · {formatPoems(meta.counts.poems)} · {formatBaits(meta.counts.baits)}
         </p>
       ) : null}
     </div>

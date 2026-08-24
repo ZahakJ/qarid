@@ -3,6 +3,7 @@ import {
   browseQueryString,
   isEmptyBrowseQuery,
   parseBrowseQuery,
+  pageKey,
   parseHash,
   routeHash,
   routeTitle,
@@ -174,5 +175,37 @@ describe("search route", () => {
     expect(parseHash("#/search?q=x&p=0")).toEqual({ view: "search", q: "x", page: 1 })
     expect(parseHash("#/search?q=x&p=nope")).toEqual({ view: "search", q: "x", page: 1 })
     expect(parseHash("#/search?q=x&p=2")).toEqual({ view: "search", q: "x", page: 2 })
+  })
+})
+
+describe("pageKey — what counts as arriving somewhere new (App.tsx scroll reset)", () => {
+  it("is stable while a reader pages or refilters INSIDE one view", () => {
+    // «المزيد» writes `?p=2` into the hash; jumping to the top there would
+    // throw away the position of the rows it just loaded.
+    expect(pageKey({ view: "browse", query: {} })).toBe(pageKey({ view: "browse", query: { era: "abbasi", page: 4 } }))
+    expect(pageKey({ view: "search", q: "الخيل", page: 1 })).toBe(pageKey({ view: "search", q: "الخيل", page: 3 }))
+    expect(pageKey({ view: "poem", id: "q1", bayt: 1 })).toBe(pageKey({ view: "poem", id: "q1", bayt: 40 }))
+  })
+
+  it("changes for every navigation a reader would call a new page", () => {
+    const keys = [
+      pageKey({ view: "home" }),
+      pageKey({ view: "poets" }),
+      pageKey({ view: "poets", letter: "م" }),
+      pageKey({ view: "poet", slug: "mutanabi" }),
+      pageKey({ view: "poet", slug: "albohtry" }),
+      pageKey({ view: "poem", id: "q1" }),
+      pageKey({ view: "poem", id: "q2" }),
+      pageKey({ view: "browse", query: {} }),
+      pageKey({ view: "search", q: "أ", page: 1 }),
+      pageKey({ view: "search", q: "ب", page: 1 }),
+      pageKey({ view: "train-drill" }),
+      pageKey({ view: "train-drill", letter: "ر" }),
+      pageKey({ view: "favorites" }),
+      pageKey({ view: "favorites", collection: "c1" }),
+      pageKey({ view: "duel" }),
+      pageKey({ view: "duel-summary" }),
+    ]
+    expect(new Set(keys).size).toBe(keys.length)
   })
 })

@@ -62,6 +62,27 @@ export function decodeParam(raw: string | undefined): string {
   }
 }
 
+/**
+ * A comma list on the way in — the one batch shape this API has.
+ *
+ * Order is the CALLER's (the duel summary wants its شعراء in the order it met
+ * them), duplicates collapse to the first mention, blanks vanish, and the whole
+ * thing is cut at `max` rather than rejected: a list one item too long is a
+ * client bug worth clamping, not a 400 the player would see as a broken screen.
+ * The zod schema has already bounded the raw string's length.
+ */
+export function csvParam(raw: string | undefined, max: number): string[] {
+  if (!raw) return []
+  const out: string[] = []
+  for (const part of raw.split(",")) {
+    const v = part.trim()
+    if (v === "" || out.includes(v)) continue
+    out.push(v)
+    if (out.length === max) break
+  }
+  return out
+}
+
 export function notFound(c: Context, what: string): Response {
   return c.json({ error: "not_found", message: what }, 404)
 }

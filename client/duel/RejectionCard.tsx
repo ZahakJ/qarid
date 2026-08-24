@@ -11,7 +11,7 @@
  * | ambiguous       | «وجدتُ أكثر من بيت»                 | لا شيء |
  * | timeout         | «انقضى الوقت» + بيت كان يصلح         | روح     |
  * | too_short       | «البيت شطران، لا كلمة»              | لا شيء |
- * | incomplete_bait | «هذا البيت ناقص العجز في الديوان»    | روح     |
+ * | incomplete_bait | «هذا البيت ناقص العجز في الديوان»    | لا شيء  |
  * | network         | «تعذّر الاتصال بالخادم»              | لا شيء  |
  *
  * Two rules the card must not blur. A refusal that costs nothing NEVER shows a
@@ -26,8 +26,16 @@ import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import type { Rejection } from "./machine.ts"
 import { pulseExchange } from "./ExchangeLog.tsx"
 
-/** Rejections that spend a life — the card says so, in the same words each time. */
-export const COSTS_LIFE = new Set(["not_found", "incomplete_bait", "timeout"])
+/**
+ * Rejections that spend a life — the card says so, in the same words each time.
+ *
+ * `incomplete_bait` is deliberately NOT one of them. The بيت is real and the
+ * player remembered it; the ديوان simply holds it with no عجز (an odd
+ * hemistich count, 24,378 قصائد), and the server already prefers a complete
+ * copy where one exists. Charging for the scrape's damage was the bug — it is
+ * a soft refusal, like a wrong letter.
+ */
+export const COSTS_LIFE = new Set(["not_found", "timeout"])
 
 export function titleOf(r: Rejection): string {
   switch (r.kind) {
@@ -180,7 +188,7 @@ export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRet
 
       {r.kind === "incomplete_bait" ? (
         <div className="reject__body">
-          <p className="reject__norm">هذا البيت في الديوان بلا عجز، فلا يصلح للمساجلة.</p>
+          <p className="reject__norm">هذا البيت في الديوان بلا عجز، فلا يصلح للمساجلة. أجب ببيت غيره.</p>
           <BaytPlate variant="plate" size="sm" sadr={r.bait.sadr} ajuz={r.bait.ajuz} />
         </div>
       ) : null}

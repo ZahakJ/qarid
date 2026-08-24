@@ -29,6 +29,7 @@ import {
 import { BUCKETS, PLAYABLE, TASHKEEL_THRESHOLD } from "../../shared/constants.ts"
 import { normalizeEra } from "../../shared/eras.ts"
 import { normalizeMeter } from "../../shared/meters.ts"
+import { canonicalNameKey } from "../../shared/poetAliases.ts"
 import { normalizeLangType, normalizeLocation, normalizeTheme } from "../../shared/themes.ts"
 import type { RawPoem } from "./readers.ts"
 
@@ -66,8 +67,20 @@ export interface TransformedBait {
 export interface TransformedPoet {
   /** display name, parenthetical suffix removed */
   name: string
-  /** identity: `normalizeArabic(name)`. UNIQUE in `poets`. */
+  /**
+   * identity: `canonicalNameKey(normalizeArabic(name))`. UNIQUE in `poets`.
+   *
+   * The alias hop is why this is not simply `normalizeArabic(name)`: every row
+   * that says «أبو الطيب المتنبي» is stored under «المتنبي», so the poems, the
+   * أبيات, `game_baits` and `combo_counts` all hang off the one شاعر row.
+   */
   nameKey: string
+  /**
+   * Does `name` normalize back to `nameKey`? `false` on a row the alias table
+   * moved, and that is exactly the row whose display name, letter, sort key and
+   * slug must NOT win in `build.ts` — «المتنبي» is what the card should read.
+   */
+  isCanonicalName: boolean
   /** ascii slug lifted from an aldiwan `cat-poet-…` url, else `null`. */
   urlSlug: string | null
   /** deterministic Arabic slug from `nameKey`, used when `urlSlug` is null. */
@@ -274,7 +287,7 @@ export function dedupKeyOf(nameKey: string, hemistichs: readonly string[]): stri
  */
 export function dedupKeyOfRaw(raw: RawPoem): string | null {
   const rawName = cleanText(stripParenthetical(raw.poetName ?? ""))
-  const nameKey = normalizeArabic(rawName === "" ? UNKNOWN_POET : rawName)
+  const nameKey = canonicalNameKey(normalizeArabic(rawName === "" ? UNKNOWN_POET : rawName))
   for (const v of raw.verses) {
     const c = cleanText(v)
     if (c !== "") return dedupKeyOf(nameKey, [c])
@@ -325,7 +338,10 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
   const title = cleanText(raw.title) || UNTITLED
   const rawName = cleanText(stripParenthetical(raw.poetName ?? ""))
   const name = rawName === "" ? UNKNOWN_POET : rawName
-  const nameKey = normalizeArabic(name)
+  // The alias hop happens HERE, before anything is keyed on the شاعر — the
+  // dedup key included, which is how «الخيل» stops showing the same مطلع twice
+  // under two spellings of the same man (CLAUDE.md backlog, poet alias merge).
+  const nameKey = canonicalNameKey(normalizeArabic(name))
   const dedupKey = dedupKeyOf(nameKey, hemis)
 
   // ── metre / theme / era / language ──────────────────────────────────────
@@ -400,6 +416,7 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
     poet: {
       name,
       nameKey,
+      isCanonicalName: normalizeArabic(name) === nameKey,
       urlSlug: poetSlugFrom(raw.poetUrl),
       fallbackSlug: fallbackPoetSlug(nameKey),
       letter: shuhraLetter(name),
@@ -415,7 +432,7 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
 
 /**
  * `poems.rhyme` = the روي most of the poem's complete أبيات share; a tie is
- * broken in favour of بيت ١, which is the قافية a reader would name.
+ * broken in favour of بيت 1, which is the قافية a reader would name.
  *
  * The share comes back with it because it is NOT a data error when it is low:
  * موشحات, شعر حر and مزدوجات are genuinely not monorhyme (84.3% agreement over

@@ -339,6 +339,37 @@ describe("GET /api/search — filters", () => {
   })
 })
 
+describe("GET /api/search — the شعراء ranking", () => {
+  it("ranks a NAME match above a ترجمة match, and the famous name first", async () => {
+    // bm25 normalises by the length of the whole row, so a شاعر with a long
+    // ترجمة is punished for having one: on the real corpus «المتنبي» lost to
+    // «المشوق الشامي صديق المتنبي», six قصائد and no bio. The fixture holds the
+    // same shape — «امرؤ القيس» (canon, fame 3), «امرؤ القيس بن حجر الكندي»
+    // (fame 0) and «حاتم الطائي», whose bio merely mentions القيس.
+    const poets = (await search({ q: "القيس", scope: "poets" })).poets
+    const names = poets.map((p) => p.name)
+    expect(names[0]).toBe("امرؤ القيس")
+
+    const named = names.filter((n) => n.includes("القيس"))
+    const mentioned = names.filter((n) => !n.includes("القيس"))
+    expect(named.length).toBeGreaterThan(1)
+    if (mentioned.length > 0) {
+      // every name hit comes before the first bio-only hit, whatever its fame
+      expect(names.indexOf(mentioned[0]!)).toBeGreaterThan(names.lastIndexOf(named[named.length - 1]!))
+    }
+  })
+
+  it("still ranks by fame among equals, and stays deterministic", async () => {
+    const a = (await search({ q: "القيس", scope: "poets" })).poets.map((p) => p.slug)
+    const b = (await search({ q: "القيس", scope: "poets" })).poets.map((p) => p.slug)
+    expect(a).toEqual(b)
+    const fames = (await search({ q: "القيس", scope: "poets" })).poets
+      .filter((p) => p.name.includes("القيس"))
+      .map((p) => p.fame)
+    expect(fames).toEqual([...fames].sort((x, y) => y - x))
+  })
+})
+
 describe("GET /api/search — pagination", () => {
   it("never repeats a hit across pages and keeps total stable", async () => {
     const first = await search({ q: COMMON, scope: "baits", limit: 5, page: 1 })

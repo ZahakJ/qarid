@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BAYT_FORMS,
+  BITAQA_FORMS,
   copyableBayt,
   countedNoun,
+  countedNounGenitive,
+  countedNounWithAdjective,
+  countedUnit,
+  formatCards,
+  formatDayStreak,
+  formatResults,
+  formatWords,
   formatBaits,
   formatClock,
   formatCount,
@@ -110,5 +119,51 @@ describe("copyableBayt", () => {
   it("handles a صدر with no عجز — the odd-hemistich case", () => {
     const out = copyableBayt("قِفا نَبكِ", null)
     expect(out).toBe("‏قِفا نَبكِ")
+  })
+})
+
+describe("counted nouns in the shapes the views actually need", () => {
+  it("puts the dual in the genitive after a preposition — «سلسلة من بيتين»", () => {
+    // «سلسلة من بيتان» shipped in the duel's share text; it is the one form
+    // whose ending a reader hears, and the only one this function changes.
+    expect(countedNounGenitive(2, BAYT_FORMS)).toBe("بيتين")
+    expect(countedNounGenitive(1, BAYT_FORMS)).toBe("بيت واحد")
+    expect(countedNounGenitive(6, BAYT_FORMS)).toBe("6 أبيات")
+    expect(countedNounGenitive(14, BAYT_FORMS)).toBe("14 بيتًا")
+    expect(countedNounGenitive(0, BAYT_FORMS)).toBe("لا أبيات")
+  })
+
+  it("countedUnit gives the WORD only, for a layout that printed the digits itself", () => {
+    // A stat tile or a coloured number span cannot use «بطاقة واحدة».
+    expect(countedUnit(0, BITAQA_FORMS)).toBe("بطاقة")
+    expect(countedUnit(1, BITAQA_FORMS)).toBe("بطاقة")
+    expect(countedUnit(2, BITAQA_FORMS)).toBe("بطاقة")
+    expect(countedUnit(5, BITAQA_FORMS)).toBe("بطاقات")
+    expect(countedUnit(10, BITAQA_FORMS)).toBe("بطاقات")
+    expect(countedUnit(11, BITAQA_FORMS)).toBe("بطاقة")
+    expect(countedUnit(103, BITAQA_FORMS)).toBe("بطاقات")
+    expect(countedUnit(3_371_410, BAYT_FORMS)).toBe("أبيات")
+  })
+
+  it("agrees the نعت with the معدود", () => {
+    const adj = { one: "جديد", two: "جديدان", few: "جديدة", many: "جديدًا" }
+    expect(countedNounWithAdjective(1, BAYT_FORMS, adj)).toBe("بيت واحد جديد")
+    expect(countedNounWithAdjective(2, BAYT_FORMS, adj)).toBe("بيتان جديدان")
+    expect(countedNounWithAdjective(5, BAYT_FORMS, adj)).toBe("5 أبيات جديدة")
+    expect(countedNounWithAdjective(12, BAYT_FORMS, adj)).toBe("12 بيتًا جديدًا")
+    expect(countedNounWithAdjective(0, BAYT_FORMS, adj)).toBe("لا أبيات")
+  })
+
+  it("counts نتائج, بطاقات, كلمات and أيام the same way", () => {
+    expect(formatResults(0)).toBe("لا نتائج")
+    expect(formatResults(4)).toBe("4 نتائج")
+    expect(formatResults(129)).toBe("129 نتيجة")
+    expect(formatCards(10)).toBe("10 بطاقات")
+    expect(formatCards(11)).toBe("11 بطاقة")
+    expect(formatWords(5)).toBe("5 كلمات")
+    expect(formatDayStreak(1)).toBe("يوم واحد متتالٍ")
+    expect(formatDayStreak(2)).toBe("يومان متتاليان")
+    expect(formatDayStreak(3)).toBe("3 أيام متتالية")
+    expect(formatDayStreak(12)).toBe("12 يومًا متتاليًا")
   })
 })

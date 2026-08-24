@@ -314,6 +314,36 @@ export function routeTitle(r: Route): string {
   }
 }
 
+/**
+ * The identity of a PAGE, for the one thing that has to know when the reader
+ * has arrived somewhere new: the scroll position (App.tsx).
+ *
+ * It deliberately drops the parts of a hash that a reader changes WITHOUT
+ * leaving the page — `#/browse`'s facets, sort and `?p=`, `#/search`'s page,
+ * `#/poem`'s `?bayt=` anchor. `#/browse` writes `?p=2` into the hash every time
+ * «المزيد» fires, and jumping to the top there would throw away the position of
+ * the very rows it just loaded. Everything else — a different شاعر, a different
+ * قصيدة, another view — is a new page and starts at its top.
+ */
+export function pageKey(r: Route): string {
+  switch (r.view) {
+    case "poet":
+      return `poet:${r.slug}`
+    case "poem":
+      return `poem:${r.id}`
+    case "search":
+      return `search:${r.q}`
+    case "poets":
+      return `poets:${r.era ?? ""}:${r.letter ?? ""}`
+    case "train-drill":
+      return `train-drill:${r.letter ?? ""}`
+    case "favorites":
+      return `favorites:${r.collection ?? ""}`
+    default:
+      return r.view
+  }
+}
+
 export const useRoute = create<{ route: Route }>()(() => ({ route: HOME }))
 
 export function navigate(r: Route, replace = false): void {

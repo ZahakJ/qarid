@@ -9,7 +9,10 @@ import { describe, expect, it } from "vitest"
 import {
   DuelConfigSchema,
   DuelSessionSliceSchema,
+  DuelSliceSchema,
   HINT_COSTS,
+  MIGRATIONS,
+  PERSIST_VERSION,
   type ArabicLetter,
   type BaitDto,
   type DuelConfig,
@@ -22,7 +25,6 @@ import {
   currentBait,
   displayScore,
   fromSlice,
-  internalPoemId,
   letterChain,
   newDuel,
   playerTurns,
@@ -49,6 +51,7 @@ let baitSeq = 100
 function bait(over: Partial<BaitDto> = {}): BaitDto {
   const id = over.id ?? baitSeq++
   const poemId = over.poem?.id ?? `q${id * 7}`
+  const poemNum = over.poem?.poemId ?? id * 7
   return {
     id,
     baytKey: `${poemId}:1`,
@@ -59,7 +62,7 @@ function bait(over: Partial<BaitDto> = {}): BaitDto {
     lastLetter: "ا",
     firstLetter: "و",
     isPartial: false,
-    poem: { id: poemId, title: "قصيدة" },
+    poem: { id: poemId, poemId: poemNum, title: "قصيدة" },
     poet: { slug: "ahmed-shawqi", name: "أحمد شوقي" },
     meter: { slug: "wafir", name: "الوافر", variant: null },
     era: null,
@@ -185,20 +188,30 @@ describe("dealing → reciting → awaiting", () => {
   })
 
   it("the opponent's بيت is immediately unusable by either side", () => {
-    const s0 = served("ن", { id: 501, poem: { id: "q77", title: "ت" } })
+    const s0 = served("ن", { id: 501, poem: { id: "q77", poemId: 77, title: "ت" } })
     const s = run([{ type: "DEALT", served: s0, now: T0 }])
     expect(s.usedBaitIds).toEqual([501])
     expect(s.usedKeys).toEqual(["q77:1"])
     expect(s.usedPoemIds).toEqual([77])
   })
 
-  it("an aldiwan public id contributes no internal poem id (and never a wrong one)", () => {
-    expect(internalPoemId("q16182")).toBe(16182)
-    expect(internalPoemId("16182")).toBeNull()
-    expect(internalPoemId(null)).toBeNull()
-    const s = run([{ type: "DEALT", served: served("ن", { poem: { id: "16182", title: "ت" } }), now: T0 }])
-    expect(s.usedPoemIds).toEqual([])
+  it("an aldiwan قصيدة excludes ITSELF — the internal id, never the public one", () => {
+    // 27% of قصائد carry an aldiwan public id, which is a different number
+    // from `poems.id`. Parsing it used to yield nothing (no exclusion at all)
+    // or, worse, an unrelated poem's id.
+    const aldiwan = served("ن", { poem: { id: "16182", poemId: 4471, title: "ت" } })
+    const s = run([{ type: "DEALT", served: aldiwan, now: T0 }])
+    expect(s.usedPoemIds).toEqual([4471])
+    expect(s.usedPoemIds).not.toContain(16182)
     expect(s.usedBaitIds).toHaveLength(1)
+
+    // …and a second بيت of the SAME قصيدة is the same exclusion, not a second
+    const again = reduce(s, {
+      type: "DEALT",
+      served: served("ن", { id: 999, poem: { id: "16182", poemId: 4471, title: "ت" } }),
+      now: T0 + 10,
+    })
+    expect(again.usedPoemIds).toEqual([4471])
   })
 
   it("REVEAL_DONE starts the wall-clock deadline; SKIP does the same", () => {
@@ -258,7 +271,7 @@ describe("awaiting → verifying", () => {
 
 describe("verifying → accepted", () => {
   const s0 = served("ن")
-  const answer = served("ب", { id: 900, poem: { id: "q900", title: "جوابك" } })
+  const answer = served("ب", { id: 900, poem: { id: "q900", poemId: 900, title: "جوابك" } })
 
   it("scores the بيت, pushes it, and lifts the streak", () => {
     const a = awaiting(config(), s0)
@@ -444,11 +457,35 @@ describe("verifying → penalising (costs a life)", () => {
     expect(pen.rejection?.kind).toBe("not_found")
   })
 
-  it("incomplete_bait costs a life too", () => {
-    const v = reduce(awaiting(), { type: "SUBMIT", text: "x", now: T0 + 1_000 })
-    const pen = reduce(v, { type: "VERIFIED", response: { ok: false, reason: "incomplete_bait", bait: bait({ id: 702 }) }, now: T0 + 1_100 })
-    expect(pen.phase).toBe("penalising")
-    expect(pen.lives).toBe(2)
+  it("incomplete_bait is SOFT — the ديوان is short a شطر, not the player", () => {
+    const a = awaiting()
+    const v = reduce(a, { type: "SUBMIT", text: "x", now: T0 + 1_000 })
+    const soft = reduce(v, {
+      type: "VERIFIED",
+      response: { ok: false, reason: "incomplete_bait", bait: bait({ id: 702, ajuz: null, isPartial: true }) },
+      now: T0 + 1_100,
+    })
+    expect(soft.phase).toBe("rejected")
+    expect(soft.lives).toBe(a.lives)
+    expect(soft.rejection?.kind).toBe("incomplete_bait")
+    expect(soft.lastResult?.kind).toBe("incomplete_bait")
+    // …and the clock it paused comes back, capped, on RESOLVE
+    const back = reduce(soft, { type: "RESOLVE", now: T0 + 1_600 })
+    expect(back.phase).toBe("awaiting")
+    expect(back.lives).toBe(a.lives)
+  })
+
+  it("a player on one life survives an incomplete_bait", () => {
+    const a = awaiting(config({ lives: 1 }))
+    const v = reduce(a, { type: "SUBMIT", text: "x", now: T0 + 1_000 })
+    const soft = reduce(v, {
+      type: "VERIFIED",
+      response: { ok: false, reason: "incomplete_bait", bait: bait({ id: 703, ajuz: null, isPartial: true }) },
+      now: T0 + 1_100,
+    })
+    expect(soft.phase).toBe("rejected")
+    expect(soft.phase).not.toBe("summary")
+    expect(soft.lives).toBe(1)
   })
 
   it("RESOLVE hands back a WHOLE fresh turn on the same letter", () => {
@@ -613,7 +650,7 @@ describe("hints", () => {
 
   it("«بدّل الحرف» recites a new بيت, resets the streak and charges its price", () => {
     const a = { ...awaiting(), streak: 5 }
-    const fresh = served("ل", { id: 555, poem: { id: "q555", title: "بديل" } })
+    const fresh = served("ل", { id: 555, poem: { id: "q555", poemId: 555, title: "بديل" } })
     const sw = reduce(a, { type: "HINT_SWITCH", served: fresh, cost: HINT_COSTS.switch_letter, now: T0 + 8_000 })
     expect(sw.phase).toBe("reciting")
     expect(sw.required.letter).toBe("ل")
@@ -758,6 +795,76 @@ describe("persistence", () => {
     const raw = JSON.parse(JSON.stringify(toSlice(s))) as unknown
     const parsed = DuelSessionSliceSchema.parse(raw)
     expect(fromSlice(parsed, T0 + 1_000).required.letter).toBe("ن")
+  })
+})
+
+/**
+ * `outcome` and `endedAt` arrived at PERSIST_VERSION 2. Both directions have to
+ * hold: a v1 payload still parses (and gives up what little of its ending can
+ * honestly be recovered), and a v2 payload round-trips untouched.
+ */
+describe("the v1 → v2 duel migration", () => {
+  /** what `persist.ts` would have had on disk before the two fields existed */
+  function v1Of(s: DuelState): Record<string, unknown> {
+    const slice = JSON.parse(JSON.stringify(toSlice(s))) as Record<string, unknown>
+    delete slice.outcome
+    delete slice.endedAt
+    return { session: slice }
+  }
+
+  const step = MIGRATIONS[1]!
+
+  it("is registered for every version below the current one", () => {
+    expect(PERSIST_VERSION).toBe(2)
+    expect(typeof step).toBe("function")
+  })
+
+  it("recovers «انقضت الأرواح» from a v1 payload with no lives left", () => {
+    const dead = { ...awaiting(), lives: 0, phase: "summary" as const }
+    const migrated = DuelSliceSchema.parse(step(v1Of(dead)))
+    expect(migrated.session?.outcome).toBe("defeat")
+    expect(migrated.session?.endedAt).toBe(dead.exchanges[dead.exchanges.length - 1]!.at)
+    expect(fromSlice(migrated.session!, T0 + 90_000).outcome).toBe("defeat")
+  })
+
+  it("recovers a finished مبارزة from its ten أبيات", () => {
+    let s = awaiting(config({ format: "match" }))
+    for (let i = 0; i < MUBARAZA_EXCHANGES; i++) {
+      s = { ...s, exchanges: [...s.exchanges, { ...s.exchanges[0]!, side: "player", at: T0 + i }] }
+    }
+    s = { ...s, phase: "summary" }
+    expect(DuelSliceSchema.parse(step(v1Of(s))).session?.outcome).toBe("match")
+  })
+
+  it("refuses to GUESS between «انسحبتَ» and «أفحمتَ الخصم»", () => {
+    // both end with lives to spare and leave no other trace; null keeps the
+    // honest «سلسلة من N بيتًا» rather than inventing a headline
+    const walked = reduce(awaiting(), { type: "ABANDON", now: T0 + 30_000 })
+    const migrated = DuelSliceSchema.parse(step(v1Of(walked)))
+    expect(migrated.session?.outcome).toBeNull()
+    // …but the timestamp is still recovered
+    expect(migrated.session?.endedAt).toBe(walked.exchanges[walked.exchanges.length - 1]!.at)
+  })
+
+  it("leaves an unfinished v1 session, and every OTHER slice, exactly as it was", () => {
+    const mid = v1Of(awaiting())
+    expect(step(mid)).toBe(mid)
+    // the step is applied to whatever slice sits at v1, not only to the duel
+    for (const other of [{ tashkeel: true, verseSize: "md" }, { arsenal: {} }, null, "qarid", 7, []]) {
+      expect(step(other)).toBe(other)
+    }
+    expect(step({ session: null })).toEqual({ session: null })
+  })
+
+  it("is a no-op on a v2 payload that already carries both fields", () => {
+    // «انسحبتَ» is exactly the ending the migration refuses to guess, so a v2
+    // payload keeping it is the sharpest proof the step does not overwrite
+    const done = reduce(awaiting(), { type: "ABANDON", now: T0 + 30_000 })
+    const v2 = { session: JSON.parse(JSON.stringify(toSlice(done))) as unknown }
+    const migrated = DuelSliceSchema.parse(step(v2))
+    expect(migrated.session?.outcome).toBe("abandoned")
+    expect(migrated.session?.endedAt).toBe(T0 + 30_000)
+    expect(fromSlice(migrated.session!, T0 + 99_000).outcome).toBe("abandoned")
   })
 })
 

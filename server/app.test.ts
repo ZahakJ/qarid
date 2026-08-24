@@ -13,6 +13,7 @@ import {
   DailyResponseSchema,
   FacetsResponseSchema,
   LIMITS,
+  MAX_POET_SLUGS,
   MetaResponseSchema,
   PoemBaitsResponseSchema,
   PoemDetailResponseSchema,
@@ -255,6 +256,54 @@ describe("read API on data/fixture.db", () => {
       const res = await get("/api/poets?era=no-such-era", PoetsResponseSchema)
       expect(res).toMatchObject({ items: [], total: 0 })
     })
+
+    // ── the batch door, `?slugs=` ─────────────────────────────────────────
+    it("returns the named شعراء in the order asked, as full rows", async () => {
+      const index = await get("/api/poets?limit=3", PoetsResponseSchema)
+      const wanted = index.items.map((p) => p.slug)
+      expect(wanted.length).toBe(3)
+
+      const asked = [...wanted].reverse()
+      const res = await get(`/api/poets?slugs=${asked.map(encodeURIComponent).join(",")}`, PoetsResponseSchema)
+      expect(res.items.map((p) => p.slug)).toEqual(asked)
+      expect(res.total).toBe(3)
+      expect(res.page).toBe(1)
+      // a full PoetSummary, not a ref — the summary's PoetCard needs all three
+      for (const p of res.items) {
+        expect(p.name.length).toBeGreaterThan(0)
+        expect(typeof p.poemCount).toBe("number")
+        expect(typeof p.baitCount).toBe("number")
+        expect(p).toHaveProperty("era")
+        expect(p).toHaveProperty("description")
+      }
+    })
+
+    it("drops unknown slugs and duplicates instead of failing the whole batch", async () => {
+      const res = await get("/api/poets?slugs=mutanabi,mutanabi,no-such-poet,", PoetsResponseSchema)
+      expect(res.items.map((p) => p.slug)).toEqual(["mutanabi"])
+      expect(res.total).toBe(1)
+
+      // `?slugs=` with an EMPTY value is "unset" (the optionalStr convention),
+      // so it is the ordinary index — but a list of nothing but separators is a
+      // batch that named nobody
+      const unset = await get("/api/poets?slugs=&limit=5", PoetsResponseSchema)
+      expect(unset.items.length).toBe(5)
+      const nobody = await get("/api/poets?slugs=,,,", PoetsResponseSchema)
+      expect(nobody).toMatchObject({ items: [], total: 0 })
+    })
+
+    it("caps the batch at MAX_POET_SLUGS and ignores the index's own filters", async () => {
+      const many = await get("/api/poets?limit=100", PoetsResponseSchema)
+      const slugs = many.items.map((p) => p.slug)
+      const padded = [...slugs, ...Array.from({ length: MAX_POET_SLUGS + 5 }, (_, i) => `ghost-${i}`)]
+      const res = await get(`/api/poets?slugs=${padded.map(encodeURIComponent).join(",")}`, PoetsResponseSchema)
+      expect(res.items.length).toBeLessThanOrEqual(MAX_POET_SLUGS)
+      expect(res.items.length).toBe(Math.min(slugs.length, MAX_POET_SLUGS))
+
+      // `letter` would exclude مutanabi's neighbours; the batch answers anyway
+      const withFilter = await get("/api/poets?slugs=mutanabi&letter=ز&fame=0&era=no-such-era", PoetsResponseSchema)
+      expect(withFilter.items.map((p) => p.slug)).toEqual(["mutanabi"])
+    })
   })
 
   // ── /api/poets/:slug ────────────────────────────────────────────────────
@@ -433,6 +482,29 @@ describe("read API on data/fixture.db", () => {
 
     it("404s an unknown poem", async () => {
       expect((await raw("/api/poems/q99999999/baits")).status).toBe(404)
+    })
+
+    /**
+     * The duel excludes on `poems.id`, and 27% of قصائد carry an aldiwan
+     * public id that is a different number entirely. Every BaitDto therefore
+     * carries both — the client must never have to parse one out of the other.
+     */
+    it("carries the INTERNAL poems.id on every بيت, aldiwan-keyed ones included", async () => {
+      const rowId = scalar("SELECT id AS n FROM poems WHERE public_id = '16182'")
+      expect(rowId).not.toBe(16182)
+
+      const res = await get("/api/poems/16182/baits?limit=3", PoemBaitsResponseSchema)
+      expect(res.items.length).toBeGreaterThan(0)
+      for (const b of res.items) {
+        expect(b.poem.id).toBe("16182")
+        expect(b.poem.poemId).toBe(rowId)
+      }
+
+      // …and where the public id IS the q<rowid> fallback, the two agree
+      const qRow = scalar("SELECT id AS n FROM poems WHERE public_id LIKE 'q%' LIMIT 1")
+      const q = await get(`/api/poems/q${qRow}/baits?limit=1`, PoemBaitsResponseSchema)
+      expect(q.items[0]!.poem.id).toBe(`q${qRow}`)
+      expect(q.items[0]!.poem.poemId).toBe(qRow)
     })
   })
 

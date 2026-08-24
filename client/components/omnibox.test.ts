@@ -50,7 +50,7 @@ function bait(id: number, poemId: string, position: number, sadr: string, ajuz: 
     lastLetter: "م",
     firstLetter: "ا",
     isPartial: false,
-    poem: { id: poemId, title: "بلا عنوان" },
+    poem: { id: poemId, poemId: id, title: "بلا عنوان" },
     poet: { slug: "mutanabi", name: "المتنبي" },
     meter: { slug: "tawil", name: "الطويل", variant: null },
     era: null,

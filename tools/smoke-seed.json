@@ -90,7 +90,8 @@
               "hints": [],
               "ms": 0,
               "obscurity": 0.12,
-              "at": 1756000024000
+              "at": 1756000024000,
+              "relaxed": true
             },
             {
               "side": "player",
@@ -100,7 +101,7 @@
               "ajuz": "وَطِب نَفساً إِذا حَكَمَ القَضاءُ",
               "poemId": "q104",
               "poet": {
-                "slug": "alshafii",
+                "slug": "al-shafie",
                 "name": "الإمام الشافعي"
               },
               "meter": {
@@ -125,7 +126,7 @@
               "ajuz": "فَلا بُدَّ أَن يَستَجيبَ القَدَر",
               "poemId": "q105",
               "poet": {
-                "slug": "abo-alqasim-alshabi",
+                "slug": "aboul-qacem-echebbi",
                 "name": "أبو القاسم الشابي"
               },
               "meter": {
@@ -317,7 +318,7 @@
               "ajuz": "وَطِب نَفساً إِذا حَكَمَ القَضاءُ",
               "poemId": "q104",
               "poet": {
-                "slug": "alshafii",
+                "slug": "al-shafie",
                 "name": "الإمام الشافعي"
               },
               "meter": {
@@ -342,7 +343,7 @@
               "ajuz": "فَلا بُدَّ أَن يَستَجيبَ القَدَر",
               "poemId": "q105",
               "poet": {
-                "slug": "abo-alqasim-alshabi",
+                "slug": "aboul-qacem-echebbi",
                 "name": "أبو القاسم الشابي"
               },
               "meter": {
@@ -355,7 +356,8 @@
               "hints": [],
               "ms": 0,
               "obscurity": 0.28,
-              "at": 1756000044000
+              "at": 1756000044000,
+              "relaxed": true
             },
             {
               "side": "player",

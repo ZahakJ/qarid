@@ -19,7 +19,7 @@ import { baitsOf, useCollections } from "../store/collectionsStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { navigate, routeHash } from "../router.ts"
-import { formatCount } from "../../shared/format.ts"
+import { formatBaits, formatCount } from "../../shared/format.ts"
 import type { SavedBait } from "../../shared/schema.ts"
 
 export function FavoritesView({ collection }: { collection?: string }) {
@@ -115,7 +115,7 @@ export function FavoritesView({ collection }: { collection?: string }) {
       {activeCollection ? (
         <div className="poet-toolbar">
           <span className="fav-note">
-            مجموعة «<bdi>{activeCollection.name}</bdi>» — {formatCount(activeCollection.baytKeys.length)} بيتًا
+            مجموعة «<bdi>{activeCollection.name}</bdi>» — {formatBaits(activeCollection.baytKeys.length)}
           </span>
           <button
             type="button"

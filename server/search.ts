@@ -325,6 +325,29 @@ function rankedRefs(db: Db, table: string, joins: string, filter: SqlFilter, mat
   return rows.map((r) => ({ ref: num(r.ref), score: -num(r.score) }))
 }
 
+/**
+ * `rankedRefs` for `poets_fts`, ordered the way `searchPoets` documents: a NAME
+ * hit first, then fame, then bm25. `poets` is always joined (the filter may not
+ * need it, but fame does) and the column-filtered MATCH runs as a subquery, so
+ * the whole ranking is still one statement and one prepared-statement shape.
+ */
+function rankedPoetRefs(db: Db, filter: SqlFilter, match: string): Ranked[] {
+  const rows = db
+    .q(
+      `${hitsCte("poets_fts", true)}
+       SELECT h.ref AS ref, h.score AS score
+       FROM hits h JOIN poets po ON po.id = h.ref
+       WHERE ${filter.where}
+       ORDER BY (h.ref IN (SELECT rowid FROM poets_fts WHERE poets_fts MATCH ?)) DESC,
+                po.fame DESC, h.score ASC, h.ref ASC`,
+    )
+    // `?` parameters are numbered by their position in the SQL TEXT: the CTE's
+    // MATCH, then the WHERE's filter params, and only then the ORDER BY's
+    // column-filtered MATCH.
+    .all(match, ...filter.params, `{norm_name} : (${match})`) as Row[]
+  return rows.map((r) => ({ ref: num(r.ref), score: -num(r.score) }))
+}
+
 /** `IN (?, ?, …)` for a page of ids — at most `limit` (≤40) placeholders. */
 function placeholders(n: number): string {
   return new Array(n).fill("?").join(", ")
@@ -418,12 +441,34 @@ function searchPoems(db: Db, match: string, q: SearchFilters, page: number, limi
   return { items, total: refs.length }
 }
 
+/**
+ * The شعراء list is the one place bm25 alone answers the wrong question.
+ *
+ * `poets_fts` is `(norm_name, norm_desc)` and bm25 normalises by the length of
+ * the WHOLE row, so a شاعر with a long ترجمة is penalised for having one. On
+ * the real corpus «المتنبي» — 364 قصيدة, a 2,000-character bio — scored 4.99
+ * against 8.47 for «المشوق الشامي صديق المتنبي», six قصائد and no bio at all,
+ * and the same shape buried «البحتري» under «يحيى ابن البحتري». A reader who
+ * types a شاعر's name and is handed his obscure namesake has been answered
+ * correctly and served badly.
+ *
+ * So the poets ranking is stated in the order a reader means it:
+ *   1. matched in the NAME before matched only in someone's ترجمة,
+ *   2. then `poets.fame` — the curated canon (`shared/famousPoets.ts`), which
+ *      is the only "which one did they mean" signal the artefact carries,
+ *   3. then bm25, then id, so it stays deterministic.
+ *
+ * The name-hit set is one extra MATCH over a 6,941-row index (`{norm_name} :`
+ * is FTS5's own column filter, and `match` is already `ftsQuery`'s quoted
+ * output, so nothing user-typed becomes syntax). AND is the default pass, so a
+ * multi-token query still has to match every token before fame can reorder
+ * anything.
+ */
 function searchPoets(db: Db, match: string, q: SearchFilters, page: number, limit: number): Page<PoetHit> {
   const filter = poetHitFilter(db, q)
   if (filter.impossible) return NONE
 
-  const joins = filter.where === "1 = 1" ? "" : "JOIN poets po ON po.id = h.ref"
-  const refs = rankedRefs(db, "poets_fts", joins, filter, match)
+  const refs = rankedPoetRefs(db, filter, match)
   const slice = pageOf(refs, page, limit)
   if (slice.length === 0) return { items: [], total: refs.length }
 

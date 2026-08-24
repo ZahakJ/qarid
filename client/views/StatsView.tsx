@@ -15,7 +15,7 @@ import { ApiError } from "../api/client.ts"
 import { getStats } from "../api/queries.ts"
 import { Rule } from "../components/Ornaments.tsx"
 import { routeHash, type BrowseQuery } from "../router.ts"
-import { formatCount, formatNumber, histogramLabel } from "../../shared/format.ts"
+import { BAYT_FORMS, QASIDA_FORMS, SHAIR_FORMS, countedUnit, formatCount, formatNumber, histogramLabel } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import { themeBySlug } from "../../shared/themes.ts"
 import type { StatsResponse } from "../../shared/schema.ts"
@@ -88,10 +88,13 @@ export function StatsView() {
       </header>
 
       <div className="stat-tiles">
-        <Tile n={stats.counts.poems} cap="قصيدة" />
-        <Tile n={stats.counts.baits} cap="بيتًا" />
-        <Tile n={stats.counts.poets} cap="شاعرًا" />
-        <Tile n={stats.counts.gameBaits} cap="بيتًا صالحًا للمساجلة" />
+        {/* the caption is the تمييز of the number above it, so it follows the
+            number: «3,371,410 أبيات» but «238,733 قصيدة» (amendment 25's rule
+            is about the digits; this is the noun beside them) */}
+        <Tile n={stats.counts.poems} cap={countedUnit(stats.counts.poems, QASIDA_FORMS)} />
+        <Tile n={stats.counts.baits} cap={countedUnit(stats.counts.baits, BAYT_FORMS)} />
+        <Tile n={stats.counts.poets} cap={countedUnit(stats.counts.poets, SHAIR_FORMS)} />
+        <Tile n={stats.counts.gameBaits} cap={playableCap(stats.counts.gameBaits)} />
       </div>
 
       <Bars
@@ -147,6 +150,12 @@ export function StatsView() {
       </p>
     </div>
   )
+}
+
+/** «1,709,893 بيتًا صالحًا للمساجلة» — noun and adjective move together. */
+function playableCap(n: number): string {
+  const unit = countedUnit(n, BAYT_FORMS)
+  return `${unit} ${unit === BAYT_FORMS.few ? "صالحة" : "صالحًا"} للمساجلة`
 }
 
 function Tile({ n, cap }: { n: number; cap: string }) {

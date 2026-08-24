@@ -11,7 +11,7 @@
  * screen as what it is: a rail, not a lock (client/duel/daily.ts).
  */
 import { useMemo, useState } from "react"
-import { formatBaits, formatCount } from "../../shared/format.ts"
+import { NUQTA_FORMS, countedUnit, formatBaits, formatCount } from "../../shared/format.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { writeClipboard } from "../bayt/copy.ts"
 import { FLAVOR } from "../data/flavor.ts"
@@ -65,7 +65,8 @@ export function DailyView() {
         <Panel illuminated title="ما بلغتَه اليوم">
           <div className="daily-result">
             <p className="daily-result__line">
-              <span className="daily-result__n">{formatCount(result.score)}</span> نقطة ·{" "}
+              <span className="daily-result__n">{formatCount(result.score)}</span>{" "}
+              {countedUnit(result.score, NUQTA_FORMS)} ·{" "}
               {formatBaits(result.chainLength)}
             </p>
             {result.letters.length ? (

@@ -409,7 +409,7 @@ export function BrowseView({ query }: { query: BrowseQuery }) {
                 <span className="more-bar__busy">…يُجلب المزيد</span>
               ) : (
                 <button type="button" className="btn" onClick={fetchMore}>
-                  المزيد — بقي {formatCount(total - loaded)} {baytMode ? "بيتًا" : "قصيدة"}
+                  المزيد — بقي {baytMode ? formatBaits(total - loaded) : formatPoems(total - loaded)}
                 </button>
               )}
             </div>

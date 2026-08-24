@@ -14,7 +14,7 @@
  */
 import { useEffect, useState } from "react"
 
-import { formatCount } from "../../shared/format.ts"
+import { BAYT_FORMS, BITAQA_FORMS, countedNounWithAdjective, countedUnit, formatCount, formatDayStreak } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { MetaResponse } from "../../shared/schema.ts"
 import { EmptyState } from "../components/EmptyState.tsx"
@@ -76,8 +76,8 @@ export function TrainHubView() {
       <Panel illuminated className="train-due">
         <div className="train-due__body">
           <div className="train-due__count">
-            <span className="train-due__n num">{due}</span>
-            <span className="train-due__cap">بطاقة مستحقّة</span>
+            <span className="train-due__n num">{formatCount(due)}</span>
+            <span className="train-due__cap">{countedUnit(due, BITAQA_FORMS)} مستحقّة</span>
           </div>
           <div className="train-due__copy">
             <h2 className="train-due__title">المذاكرة</h2>
@@ -85,8 +85,8 @@ export function TrainHubView() {
               {total === 0
                 ? "ديوانك فارغ بعد — ابدأ بأبياتٍ مشهورة، تُختار على حروفك الضعيفة."
                 : due > 0
-                  ? `في ترسانتك ${formatCount(total)} بيتًا محفوظًا أو قيد الحفظ.`
-                  : `لا مستحقَّ اليوم. ${newLeft > 0 ? `ولك أن تضيف ${formatCount(newLeft)} أبياتٍ جديدة.` : "وقد أخذتَ نصيبك من الجديد اليوم."}`}
+                  ? `في ترسانتك ${heldBaits(total)} أو قيد الحفظ.`
+                  : `لا مستحقَّ اليوم. ${newLeft > 0 ? `ولك أن تضيف ${freshBaits(newLeft)}.` : "وقد أخذتَ نصيبك من الجديد اليوم."}`}
             </p>
             <StreakRibbon streak={reviewStreak} lastDay={lastReviewDay} today={today} />
           </div>
@@ -257,7 +257,7 @@ function StreakRibbon({ streak, lastDay, today }: { streak: number; lastDay: str
     day = previousDay(day)
   }
   return (
-    <p className="streak" title={`${formatCount(streak)} يومًا متتاليًا`}>
+    <p className="streak" title={formatDayStreak(streak)}>
       <span className="streak__nib" aria-hidden="true">
         <Nib size={14} />
       </span>
@@ -267,7 +267,7 @@ function StreakRibbon({ streak, lastDay, today }: { streak: number; lastDay: str
         ))}
       </span>
       <span className="streak__label">
-        {streak > 0 ? `${formatCount(streak)} يومًا متتاليًا` : "لم تبدأ سلسلة المذاكرة"}
+        {streak > 0 ? formatDayStreak(streak) : "لم تبدأ سلسلة المذاكرة"}
       </span>
     </p>
   )
@@ -283,4 +283,28 @@ function distanceInDays(a: string, b: string): number {
   const y = parse(b)
   if (Number.isNaN(x) || Number.isNaN(y)) return Infinity
   return Math.round((y - x) / 86_400_000)
+}
+
+/** «10 أبيات محفوظة» · «12 بيتًا محفوظًا» — the حال agrees too. */
+function heldBaits(n: number): string {
+  return countedNounWithAdjective(n, BAYT_FORMS, {
+    one: "محفوظ",
+    two: "محفوظان",
+    few: "محفوظة",
+    many: "محفوظًا",
+  })
+}
+
+/**
+ * «بيت واحد جديد» · «بيتان جديدان» · «5 أبيات جديدة» · «12 بيتًا جديدًا» —
+ * the نعت agrees with the معدود, which is why the phrase is built here and not
+ * by gluing an adjective onto a formatted count.
+ */
+function freshBaits(n: number): string {
+  return countedNounWithAdjective(n, BAYT_FORMS, {
+    one: "جديد",
+    two: "جديدان",
+    few: "جديدة",
+    many: "جديدًا",
+  })
 }

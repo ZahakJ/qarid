@@ -11,7 +11,7 @@
  * the UI, and the arrow is `←` because under RTL that is the one that means
  * "next" (amendments.md §15).
  */
-import { formatBaits, formatCount, RLM } from "../../shared/format.ts"
+import { BAYT_FORMS, NUQTA_FORMS, countedNounGenitive, countedUnit, formatCount, RLM } from "../../shared/format.ts"
 
 /**
  * Levantine month names, which is what design-ux.md's «23 آب» is written in.
@@ -62,7 +62,7 @@ export function shareText({ dayKey, letters, chainLength, score, stumped = false
   const head = dayKey ? `قريض — تحدّي ${arabicDay(dayKey)}` : "قريض — مساجلة"
   const lines = [head]
   if (letters.length) lines.push(letterRibbon(letters))
-  const tail = `سلسلة من ${formatBaits(chainLength)} · ${formatCount(score)} نقطة`
+  const tail = `سلسلة من ${countedNounGenitive(chainLength, BAYT_FORMS)} · ${formatCount(score)} ${countedUnit(score, NUQTA_FORMS)}`
   lines.push(stumped ? `${tail} · أفحمتُ الخصم` : tail)
   // The block lands in Latin-first chat apps, so EVERY line opens with U+200F,
   // exactly as client/bayt/copy.ts requires of every copy path — one prefix for

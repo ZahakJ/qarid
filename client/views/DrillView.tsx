@@ -19,7 +19,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { formatCount } from "../../shared/format.ts"
+import { BITAQA_FORMS, KALIMA_FORMS, countedUnit, formatCards, formatCount } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { BaitDto, CardGrade, MetaResponse, TrainingCard } from "../../shared/schema.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
@@ -254,7 +254,7 @@ export function DrillView({ letter }: { letter?: string }) {
             <h2 className="drill-done__title">انتهت الجلسة</h2>
             <Rule style={{ inlineSize: "min(18rem, 60%)" }} />
             <p className="drill-done__line">
-              راجعتَ {formatCount(seen)} بطاقة، أصبتَ منها {formatCount(right)}.
+              راجعتَ {formatCards(seen)}، أصبتَ منها {formatCount(right)}.
             </p>
             <div className="drill-done__acts">
               <a className="btn btn--primary" href={routeHash({ view: "train" })}>
@@ -407,7 +407,7 @@ export function DrillView({ letter }: { letter?: string }) {
             {answered ? (
               <div className="drill-diff">
                 <p className="drill-diff__head">
-                  أصبتَ {formatCount(score.ok)} من {formatCount(score.total)} كلمة
+                  أصبتَ {formatCount(score.ok)} من {formatCount(score.total)} {countedUnit(score.total, KALIMA_FORMS)}
                 </p>
                 <WordDiff tokens={diff} />
               </div>
@@ -437,7 +437,7 @@ export function DrillView({ letter }: { letter?: string }) {
       </section>
 
       <p className="drill-foot">
-        {formatCount(Object.keys(cards).length)} بطاقة في ترسانتك ·{" "}
+        {formatCount(Object.keys(cards).length)} {countedUnit(Object.keys(cards).length, BITAQA_FORMS)} في ترسانتك ·{" "}
         <button type="button" className="linkish" onClick={() => navigate({ view: "train" })}>
           إنهاء الجلسة
         </button>

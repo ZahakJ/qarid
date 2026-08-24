@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState } from "react"
 
-import { formatCount, formatScore } from "../../shared/format.ts"
+import { formatBaits, formatCount, formatScore } from "../../shared/format.ts"
 import { LETTER_NAMES, type HijaiLetter } from "../../shared/letters.ts"
 import type { MetaResponse } from "../../shared/schema.ts"
 import { Rule } from "../components/Ornaments.tsx"
@@ -95,11 +95,11 @@ export function ArsenalView() {
             <dl className="arsenal-figures">
               <div>
                 <dt>أبيات في ترسانتك</dt>
-                <dd className="num">{totalHeld}</dd>
+                <dd className="num">{formatCount(totalHeld)}</dd>
               </div>
               <div>
                 <dt>بطاقات المذاكرة</dt>
-                <dd className="num">{Object.keys(cards).length}</dd>
+                <dd className="num">{formatCount(Object.keys(cards).length)}</dd>
               </div>
             </dl>
           </div>
@@ -190,7 +190,7 @@ function LetterDetail({ stat }: { stat: LetterStat }) {
       </dl>
       <p className="letter-detail__note">
         {stat.supply >= SUPPLY_TARGET
-          ? `هذا الحرف مؤمَّن — عندك ${formatCount(stat.supply)} أبياتٍ تبدأ به.`
+          ? `هذا الحرف مؤمَّن — في ترسانتك منه ${formatBaits(stat.supply)}.`
           : `ينقصك ${formatCount(SUPPLY_TARGET - stat.supply)} من ${formatCount(SUPPLY_TARGET)} حتى يُؤمَّن هذا الحرف.`}
       </p>
       <div className="letter-detail__acts">

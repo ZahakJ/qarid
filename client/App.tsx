@@ -14,7 +14,7 @@
  *    every component subscribing.
  */
 import { useEffect, useState } from "react"
-import { HOME, initRouter, navigate, routeHash, routeTitle, useRoute, type Route } from "./router.ts"
+import { HOME, initRouter, navigate, pageKey, routeHash, routeTitle, useRoute, type Route } from "./router.ts"
 import { motionReduced, useSettings } from "./store/settingsStore.ts"
 import { Toasts } from "./components/Toasts.tsx"
 import { HelpOverlay } from "./components/HelpOverlay.tsx"
@@ -256,6 +256,18 @@ export function App() {
   useEffect(() => {
     document.title = route.view === "home" ? "قريض" : `${routeTitle(route)} — قريض`
   }, [route])
+
+  // A new page starts at its top. A hash router changes no document, so the
+  // window keeps whatever scroll the PREVIOUS page had: read half the شعراء
+  // index, press «التصفح», and you land in the middle of a list you have not
+  // seen — with #/browse's «المزيد» sentinel already on screen, so it autoloads
+  // page after page before the first row is read (measured: `?p=4` in 300ms).
+  // `pageKey` is what a reader would call a different page, so paging and facet
+  // changes inside one view (which write the hash too) keep their position.
+  const page = pageKey(route)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" })
+  }, [page])
 
   // Three measures: the ديوان's wide shell, the 46rem reading column for a
   // قصيدة and the قواعد, and a middle one for home — the بيت اليوم plate is set

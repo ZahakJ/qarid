@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import { assertArtefact, type BuildReport } from "../scripts/ingest/build.ts"
 import { TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
-import { ftsQuery } from "../shared/arabic.ts"
+import { ftsQuery, normalizeArabic } from "../shared/arabic.ts"
 import { PLAYABLE } from "../shared/constants.ts"
 import { ERAS } from "../shared/eras.ts"
 import { HIJAI_LETTERS } from "../shared/letters.ts"
@@ -363,6 +363,46 @@ describe("dedup — the best copy wins", () => {
     expect(count("SELECT COUNT(*) n FROM poets")).toBe(count("SELECT COUNT(DISTINCT slug) n FROM poets"))
     expect(count("SELECT COUNT(*) n FROM poets WHERE slug IS NULL OR slug = ''")).toBe(0)
     expect(one<{ slug: string }>("SELECT slug FROM poets WHERE name = 'المتنبي'")!.slug).toMatch(/^[a-z0-9-]+$/)
+  })
+
+  it("folds an alias spelling onto the canonical شاعر (CLAUDE.md backlog)", () => {
+    // The fixture carries «المتنبي» twice and «أبو الطيب المتنبي» once. Before
+    // the alias table those were two rows, two slugs and two cards.
+    expect(count("SELECT COUNT(*) n FROM poets WHERE name LIKE '%المتنبي%'")).toBe(1)
+    const m = one<{ id: number; name: string; name_key: string; slug: string; poem_count: number }>(
+      "SELECT id, name, name_key, slug, poem_count FROM poets WHERE name_key = ?",
+      normalizeArabic("المتنبي"),
+    )!
+    // the canonical spelling wins the card and the slug…
+    expect(m.name).toBe("المتنبي")
+    expect(m.slug).toBe("mutanabi")
+    // …and the alias's قصائد land on it
+    expect(Number(m.poem_count)).toBe(3)
+    expect(count("SELECT COUNT(*) n FROM poems WHERE poet_id = ?", m.id)).toBe(3)
+    expect(report.mergedPoets).toBeGreaterThanOrEqual(1)
+  })
+
+  it("names a شاعر the corpus only spelled the alias way after the canonical", () => {
+    // «بشارة الخوري (الأخطل الصغير )» is the fixture's only row for the man,
+    // so no row could supply the display name — the alias table does.
+    expect(count("SELECT COUNT(*) n FROM poets WHERE name_key = ?", normalizeArabic("بشارة الخوري"))).toBe(0)
+    const akhtal = one<{ name: string; letter: string }>(
+      "SELECT name, letter FROM poets WHERE name_key = ?",
+      normalizeArabic("الأخطل الصغير"),
+    )!
+    expect(akhtal.name).toBe("الأخطل الصغير")
+    expect(akhtal.letter).toBe("ا")
+  })
+
+  it("files an honorific-prefixed شاعر under his own letter", () => {
+    // The card keeps the source's spelling; only `letter` and `sort_key` are
+    // derived past the «أ.د/» — see shared/arabic.ts's stripHonorifics.
+    const p = one<{ name: string; letter: string; sort_key: string }>(
+      "SELECT name, letter, sort_key FROM poets WHERE name LIKE '%الشليح%'",
+    )!
+    expect(p.name).toBe("أ.د/ مصطفى الشليح")
+    expect(p.letter).toBe("م")
+    expect(p.sort_key).toBe("مصطفي الشليح")
   })
 
   it("applies the fame ladder", () => {

@@ -125,7 +125,7 @@ export function PoetCard({ poet }: { poet: PoetSummary }) {
       {poet.description ? (
         <span className="pcard__bio">{poet.description}</span>
       ) : (
-        <span className="pcard__bio pcard__bio--none">{formatCount(poet.baitCount)} بيتًا في الديوان</span>
+        <span className="pcard__bio pcard__bio--none">{formatBaits(poet.baitCount)} في الديوان</span>
       )}
     </a>
   )

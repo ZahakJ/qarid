@@ -116,9 +116,28 @@
 }
 
 /* ── the ترسانة card on the hub ────────────────────────────────────── */
+
+/* Three blocks across the panel, not two half-panel columns.
+ *
+ * Both blocks are capped, and for good reasons: the heatmap at 26rem because
+ * its cells are `aspect-ratio: 1`, so a wider thumbnail is a TALLER one; the
+ * weak-letter list because its rows are letter + name + number + button and a
+ * wide track pulls those into separated columns that stop reading as rows. Two
+ * capped blocks in two `1fr` tracks can then only sit right-aligned inside
+ * oversized tracks — at 1440 that was ~165px of canyon between them AND ~160px
+ * of dead panel at the far end, directly under a head whose own action
+ * («الترسانة كاملة ←») sits at that very edge.
+ *
+ * So: the two ends are sized, and the MIDDLE track takes the slack. The
+ * heatmap holds the inline-start edge, the weak list holds the far one, and
+ * the coverage ring is pinned `justify-self: start` so it stays beside the map
+ * it describes instead of floating in the panel's centre. `display: contents`
+ * is what makes the ring a track at all — it promotes `__side`'s two children
+ * into this grid without another wrapper. Below 861px `__side` goes back to
+ * being a real box and the three stack. */
 .train-arsenal-card__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr) minmax(0, 18rem);
   gap: var(--sp-5);
   align-items: start;
 }
@@ -129,14 +148,14 @@
   max-inline-size: 26rem;
 }
 
-/* The rows inside are label + number + button: given a whole 1fr of a 78rem
- * panel they stretch into three widely separated columns and stop reading as
- * rows. Cap the measure and let the panel keep the slack. */
 .train-arsenal-card__side {
-  display: grid;
-  gap: var(--sp-4);
-  min-inline-size: 0;
-  max-inline-size: 28rem;
+  display: contents;
+}
+
+/* The middle track carries the slack, so the ring is pinned to the map it
+ * describes instead of floating in the panel's centre. */
+.train-arsenal-card__body > .ring {
+  justify-self: start;
 }
 
 .ring--lg .ring__cap {
@@ -969,6 +988,15 @@ button.heatcell:hover {
   .train-arsenal-card__body,
   .arsenal-shell {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, the ring and the weak list are one column again — so `__side`
+   * has to be a box that can hold them, not `display: contents`. */
+  .train-arsenal-card__side {
+    display: grid;
+    gap: var(--sp-4);
+    min-inline-size: 0;
+    max-inline-size: 28rem;
   }
 
   .leech {

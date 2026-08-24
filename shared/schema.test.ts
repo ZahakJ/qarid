@@ -23,6 +23,7 @@ import {
   MetaResponseSchema,
   PERSIST_KEYS,
   PERSIST_SCHEMAS,
+  MIGRATIONS,
   PERSIST_VERSION,
   PoemBaitsQuerySchema,
   PoemDetailResponseSchema,
@@ -49,7 +50,8 @@ import {
 // Hand-built to look exactly like what a route will emit off the real corpus.
 
 const poetRef = { slug: "almutanabbi", name: "المتنبي" }
-const poemRef = { id: "16182", title: "على قدر أهل العزم" }
+/** The two ids a poem answers to: the public «16182» (aldiwan) and `poems.id`. */
+const poemRef = { id: "16182", poemId: 4471, title: "على قدر أهل العزم" }
 const meterRef = { slug: "tawil", name: "الطويل", variant: null }
 const eraRef = { slug: "abbasi", name: "العصر العباسي" }
 
@@ -187,7 +189,7 @@ describe("query params — coercion and clamping", () => {
 describe("DTO round-trips", () => {
   it("round-trips a BaitDto, including the partial (null عجز) case", () => {
     roundTrip(BaitDtoSchema, bait)
-    roundTrip(BaitDtoSchema, { ...bait, baytKey: "q4471:24", position: 24, ajuz: null, rawiyy: null, lastLetter: null, isPartial: true, poem: { id: "q4471", title: "بلا عنوان" }, meter: null, era: null })
+    roundTrip(BaitDtoSchema, { ...bait, baytKey: "q4471:24", position: 24, ajuz: null, rawiyy: null, lastLetter: null, isPartial: true, poem: { id: "q4471", poemId: 4471, title: "بلا عنوان" }, meter: null, era: null })
   })
 
   it("rejects an unfolded letter and a malformed baytKey", () => {
@@ -198,8 +200,20 @@ describe("DTO round-trips", () => {
   })
 
   it("accepts both public_id shapes (aldiwan id and the q<rowid> fallback)", () => {
-    expect(BaitDtoSchema.parse({ ...bait, poem: { id: "q253119", title: "ت" }, baytKey: "q253119:1" }).poem.id).toBe("q253119")
-    expect(BaitDtoSchema.safeParse({ ...bait, poem: { id: "../etc", title: "ت" } }).success).toBe(false)
+    expect(
+      BaitDtoSchema.parse({ ...bait, poem: { id: "q253119", poemId: 253119, title: "ت" }, baytKey: "q253119:1" }).poem.id,
+    ).toBe("q253119")
+    expect(BaitDtoSchema.safeParse({ ...bait, poem: { id: "../etc", poemId: 1, title: "ت" } }).success).toBe(false)
+  })
+
+  it("carries the INTERNAL poems.id alongside the public one — the duel excludes on it", () => {
+    // 16182 is an aldiwan page number, 4471 is the row. They are unrelated, and
+    // sending the first as the second was the `usedPoemIds` no-op.
+    const parsed = BaitDtoSchema.parse(bait)
+    expect(parsed.poem.id).toBe("16182")
+    expect(parsed.poem.poemId).toBe(4471)
+    expect(BaitDtoSchema.safeParse({ ...bait, poem: { ...poemRef, poemId: 0 } }).success).toBe(false)
+    expect(BaitDtoSchema.safeParse({ ...bait, poem: { id: poemRef.id, title: poemRef.title } }).success).toBe(false)
   })
 
   it("round-trips a paired poem detail with hasTashkeel", () => {
@@ -460,12 +474,18 @@ describe("game responses", () => {
 })
 
 describe("persisted client slices", () => {
-  it("is version 1 with namespaced keys and a schema per slice", () => {
-    expect(PERSIST_VERSION).toBe(1)
+  it("is version 2 with namespaced keys and a schema per slice", () => {
+    expect(PERSIST_VERSION).toBe(2)
+    // The KEYS are literals and do not track the version — `qarid:v1:duel` is
+    // where a v1 payload lives and where its migrated v2 successor is written
+    // back. Renaming them would orphan every session on disk.
     for (const [slice, key] of Object.entries(PERSIST_KEYS)) {
       expect(key).toBe(`qarid:v1:${slice}`)
       expect(PERSIST_SCHEMAS[slice as keyof typeof PERSIST_SCHEMAS]).toBeDefined()
     }
+    // every version below the current one must have a step, or `persist.ts`
+    // gives up and resets the slice
+    for (let v = 1; v < PERSIST_VERSION; v++) expect(MIGRATIONS[v]).toBeTypeOf("function")
   })
 
   it("round-trips the {v,data} envelope and rejects a corrupt payload", () => {

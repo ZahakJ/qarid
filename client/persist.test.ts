@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { SettingsSliceSchema, type SettingsSlice } from "../shared/schema.ts"
+import {
+  DuelConfigSchema,
+  DuelSessionSliceSchema,
+  DuelSliceSchema,
+  PERSIST_VERSION,
+  SettingsSliceSchema,
+  type SettingsSlice,
+} from "../shared/schema.ts"
 import { clearSlice, flushNow, loadSlice, saveSlice, sliceKey } from "./persist.ts"
 
 /** Minimal in-memory Storage — node has no localStorage. */
@@ -61,7 +68,57 @@ describe("loadSlice", () => {
     flushNow()
     const raw = store.map.get("qarid:v1:settings")
     expect(raw).toBeTruthy()
-    expect(JSON.parse(raw!)).toEqual({ v: 1, data: DEFAULTS })
+    expect(JSON.parse(raw!)).toEqual({ v: PERSIST_VERSION, data: DEFAULTS })
+  })
+
+  /**
+   * The whole point of the version chain, exercised end to end on the slice
+   * that needed it: a duel session written at v1 — before `outcome`/`endedAt`
+   * existed — must still load, and must load with what its ending can honestly
+   * be read as. Both directions: the v1 payload below, and a v2 payload
+   * (written by `saveSlice` above) that must survive untouched.
+   */
+  it("migrates a v1 duel session forward instead of resetting it", () => {
+    const v1Session = {
+      config: DuelConfigSchema.parse({}),
+      seed: "duel:1:poet:rhyme:endless",
+      phase: "summary",
+      exchanges: [
+        { side: "opponent", baytKey: "q1:1", sadr: "ص", ajuz: "ع", at: 1_700_000_040_000 },
+        { side: "player", baytKey: "q2:1", sadr: "ص", ajuz: "ع", at: 1_700_000_050_000 },
+      ],
+      score: 240,
+      lives: 0,
+      startedAt: 1_700_000_000_000,
+    }
+    store.map.set("qarid:v1:duel", JSON.stringify({ v: 1, data: { session: v1Session } }))
+
+    const loaded = loadSlice("duel", DuelSliceSchema, { session: null })
+    expect(loaded.session).not.toBeNull()
+    expect(loaded.session?.score).toBe(240)
+    // recovered, not defaulted: no lives left is «انقضت الأرواح»
+    expect(loaded.session?.outcome).toBe("defeat")
+    expect(loaded.session?.endedAt).toBe(1_700_000_050_000)
+    // and nothing was treated as corrupt
+    expect(store.map.get("qarid:corrupt-backup:duel")).toBeUndefined()
+  })
+
+  it("round-trips a v2 duel session and rewrites it at the current version", () => {
+    const session = DuelSessionSliceSchema.parse({
+      config: DuelConfigSchema.parse({}),
+      seed: "duel:2:poet:rhyme:endless",
+      phase: "summary",
+      startedAt: 1_700_000_000_000,
+      outcome: "stumped",
+      endedAt: 1_700_000_060_000,
+    })
+    saveSlice("duel", { session })
+    flushNow()
+    expect(JSON.parse(store.map.get("qarid:v1:duel")!).v).toBe(PERSIST_VERSION)
+
+    const back = loadSlice("duel", DuelSliceSchema, { session: null })
+    expect(back.session?.outcome).toBe("stumped")
+    expect(back.session?.endedAt).toBe(1_700_000_060_000)
   })
 
   it("backs up unreadable JSON and falls back instead of throwing", () => {

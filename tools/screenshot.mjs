@@ -184,9 +184,23 @@ try {
   }
 
   browser = await chromium.launch()
-  const viewport = mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 }
+  /**
+   * `--mobile` is a PHONE, not a narrow desktop window.
+   *
+   * A 390-wide viewport alone leaves `@media (hover: none), (pointer: coarse)`
+   * unmatched, so every mobile shot kept showing what only a keyboard-and-mouse
+   * reader gets: the omnibox's `/` badge, BaytPlate's hover action rail, the
+   * duel's «Shift+Enter» hint. `hasTouch` is what flips the pointer/hover media
+   * features, and `isMobile` turns on the meta-viewport + mobile-UA emulation
+   * that goes with them (Chromium only, which is what we launch).
+   */
+  const emulation = mobile
+    ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }
+    : { viewport: { width: 1440, height: 900 } }
 
   const errors = []
+  /** Non-ok responses and dead requests, with their URLs — see pageFor(). */
+  const failures = []
   let ctx = null
   let page = null
   let applied = null
@@ -202,7 +216,7 @@ try {
     const wanted = JSON.stringify(seed)
     if (page && applied === wanted) return page
     if (ctx) await ctx.close()
-    ctx = await browser.newContext({ viewport, deviceScaleFactor: 2, locale: "ar" })
+    ctx = await browser.newContext({ ...emulation, deviceScaleFactor: 2, locale: "ar" })
     if (Object.keys(seed).length) {
       await ctx.addInitScript((entries) => {
         try {
@@ -217,6 +231,17 @@ try {
       if (msg.type() === "error") errors.push(`${page.url()} — ${msg.text()}`)
     })
     page.on("pageerror", (err) => errors.push(`${page.url()} — ${String(err)}`))
+    // Chromium's console message for a failed subresource is «Failed to load
+    // resource: the server responded with a status of 404» and NOTHING else —
+    // no URL, so the report names a route and not a cause. These two listeners
+    // are the missing half: every non-ok response and every dead request is
+    // recorded with its URL, and the failure report prints them alongside.
+    page.on("response", (res) => {
+      if (res.status() >= 400) failures.push(`${res.status()} ${res.url()}`)
+    })
+    page.on("requestfailed", (req) => {
+      failures.push(`${req.failure()?.errorText ?? "failed"} ${req.url()}`)
+    })
     applied = wanted
     return page
   }
@@ -235,6 +260,10 @@ try {
   if (errors.length) {
     console.error(`FAIL — ${errors.length} console error(s):`)
     for (const e of errors) console.error(`  ${e}`)
+    if (failures.length) {
+      console.error(`  ── the requests behind them ──`)
+      for (const f of [...new Set(failures)]) console.error(`  ${f}`)
+    }
     failed = true
   } else {
     console.log(`smoke green — ${OUT_DIR} updated`)

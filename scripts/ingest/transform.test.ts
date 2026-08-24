@@ -185,9 +185,45 @@ describe("transformPoem — identity", () => {
   })
 
   it("strips the parenthetical suffix from the شاعر's display name", () => {
+    // …and then the alias table folds what is left onto the شهرة, so this row
+    // shows both halves at once: the parenthetical goes, and «بشارة الخوري»
+    // resolves to «الأخطل الصغير» — the two poets rows the corpus used to hold.
     const t = must(raw({ verses: MUTANABBI, poetName: "بشارة الخوري (الأخطل الصغير )" }))
     expect(t.poet.name).toBe("بشارة الخوري")
-    expect(t.poet.nameKey).toBe(normalizeArabic("بشارة الخوري"))
+    expect(t.poet.nameKey).toBe(normalizeArabic("الأخطل الصغير"))
+    expect(t.poet.isCanonicalName).toBe(false)
+  })
+
+  it("stores a شاعر under his canonical name_key, alias spellings included", () => {
+    const alias = must(raw({ verses: MUTANABBI, poetName: "أبو الطيب المتنبي" }))
+    const canonical = must(raw({ verses: MUTANABBI, poetName: "المتنبي" }))
+    expect(alias.poet.nameKey).toBe(normalizeArabic("المتنبي"))
+    expect(alias.poet.nameKey).toBe(canonical.poet.nameKey)
+    // the display name is untouched — build.ts is what prefers the canonical one
+    expect(alias.poet.name).toBe("أبو الطيب المتنبي")
+    expect(alias.poet.isCanonicalName).toBe(false)
+    expect(canonical.poet.isCanonicalName).toBe(true)
+  })
+
+  it("merges the dedup key too, so one قصيدة under two spellings is one row", () => {
+    const alias = must(raw({ verses: MUTANABBI, title: "أ", poetName: "أبو الطيب المتنبي" }))
+    const canonical = must(raw({ verses: MUTANABBI, title: "ب", poetName: "المتنبي" }))
+    expect(alias.dedupKey).toBe(canonical.dedupKey)
+  })
+
+  it("leaves a شاعر the alias table does not name exactly where he was", () => {
+    const t = must(raw({ verses: MUTANABBI, poetName: "متنبي المغرب" }))
+    expect(t.poet.nameKey).toBe(normalizeArabic("متنبي المغرب"))
+    expect(t.poet.isCanonicalName).toBe(true)
+  })
+
+  it("derives the شاعر's letter and sort key past the honorifics", () => {
+    const t = must(raw({ verses: MUTANABBI, poetName: "أ.د/ مصطفى الشليح" }))
+    // the CARD still reads the name the source gave …
+    expect(t.poet.name).toBe("أ.د/ مصطفى الشليح")
+    // … while the شعراء index files him under الميم, not الألف
+    expect(t.poet.letter).toBe("م")
+    expect(t.poet.sortKey).toBe("مصطفي الشليح")
   })
 
   it("builds dedup_key from normalised name|first hemistich — never the title", () => {

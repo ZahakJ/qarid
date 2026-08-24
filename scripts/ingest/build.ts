@@ -30,13 +30,14 @@ import fs from "node:fs"
 import path from "node:path"
 import { DatabaseSync } from "node:sqlite"
 
-import { fnv1a32, normalizeArabic } from "../../shared/arabic.ts"
+import { fnv1a32, normalizeArabic, shuhraLetter, sortName } from "../../shared/arabic.ts"
 import { INGEST_TX_SIZE, SCHEMA_VERSION, SOURCE_DATASET, SOURCE_REVISION } from "../../shared/constants.ts"
 import { ERAS } from "../../shared/eras.ts"
 import { FAMOUS_POET_KEYS } from "../../shared/famousPoets.ts"
-import { formatNumber } from "../../shared/format.ts"
+import { histogramLabel } from "../../shared/format.ts"
 import { HIJAI_LETTERS } from "../../shared/letters.ts"
 import { METERS } from "../../shared/meters.ts"
+import { canonicalDisplayName } from "../../shared/poetAliases.ts"
 import { THEMES } from "../../shared/themes.ts"
 import { BUILD_PRAGMAS, COMBO_ANY, COMBO_NONE, DDL, INDEXES, SCRATCH_DDL, TIER_PREDICATES } from "./ddl.ts"
 import { readRecords } from "./readers.ts"
@@ -71,6 +72,12 @@ export interface BuildReport {
   emptyPoems: number
   /** rows dropped by `ON CONFLICT DO NOTHING` — the duplicate corpus entries */
   duplicatePoems: number
+  /**
+   * How many شاعر rows `shared/poetAliases.ts` folded away: one per alias
+   * spelling the corpus actually carried, so it is ≤ `POET_ALIAS_COUNT` and 0
+   * on a corpus that happens to hold none of them.
+   */
+  mergedPoets: number
   /** must be empty: design-server.md §6's "0 unmapped metres" assert */
   unmappedMeters: Record<string, number>
   bytes: number
@@ -84,12 +91,29 @@ interface PoetAcc {
   id: number
   name: string
   nameKey: string
+  /**
+   * Is `name` the canonical spelling — i.e. does it normalize back to
+   * `nameKey`? A شاعر first met through an alias («أبو الطيب المتنبي») starts
+   * `false` and is upgraded the moment a row spells him «المتنبي», taking that
+   * row's letter, sort key and slug with it.
+   */
+  canonicalName: boolean
   letter: string
   sortKey: string
   eraVotes: Counter
   locationVotes: Counter
   description: string | null
+  /** aldiwan slugs seen on rows spelling the شاعر his CANONICAL way. */
   urlSlugs: Set<string>
+  /** aldiwan slugs seen only on an alias row — the fallback, never the winner. */
+  aliasUrlSlugs: Set<string>
+  /**
+   * Every `name_key` folded into this row, the canonical one included. `fameOf`
+   * reads it so a merge takes the MAX fame of the pair: «الأسود بن يعفر
+   * النهشلي» is in the canon and «الأسود النهشلي», the row that keeps the slug,
+   * is not — without this the merge would demote him out of the مبتدئ tier.
+   */
+  sourceKeys: Set<string>
   sourceUrl: string | null
   poemCount: number
   baitCount: number
@@ -187,6 +211,13 @@ interface Pass1Result {
   baits: number
   emptyPoems: number
   duplicatePoems: number
+  /**
+   * Every alias `name_key` the corpus actually spelled, counted on the way past
+   * `transform.ts` and BEFORE the dedup skip: an alias whose every قصيدة loses
+   * pass 0 to the canonical's copy of the same قصيدة still cost a `poets` row
+   * before the merge, so it still counts as one folded away.
+   */
+  aliasKeys: Set<string>
   unmapped: Counter
   peakRssMb: number
 }
@@ -253,6 +284,7 @@ async function runPass1(
 
   const poets = new Map<string, PoetAcc>()
   const unmapped: Counter = new Map()
+  const aliasKeys = new Set<string>()
 
   let poemId = 0
   let baitId = 0
@@ -285,6 +317,9 @@ async function runPass1(
         emptyPoems++
         continue
       }
+      // Counted here, not in `votePoet`: this row may still lose dedup below,
+      // and it would have been its own `poets` row before the alias table.
+      if (!poem.poet.isCanonicalName) aliasKeys.add(normalizeArabic(poem.poet.name))
       // Not the copy pass 0 chose — a duplicate قصيدة under another title, or a
       // shorter reading of it. `dedupKey` is the same string pass 0 keyed on
       // (`dedupKeyOf`), so the two passes cannot disagree about what a قصيدة is.
@@ -307,12 +342,15 @@ async function runPass1(
           id: ++poetId,
           name: poem.poet.name,
           nameKey: poem.poet.nameKey,
+          canonicalName: poem.poet.isCanonicalName,
           letter: poem.poet.letter ?? "ا",
           sortKey: poem.poet.sortKey,
           eraVotes: new Map(),
           locationVotes: new Map(),
           description: null,
           urlSlugs: new Set(),
+          aliasUrlSlugs: new Set(),
+          sourceKeys: new Set(),
           sourceUrl: null,
           poemCount: 0,
           baitCount: 0,
@@ -400,15 +438,32 @@ async function runPass1(
   if (rss > peakRssMb) peakRssMb = rss
   say(`pass 1 done: ${seen.toLocaleString("en")} rows read, ${poemId.toLocaleString("en")} poems kept`)
 
-  return { poets, poems: poemId, baits: baitId, emptyPoems, duplicatePoems, unmapped, peakRssMb }
+  return { poets, poems: poemId, baits: baitId, emptyPoems, duplicatePoems, aliasKeys, unmapped, peakRssMb }
 }
 
 function idOrNull(map: Map<string, number>, slug: string | null): number | null {
   return slug === null ? null : (map.get(slug) ?? null)
 }
 
-/** Each poem the شاعر keeps casts one vote for era and location. */
+/**
+ * Each poem the شاعر keeps casts one vote for era and location — and, when the
+ * alias table folded two spellings together, one vote for which of them the
+ * card should read.
+ *
+ * The canonical spelling wins outright and brings its letter, sort key and
+ * slug with it (CLAUDE.md's alias backlog: "slug = canonical's"), because
+ * `nameKey` is the canonical key and a card reading «أبو الطيب المتنبي» over
+ * `poets.name_key = 'المتنبي'` would be the same duplicate wearing one row.
+ * Description and fame are maxima and are handled below and in `fameOf`.
+ */
 function votePoet(poet: PoetAcc, poem: TransformedPoem): void {
+  poet.sourceKeys.add(normalizeArabic(poem.poet.name))
+  if (!poet.canonicalName && poem.poet.isCanonicalName) {
+    poet.name = poem.poet.name
+    poet.letter = poem.poet.letter ?? "ا"
+    poet.sortKey = poem.poet.sortKey
+    poet.canonicalName = true
+  }
   if (poem.poet.eraSlug !== null) {
     poet.eraVotes.set(poem.poet.eraSlug, (poet.eraVotes.get(poem.poet.eraSlug) ?? 0) + 1)
   }
@@ -421,7 +476,12 @@ function votePoet(poet: PoetAcc, poem: TransformedPoem): void {
       poet.description = poem.poet.description
     }
   }
-  if (poem.poet.urlSlug !== null) poet.urlSlugs.add(poem.poet.urlSlug)
+  if (poem.poet.urlSlug !== null) {
+    // An alias row's aldiwan slug is kept apart so it can only ever be the
+    // fallback: «المتنبي» must stay `mutanabi` even though the merge brought a
+    // second aldiwan page in with it.
+    ;(poem.poet.isCanonicalName ? poet.urlSlugs : poet.aliasUrlSlugs).add(poem.poet.urlSlug)
+  }
   if (poet.sourceUrl === null && poem.poet.sourceUrl !== null) poet.sourceUrl = poem.poet.sourceUrl
 }
 
@@ -532,6 +592,7 @@ function runPass2(
     comboRows,
     emptyPoems: pass1.emptyPoems,
     duplicatePoems: pass1.duplicatePoems,
+    mergedPoets: pass1.aliasKeys.size,
     unmappedMeters: Object.fromEntries(pass1.unmapped),
     bytes,
     elapsedMs: Date.now() - started,
@@ -540,7 +601,8 @@ function runPass2(
   say(
     `done in ${(report.elapsedMs / 1000).toFixed(1)}s · ${(bytes / 1024 / 1024).toFixed(1)} MB · ` +
       `${report.poems.toLocaleString("en")} poems / ${report.baits.toLocaleString("en")} أبيات / ` +
-      `${report.gameBaits.toLocaleString("en")} playable · peak rss ${report.peakRssMb.toFixed(0)} MB`,
+      `${report.gameBaits.toLocaleString("en")} playable · ${report.mergedPoets} شاعر merged · ` +
+      `peak rss ${report.peakRssMb.toFixed(0)} MB`,
   )
   return report
 }
@@ -560,7 +622,20 @@ function writePoets(db: DatabaseSync, lookups: Lookups, poets: Map<string, PoetA
   const ordered = [...poets.values()].sort((a, b) => a.id - b.id)
 
   for (const poet of ordered) {
-    const base = [...poet.urlSlugs].sort()[0] ?? fallbackFor(poet)
+    // A شاعر the corpus only ever spelled the alias way — no row could supply
+    // the canonical display name, so the alias table does.
+    if (!poet.canonicalName) {
+      const canonical = canonicalDisplayName(poet.nameKey)
+      if (canonical !== null) {
+        poet.name = canonical
+        poet.letter = shuhraLetter(canonical) ?? "ا"
+        poet.sortKey = sortName(canonical)
+        poet.canonicalName = true
+      }
+    }
+
+    const base =
+      [...poet.urlSlugs].sort()[0] ?? [...poet.aliasUrlSlugs].sort()[0] ?? fallbackFor(poet)
     let slug = base
     let n = 1
     while (taken.has(slug)) slug = `${base}-${++n}`
@@ -596,6 +671,9 @@ function fameOf(poet: PoetAcc): number {
   // Curated canon only at the top rung: raw poem count promoted obscure prolific
   // modern poets (3,000+ poems) into the «مبتدئ» duel tier, which must quote
   // abyat a player could plausibly know.
+  // The MAX over every spelling the alias table folded in — `sourceKeys` always
+  // holds `nameKey` itself, so an unmerged شاعر behaves exactly as before.
+  for (const key of poet.sourceKeys) if (FAMOUS_POET_KEYS.has(key)) return 3
   if (FAMOUS_POET_KEYS.has(poet.nameKey)) return 3
   if (poet.poemCount >= 60 || poet.description !== null) return 2
   if (poet.poemCount >= 5) return 1
@@ -843,12 +921,7 @@ function poemLengthHistogram(db: DatabaseSync) {
       max === null
         ? scalar(db, `SELECT COUNT(*) AS n FROM poems WHERE bait_count >= ${min}`)
         : scalar(db, `SELECT COUNT(*) AS n FROM poems WHERE bait_count BETWEEN ${min} AND ${max}`)
-    const label =
-      max === null
-        ? `${formatNumber(min)}+`
-        : min === max
-          ? formatNumber(min)
-          : `${formatNumber(min)}–${formatNumber(max)}`
+    const label = histogramLabel({ min, max })
     return { min, max, label, count: n }
   })
 }

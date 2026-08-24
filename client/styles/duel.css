@@ -352,6 +352,19 @@ a.exchange__who:hover {
   color: var(--accent);
 }
 
+/* «خرج عن القيود» — the opponent answered from OUTSIDE the player's عصر/بحر
+ * because nothing inside them chained. Warn-toned and quiet: it is an honest
+ * disclosure, not a fault, and it must never outweigh the شاعر's name beside
+ * it. `.num`-free, so nothing here needs an LTR run. */
+.exchange__relaxed {
+  font-size: var(--fs-ui-0);
+  color: var(--warn);
+  border: 1px solid currentColor;
+  border-radius: var(--r-1);
+  padding-inline: var(--sp-2);
+  opacity: 0.8;
+}
+
 /* sits after the exchange's own metadata, not 700px away at the far edge */
 .exchange__award {
   font-family: var(--font-mono);
@@ -1001,15 +1014,42 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   background: var(--lapis-dim);
 }
 
+/* design-ux.md §4 Summary asks for a poet-card grid here, and `.pcard` IS that
+ * card — the شعراء index's. The track is wider than the index's 15rem because
+ * a مساجلة meets a handful of شعراء, not four hundred, so the cells may
+ * breathe; `minmax(0, …)` keeps a long اسم from pushing the grid past the
+ * column (the min-content trap in CLAUDE.md). */
 .met-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
-  gap: var(--sp-2);
+  grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+  gap: var(--sp-3);
   list-style: none;
 }
 
-/* closer to a poet card than to a chip: the شعراء met are the retention
- * mechanic, and «جديد عليك» has to be readable at a glance */
+/* The نِيب is the retention mechanic's whole visual vocabulary, and it belongs
+ * to the CELL rather than to the card: `.pcard` is shared with #/poets, which
+ * has no notion of «جديد عليك». */
+.met-cell {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.met-cell[data-new="1"] .pcard,
+.met-cell[data-new="1"] .met {
+  border-color: var(--accent-line);
+}
+
+.met-cell__nib {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+  color: var(--accent);
+  display: inline-flex;
+  pointer-events: none;
+}
+
+/* The fallback when `/api/poets?slugs=` did not answer: the name alone, which
+ * is all an `Exchange` carries. */
 .met {
   display: flex;
   align-items: center;
@@ -1026,15 +1066,6 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
 
 .met:hover {
   border-color: var(--accent-line);
-}
-
-.met[data-new="1"] {
-  border-color: var(--accent-line);
-}
-
-.met__nib {
-  color: var(--accent);
-  display: inline-flex;
 }
 
 .met-total {

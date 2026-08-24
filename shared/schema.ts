@@ -30,6 +30,7 @@
  */
 
 import { z } from "zod"
+import { MUBARAZA_EXCHANGES } from "./constants.ts"
 import { HIJAI_LETTERS } from "./letters.ts"
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -260,7 +261,22 @@ export type ThemeRef = z.infer<typeof ThemeRefSchema>
 export const PoetRefSchema = z.object({ slug: PoetSlugSchema, name: z.string() })
 export type PoetRef = z.infer<typeof PoetRefSchema>
 
-export const PoemRefSchema = z.object({ id: PublicPoemIdSchema, title: z.string() })
+/**
+ * The poem a بيت belongs to, under BOTH of its names.
+ *
+ *  • `id` is the PUBLIC id — `q<rowid>` for the 73% with no aldiwan page, the
+ *    bare aldiwan number for the rest. It is what `#/poem/<id>` routes on and
+ *    what `baytKey` is built from, and it is NOT a `poems.id`.
+ *  • `poemId` is the INTERNAL `poems.id`, the only thing the duel's
+ *    `excludePoemIds` / `usedPoemIds` speak. Parsing `id` back into a number
+ *    works for `q…` and silently produces an unrelated poem's id for an
+ *    aldiwan one, which is exactly the bug this field exists to end.
+ */
+export const PoemRefSchema = z.object({
+  id: PublicPoemIdSchema,
+  poemId: z.number().int().positive(),
+  title: z.string(),
+})
 export type PoemRef = z.infer<typeof PoemRefSchema>
 
 export const MeterInfoSchema = z.object({
@@ -469,11 +485,27 @@ const pageShape = {
   limit: intParam(1, LIMITS.maxLimit, LIMITS.defaultLimit),
 }
 
+/**
+ * How many شعراء one `?slugs=` batch may name. The duel summary is the caller
+ * and a مساجلة cannot meet more شعراء than it has exchanges, so 30 is generous;
+ * the cap exists so the comma list can never become an unbounded `IN (…)`.
+ */
+export const MAX_POET_SLUGS = 30
+
 export const PoetsQuerySchema = z.object({
   letter: optionalStr(ArabicLetterSchema),
   era: optionalStr(SlugSchema),
   q: optionalStr(z.string().max(200)),
   fame: optionalIntParam(0, 3),
+  /**
+   * Batch lookup: `?slugs=mutanabi,abu-nuwas` returns those شعراء as full
+   * `PoetSummary` rows, in the order asked, and ignores every other filter.
+   * The duel summary's «الشعراء الذين لقيتهم» grid is why it exists — an
+   * `Exchange` carries only `{slug, name}`, and a PoetCard needs عصر, ديوان
+   * size and a ترجمة (design-ux.md §4 Summary). Unknown slugs are simply
+   * absent, never a 400.
+   */
+  slugs: optionalStr(z.string().max(2000)),
   sort: PoetsSortSchema.optional().default("name"),
   ...pageShape,
 })
@@ -1122,7 +1154,7 @@ export type GameHintResponse = z.infer<typeof GameHintResponseSchema>
  * `persist.ts` stores `{v, data}`; a payload whose `v` has no migration path is
  * backed up to `qarid:corrupt-backup:<slice>` and the slice resets to defaults.
  */
-export const PERSIST_VERSION = 1
+export const PERSIST_VERSION = 2
 
 export const PERSIST_KEYS = {
   settings: "qarid:v1:settings",
@@ -1138,8 +1170,51 @@ export function persistEnvelope<T extends z.ZodType>(data: T) {
   return z.object({ v: z.number().int().nonnegative(), data })
 }
 
-/** version → transform to the NEXT version. Empty at v1 by construction. */
-export const MIGRATIONS: Record<number, (data: unknown) => unknown> = {}
+/**
+ * version → transform to the NEXT version.
+ *
+ * One rule the mechanism imposes: a step is applied to EVERY slice stored at
+ * that version, not only to the one it was written for (`persist.ts` runs the
+ * chain before it knows which schema it is about to parse). So a step must
+ * recognise its own shape and hand everything else back untouched.
+ */
+export const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
+  /**
+   * v1 → v2: `outcome` and `endedAt` join the duel session.
+   *
+   * A v1 session that ended is still on disk with neither, and both default to
+   * null — which is exactly the backlog bug: reloading `#/duel/summary` traded
+   * «انقضت الأرواح» for «سلسلة من 6 أبيات». What CAN be recovered from a v1
+   * payload is recovered here, and only that: no lives left is a defeat, ten
+   * أبيات in المبارزة is a finished مبارزة, and everything else stayed
+   * genuinely ambiguous (انسحبتَ and أفحمتَ الخصم both end with lives to
+   * spare), so it is left null rather than guessed. `endedAt` falls back to the
+   * last بيت's timestamp — the honest floor on when the مساجلة stopped.
+   */
+  1: (data: unknown): unknown => {
+    if (typeof data !== "object" || data === null || !("session" in data)) return data
+    const slice = data as { session: unknown }
+    const s = slice.session
+    if (typeof s !== "object" || s === null) return data
+    const session = s as Record<string, unknown>
+    if (session.phase !== "summary") return data
+
+    const exchanges = Array.isArray(session.exchanges) ? session.exchanges : []
+    const last = exchanges.length ? (exchanges[exchanges.length - 1] as Record<string, unknown> | undefined) : undefined
+    const lastAt = typeof last?.at === "number" ? last.at : null
+    const startedAt = typeof session.startedAt === "number" ? session.startedAt : null
+
+    const lives = typeof session.lives === "number" ? session.lives : 1
+    const format = (session.config as Record<string, unknown> | undefined)?.format
+    const playerTurns = exchanges.filter(
+      (e) => typeof e === "object" && e !== null && (e as Record<string, unknown>).side === "player",
+    ).length
+    const outcome =
+      session.outcome ?? (lives <= 0 ? "defeat" : format === "match" && playerTurns >= MUBARAZA_EXCHANGES ? "match" : null)
+
+    return { ...slice, session: { ...session, outcome, endedAt: session.endedAt ?? lastAt ?? startedAt } }
+  },
+}
 
 // ── settings ──────────────────────────────────────────────────────────────
 
@@ -1221,6 +1296,14 @@ export const ExchangeSchema = z.object({
   ms: z.number().int().nonnegative().default(0),
   obscurity: z.number().min(0).max(1).default(0),
   at: z.number().int().nonnegative().default(0),
+  /**
+   * The opponent had to leave the «القيود» to answer this one — `relaxed: true`
+   * on `/api/game/reply`. Only ever set on an `opponent` exchange; the card
+   * says «خرج عن القيود» so a بيت from outside the chosen عصر/بحر is not read
+   * as the filter having quietly failed. Defaults false, so a session written
+   * before the field existed still parses.
+   */
+  relaxed: z.boolean().default(false),
 })
 export type Exchange = z.infer<typeof ExchangeSchema>
 
@@ -1269,8 +1352,10 @@ export const DuelSessionSliceSchema = z.object({
   lastResult: DuelLastResultSchema.default(null),
   /** set on #/daily so the one-attempt-per-day rule can be enforced */
   dailyDate: DayKeySchema.nullable().default(null),
-  /* Both default to null, so a session written before they existed still
-   * parses — no PERSIST_VERSION bump, no migration step. */
+  /* Both are PERSISTED — that is the whole point: nothing else in a finished
+   * session tells «أفحمتَ الخصم» from «انسحبتَ». They arrived at v2, and both
+   * default to null so a raw v1 payload still parses; what `MIGRATIONS[1]`
+   * adds on top is the part of a v1 ending that can honestly be recovered. */
   outcome: DuelOutcomeSchema.default(null),
   endedAt: z.number().int().nonnegative().nullable().default(null),
 })

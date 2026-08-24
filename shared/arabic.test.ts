@@ -33,6 +33,7 @@ import {
   rawiyyOf,
   shuhraLetter,
   sortName,
+  stripHonorifics,
   stripMarks,
   stripTashkeel,
 } from "./arabic.ts"
@@ -452,6 +453,67 @@ describe("sortName / shuhraLetter", () => {
   it("survives empty input", () => {
     expect(sortName(null)).toBe("")
     expect(shuhraLetter("")).toBeNull()
+  })
+})
+
+describe("sortName — honorifics (CLAUDE.md backlog: the شعراء index)", () => {
+  it("files «أ.د/ مصطفى الشليح» under الميم, sort key and letter together", () => {
+    expect(sortName("أ.د/ مصطفى الشليح")).toBe("مصطفي الشليح")
+    expect(shuhraLetter("أ.د/ مصطفى الشليح")).toBe("م")
+  })
+
+  it("strips an initial glued straight onto the name with no space", () => {
+    expect(sortName("أ.عبدالله بن يحي علي البت")).toBe("عبدالله بن يحي علي البت")
+    expect(shuhraLetter("أ.عبدالله بن يحي علي البت")).toBe("ع")
+  })
+
+  it("strips the corpus's other abbreviations", () => {
+    expect(shuhraLetter("د/ عبد العزيز الرنتيسي")).toBe("ع")
+    expect(shuhraLetter("د/محمد رفعت الدومي")).toBe("م")
+    expect(shuhraLetter("د. أحمد بن سعيد")).toBe("ا")
+    // a lone letter needs no dot when it is an initial the corpus uses
+    expect(shuhraLetter("الشيخة د خلدية آل خليفة")).toBe("خ")
+  })
+
+  it("strips the spelled-out titles", () => {
+    expect(shuhraLetter("الدكتور جاسم الفهيد")).toBe("ج")
+    expect(shuhraLetter("دكتور المعز عمر بخيت")).toBe("م")
+    expect(shuhraLetter("الدكتورة سعاد الصباح")).toBe("س")
+    expect(shuhraLetter("الشيخ محمد متولي الشعراوي")).toBe("م")
+    expect(shuhraLetter("الأستاذ أبو الحسن الشيباني")).toBe("ا")
+    expect(shuhraLetter("المهندس خالد الفيصل")).toBe("خ")
+    expect(shuhraLetter("القاضي عبد الوهاب المالكي")).toBe("ع")
+    expect(shuhraLetter("السيد عبد الله سالم")).toBe("ع")
+  })
+
+  it("peels a run of them, one token at a time", () => {
+    expect(stripHonorifics("أ.د/ مصطفى الشليح")).toBe("مصطفى الشليح")
+    expect(stripHonorifics("الأستاذ الدكتور محمد عبد الله")).toBe("محمد عبد الله")
+  })
+
+  it("KEEPS a title that is the شهرة — the one-token guard", () => {
+    // «القاضي الفاضل» (685 قصيدة) is not a judge called الفاضل; the whole
+    // phrase is the name, and filing him under الفاء hides him.
+    expect(shuhraLetter("القاضي الفاضل")).toBe("ق")
+    expect(shuhraLetter("القاضي عياض")).toBe("ق")
+    expect(shuhraLetter("القاضي التنوخي")).toBe("ق")
+    expect(shuhraLetter("السيد الحميري")).toBe("س")
+    expect(shuhraLetter("الشيخ علوان")).toBe("ش")
+  })
+
+  it("never strips a name away to nothing", () => {
+    expect(sortName("الشيخ")).toBe("شيخ")
+    expect(sortName("د.")).toBe("د.")
+    expect(stripHonorifics("أ.")).toBe("أ.")
+  })
+
+  it("leaves an ordinary name exactly as it was", () => {
+    for (const name of [
+      "المتنبي", "أبو تمام", "ابن الرومي", "إلياس أبو شبكة", "الياسمين الدمشقي",
+      "محمود درويش", "بدر شاكر السياب", "أ", "شاعر مجهول",
+    ]) {
+      expect(stripHonorifics(name), name).toBe(name)
+    }
   })
 })
 

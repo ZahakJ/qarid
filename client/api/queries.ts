@@ -20,6 +20,7 @@ import {
   DailyResponseSchema,
   FacetsResponseSchema,
   LIMITS,
+  MAX_POET_SLUGS,
   MetaResponseSchema,
   PoemBaitsResponseSchema,
   PoemDetailResponseSchema,
@@ -136,6 +137,19 @@ export function getSimilarPoems(publicId: string, limit = 8, o?: Opts): Promise<
 
 export function listPoets(params: Params = {}, o?: Opts): Promise<PoetsResponse> {
   return request(qs("/api/poets", params), PoetsResponseSchema, init(o))
+}
+
+/**
+ * Batch lookup: full `PoetSummary` rows for up to `MAX_POET_SLUGS` شعراء, in
+ * the order asked. The duel summary's «الشعراء الذين لقيتهم» grid is the one
+ * caller — an `Exchange` denormalizes only `{slug, name}`, and a PoetCard needs
+ * عصر, ديوان size and a ترجمة. Slugs the artefact does not carry come back
+ * absent, never as an error.
+ */
+export function getPoetsBySlugs(slugs: readonly string[], o?: Opts): Promise<PoetsResponse> {
+  const wanted = slugs.slice(0, MAX_POET_SLUGS)
+  if (wanted.length === 0) return Promise.resolve({ items: [], total: 0, page: 1, limit: MAX_POET_SLUGS })
+  return request(qs("/api/poets", { slugs: wanted.join(",") }), PoetsResponseSchema, init(o))
 }
 
 export function getPoet(slug: string, o?: Opts): Promise<PoetPageResponse> {

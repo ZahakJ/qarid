@@ -58,8 +58,14 @@ import { awardFor, scoreObscurity, STUMP_BONUS, type AwardBreakdown } from "./sc
 // Shapes
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** What /api/game/start, /reply, a passing /verify and «بدّل الحرف» all return. */
-export type ServedBait = { bait: BaitDto; poem: PoemSummary; poet: PoetSummary } & ChainState
+/**
+ * What /api/game/start, /reply, a passing /verify and «بدّل الحرف» all return.
+ *
+ * `relaxed` only ever arrives on a REPLY: every tier inside the player's
+ * «القيود» was dry on this letter, so the opponent stepped outside them rather
+ * than answer `no_bait` and hand over «أفحمتَ الخصم» (+500) for free.
+ */
+export type ServedBait = { bait: BaitDto; poem: PoemSummary; poet: PoetSummary; relaxed?: boolean } & ChainState
 
 /** Why the last answer was refused — everything the RejectionCard needs. */
 export type Rejection =
@@ -349,36 +355,34 @@ function exchangeOf(served: ServedBait, side: "player" | "opponent", now: number
     ms: 0,
     obscurity: served.obscurity,
     at: now,
+    // the player's own بيت is never «relaxed» — only the opponent has قيود to leave
+    relaxed: side === "opponent" && served.relaxed === true,
     ...extra,
   }
 }
 
 /**
- * `usedPoemIds` / `excludePoemIds` are the server's INTERNAL `poems.id`, but
- * every DTO carries the PUBLIC id (`q<rowid>` for the 73% with no aldiwan
- * page, the bare aldiwan number for the rest — CLAUDE.md spike finding 1). The
- * `q…` form IS the internal rowid, so it converts exactly; an aldiwan id is a
- * different number entirely and must never be sent as one.
+ * Add a served بيت to the used sets — nobody may say it twice, and nobody may
+ * come back for a second بيت of the same قصيدة.
  *
- * The consequence is deliberate and small: on an aldiwan قصيدة the duel falls
- * back to بيت-level exclusion, so the opponent may quote a second بيت from a
- * قصيدة it already used. Exposing `poemId` on BaitDto would close it (see the
- * report).
+ * `usedPoemIds` / `excludePoemIds` are the server's INTERNAL `poems.id`, and
+ * that is precisely what `bait.poem.poemId` is (`PoemRefSchema`). It used to be
+ * derived by parsing the PUBLIC id — which is `q<rowid>` for the 73% of قصائد
+ * with no aldiwan page but the bare aldiwan number for the other 27%
+ * (CLAUDE.md spike finding 1). On those, parsing gave either nothing (so the
+ * exclusion silently did not happen) or an unrelated poem's id. Reading the
+ * field the server already sends makes poem-level exclusion true for all of
+ * them.
  */
-export function internalPoemId(publicId: string | null | undefined): number | null {
-  if (!publicId || publicId[0] !== "q") return null
-  const n = Number(publicId.slice(1))
-  return Number.isInteger(n) && n > 0 ? n : null
-}
-
-/** Add a served بيت to the used sets — nobody may say it twice. */
 function withUsed(s: DuelState, served: ServedBait): Pick<DuelState, "usedKeys" | "usedBaitIds" | "usedPoemIds"> {
-  const poemNum = internalPoemId(served.bait.poem.id)
+  const poemNum = served.bait.poem.poemId
   return {
     usedKeys: s.usedKeys.includes(served.bait.baytKey) ? s.usedKeys : [...s.usedKeys, served.bait.baytKey],
     usedBaitIds: s.usedBaitIds.includes(served.bait.id) ? s.usedBaitIds : [...s.usedBaitIds, served.bait.id],
     usedPoemIds:
-      poemNum === null || s.usedPoemIds.includes(poemNum) ? s.usedPoemIds : [...s.usedPoemIds, poemNum],
+      !Number.isInteger(poemNum) || poemNum <= 0 || s.usedPoemIds.includes(poemNum)
+        ? s.usedPoemIds
+        : [...s.usedPoemIds, poemNum],
   }
 }
 
@@ -597,7 +601,12 @@ export function reduce(s: DuelState, a: DuelAction): DuelState {
         case "not_found":
           return penalise(s, { kind: "not_found", normalized: r.normalized, suggestions: r.suggestions }, "not_found", a.now)
         case "incomplete_bait":
-          return penalise(s, { kind: "incomplete_bait", bait: r.bait }, "incomplete_bait", a.now)
+          // SOFT. The ديوان holds this بيت with no عجز (24,378 قصائد have an
+          // odd hemistich count), and the server already prefers a complete
+          // copy when one exists — so what is left is the CORPUS being short a
+          // شطر, not the player being wrong. Charging a life for the scrape's
+          // damage was the bug.
+          return softReject(s, { kind: "incomplete_bait", bait: r.bait }, "incomplete_bait", a.now)
       }
       return s
     }

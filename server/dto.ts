@@ -167,8 +167,14 @@ export function poetRef(row: Row): PoetRef {
   return { slug: str(row.po_slug), name: str(row.po_name) }
 }
 
+/**
+ * Both of a poem's names (see `PoemRefSchema`): the public id every route and
+ * hash link speaks, and the internal `poems.id` the duel excludes on. Every
+ * caller therefore has to have selected `p.id AS p_id` — `POEM_COLS` and
+ * `BAIT_CONTEXT_COLS` both do.
+ */
 export function poemRef(row: Row): PoemRef {
-  return { id: str(row.p_public_id), title: str(row.p_title) }
+  return { id: str(row.p_public_id), poemId: num(row.p_id), title: str(row.p_title) }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -250,7 +256,7 @@ export function baitDto(row: Row): BaitDto {
  * does not select the poem's previews and title_key 300 times over.
  */
 export const BAIT_CONTEXT_COLS = `
-  p.public_id AS p_public_id, p.title AS p_title, p.meter_variant AS p_meter_variant,
+  p.id AS p_id, p.public_id AS p_public_id, p.title AS p_title, p.meter_variant AS p_meter_variant,
   po.slug AS po_slug, po.name AS po_name,
   m.slug AS m_slug, m.name AS m_name,
   e.slug AS e_slug, e.name AS e_name`

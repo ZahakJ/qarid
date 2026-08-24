@@ -6,7 +6,7 @@
  *    one of lapis's three sanctioned uses), yours the gold one;
  *  • the opponent is «الخصم» while its بيت is still standing — the شاعر is
  *    named only once you have answered it, so the attribution is a reward and
- *    not a hint;
+ *    not a hint, and «خرج عن القيود» waits for the same moment;
  *  • `+140` rides the plate of the بيت that earned it.
  *
  * `pulseExchange(baytKey)` is how the `already_used` rejection card sends the
@@ -18,7 +18,7 @@
 import { useEffect, useRef } from "react"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { Chip } from "../components/Chip.tsx"
-import { formatScore } from "../../shared/format.ts"
+import { NUQTA_FORMS, countedUnit, formatCount, formatScore } from "../../shared/format.ts"
 import { routeHash } from "../router.ts"
 import type { Exchange } from "../../shared/schema.ts"
 import { RecitationReveal } from "./RecitationReveal.tsx"
@@ -63,13 +63,22 @@ function Meta({ ex, revealed }: { ex: Exchange; revealed: boolean }) {
         <span className="exchange__who">{ex.side === "player" ? "أنت" : OPPONENT_NAME}</span>
       )}
       {revealed && ex.meter ? <Chip variant="bahr" slug={ex.meter.slug} label={ex.meter.name} /> : null}
+      {/* The opponent left the player's «القيود» to find this one — say so, or
+          a بيت from outside the chosen عصر/بحر reads as the filter having
+          quietly failed. Only ever set on an opponent's exchange, and only
+          once the شاعر is revealed, so it never leaks a hint mid-turn. */}
+      {revealed && ex.relaxed ? (
+        <span className="exchange__relaxed" title="لم يبق بيت داخل قيودك على هذا الحرف">
+          خرج عن القيود
+        </span>
+      ) : null}
       {revealed && ex.poemId ? (
         <a className="exchange__link" href={routeHash({ view: "poem", id: ex.poemId })}>
           القصيدة
         </a>
       ) : null}
       {ex.side === "player" && ex.award ? (
-        <span className="exchange__award" aria-label={`${ex.award} نقطة`}>
+        <span className="exchange__award" aria-label={`${formatCount(ex.award)} ${countedUnit(ex.award, NUQTA_FORMS)}`}>
           ‎+{formatScore(ex.award)}
         </span>
       ) : null}

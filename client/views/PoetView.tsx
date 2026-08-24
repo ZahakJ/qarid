@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ApiError } from "../api/client.ts"
 import { listPoetPoems } from "../api/queries.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
+import { formatBayt, formatBaytWithPoet, writeClipboard } from "../bayt/copy.ts"
 import { Breadcrumbs, type Crumb } from "../components/Breadcrumbs.tsx"
 import { Chip } from "../components/Chip.tsx"
 import { ChipCloud } from "../components/ChipCloud.tsx"
@@ -27,7 +28,10 @@ import { Segmented } from "../components/Segmented.tsx"
 import { useIntersection } from "../hooks/useIntersection.ts"
 import { useNarrow } from "../hooks/useMediaQuery.ts"
 import { useWindowedList } from "../hooks/useWindowedList.ts"
+import { openShareCard } from "../share/ShareDialog.tsx"
+import { useCollections } from "../store/collectionsStore.ts"
 import { loadMeta, loadPoet } from "../store/libraryStore.ts"
+import { toast } from "../store/toastStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { routeHash } from "../router.ts"
 import { formatBaits, formatCount, formatPoems } from "../../shared/format.ts"
@@ -49,6 +53,8 @@ type Filters = { meter?: string; theme?: string; rhyme?: string }
 export function PoetView({ slug }: { slug: string }) {
   const settings = useSettings()
   const narrow = useNarrow()
+  const favorites = useCollections((st) => st.favorites)
+  const toggleFavorite = useCollections((st) => st.toggle)
   const [data, setData] = useState<PoetPageResponse | null>(null)
   const [meta, setMeta] = useState<MetaResponse | null>(null)
   const [error, setError] = useState<ApiError | null>(null)
@@ -165,6 +171,9 @@ export function PoetView({ slug }: { slug: string }) {
   }
 
   const poet = data.poet
+  const signatureSaved = data.signatureBait
+    ? favorites.some((f) => f.baytKey === data.signatureBait!.baytKey)
+    : false
   const crumbs: Crumb[] = [{ label: "الشعراء", route: { view: "poets" } }]
   if (poet.era) crumbs.push({ label: poet.era.name, route: { view: "poets", era: poet.era.slug } })
   crumbs.push({ label: poet.name })
@@ -206,6 +215,11 @@ export function PoetView({ slug }: { slug: string }) {
 
       {data.signatureBait ? (
         <section className="poet-signature" aria-label="بيت مختار">
+          {/* The rail the same بيت gets everywhere else it appears — بيت اليوم,
+              التجوال, a قصيدة row. Without it the شاعر's own signature بيت was
+              the one بيت in قريض a reader could not save, copy or share. ♥ goes
+              through `useCollections` (CLAUDE.md invariant: component-local
+              favourite state persists nothing). */}
           <BaytPlate
             variant="plate"
             size="md"
@@ -215,6 +229,36 @@ export function PoetView({ slug }: { slug: string }) {
             showRawiyy={settings.showRawiyy}
             tashkeel={settings.tashkeel}
             label="البيت المختار"
+            favorite={signatureSaved}
+            onFavorite={() => {
+              const b = data.signatureBait!
+              const on = toggleFavorite({
+                baytKey: b.baytKey,
+                baitId: b.id,
+                sadr: b.sadr,
+                ajuz: b.ajuz,
+                poemId: b.poem.id,
+                poemTitle: b.poem.title,
+                poet: { slug: poet.slug, name: poet.name },
+                meter: b.meter,
+              })
+              toast(on ? "أُضيف إلى المختارات" : "أُزيل من المختارات", on ? "ok" : "info")
+            }}
+            onCard={() =>
+              openShareCard({
+                sadr: data.signatureBait!.sadr,
+                ajuz: data.signatureBait!.ajuz,
+                poet: poet.name,
+              })
+            }
+            onCopy={() => {
+              const b = data.signatureBait!
+              void writeClipboard(formatBaytWithPoet(b.sadr, b.ajuz, poet.name, null)).then((ok) =>
+                toast(ok ? "نُسخ البيت" : "تعذّر النسخ", ok ? "ok" : "danger"),
+              )
+            }}
+            copyText={formatBayt(data.signatureBait.sadr, data.signatureBait.ajuz)}
+            duelHref={routeHash({ view: "duel" })}
             meta={
               <a
                 className="hero__poem"
@@ -310,7 +354,7 @@ export function PoetView({ slug }: { slug: string }) {
               <span className="more-bar__busy">…يُجلب المزيد</span>
             ) : (
               <button type="button" className="btn" onClick={fetchMore}>
-                المزيد — بقي {formatCount(total - poems.length)} قصيدة
+                المزيد — بقي {formatPoems(total - poems.length)}
               </button>
             )}
           </div>

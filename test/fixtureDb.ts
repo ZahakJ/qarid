@@ -53,6 +53,9 @@ export async function ensureFixtureDb(out: string = FIXTURE_DB): Promise<string>
     const inputs = [
       FIXTURE_SRC,
       ...["build.ts", "ddl.ts", "transform.ts", "readers.ts"].map((f) => path.join(REPO_ROOT, "scripts", "ingest", f)),
+      // …and the shared tables the ingest derives columns from: `arabic.ts`
+      // owns `poets.letter`/`sort_key` and `poetAliases.ts` owns `name_key`.
+      ...["arabic.ts", "poetAliases.ts", "famousPoets.ts"].map((f) => path.join(REPO_ROOT, "shared", f)),
     ]
     const newest = Math.max(...inputs.map((f) => (fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0)))
     if (built >= newest) return out

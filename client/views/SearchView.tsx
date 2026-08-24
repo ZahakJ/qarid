@@ -40,7 +40,7 @@ import { savedFromBait, useCollections } from "../store/collectionsStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { navigate, routeHash } from "../router.ts"
-import { formatCount, formatPoems } from "../../shared/format.ts"
+import { formatCount, formatPoems, formatResults } from "../../shared/format.ts"
 import type { BaitHit, MetaResponse, PoemHit, PoetHit, SearchResponse } from "../../shared/schema.ts"
 import { BaytCard, PoemRow, headingOf } from "./shared.tsx"
 import { SEARCH_MODES, modeOfQuery, modeParam, queryFor, unquote, type SearchMode3 } from "./searchQuery.ts"
@@ -215,7 +215,7 @@ export function SearchView({ q, page }: { q: string; page: number }) {
             </button>
             {res ? (
               <p className="search-count">
-                <span className="search-count__n">{formatCount(res.total)}</span> نتيجة
+                <span className="search-count__n">{formatResults(res.total)}</span>
                 {res.ms > 0 ? (
                   <>
                     {" · "}

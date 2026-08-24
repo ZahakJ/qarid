@@ -20,10 +20,12 @@
  *   dealing          → POST /api/game/start, once per entry
  *   accepted         → CONTINUE after the award animation (900ms)
  *   computerThinking → POST /api/game/reply behind a 700–1400ms «thinking» floor
- *   rejected(soft)   → RESOLVE after 1.2s (4s for `already_used`, whose card
- *                      carries a clickable «أرِني أين قيل»), except the cards
- *                      that need an answer (near_miss «اقبل هذا البيت», and
- *                      ambiguous, which is its own phase)
+ *   rejected(soft)   → RESOLVE after 1.2s (4s for the two cards that put a
+ *                      whole بيت up to be read — `already_used`, which also
+ *                      carries a clickable «أرِني أين قيل», and
+ *                      `incomplete_bait`), except the cards that need an
+ *                      answer (near_miss «اقبل هذا البيت», and ambiguous,
+ *                      which is its own phase)
  *   penalising       → RESOLVE after 5s, or when the player dismisses the card;
  *                      a TIMEOUT card also asks /api/game/reply for the بيت
  *                      that would have worked («كان يصلح هذا:»)
@@ -140,18 +142,23 @@ function needsAnswer(r: Rejection | null): boolean {
 
 /**
  * How long a soft rejection stays up. 1.2 s is a toast — long enough to read
- * «هذا البيت يبدأ بـم والمطلوب ن» and no longer. `already_used` is the one soft
- * card that carries a CONTROL («أرِني أين قيل» scrolls to the exchange that
- * already said it), and a button that disappears in 1.2 s is a button nobody
- * can press — so that card gets four seconds. Typing dismisses either early,
- * and the clock is paused throughout, so the extra time is not an advantage
- * the player can farm beyond one turn.
+ * «هذا البيت يبدأ بـم والمطلوب ن» and no longer. Two soft cards put a whole
+ * بيت up instead of a sentence and get four seconds for it: `already_used`,
+ * which also carries a CONTROL («أرِني أين قيل» scrolls to the exchange that
+ * already said it) and a button that vanishes in 1.2 s is a button nobody can
+ * press; and `incomplete_bait`, which shows the mutilated ديوان entry so the
+ * player can see it was the corpus and not their memory. Typing dismisses
+ * either early, and the clock is paused throughout, so the extra time is not
+ * an advantage the player can farm beyond one turn.
  */
 const SOFT_REJECT_MS = 1200
 const SOFT_REJECT_ACTIONABLE_MS = 4000
 
+/** The soft cards that put a whole بيت on screen, not just a sentence. */
+const SOFT_REJECT_SLOW = new Set(["already_used", "incomplete_bait"])
+
 function softRejectMs(r: Rejection | null): number {
-  return r?.kind === "already_used" ? SOFT_REJECT_ACTIONABLE_MS : SOFT_REJECT_MS
+  return r !== null && SOFT_REJECT_SLOW.has(r.kind) ? SOFT_REJECT_ACTIONABLE_MS : SOFT_REJECT_MS
 }
 
 function schedule(s: DuelState): void {
@@ -249,12 +256,18 @@ async function answer(s: DuelState): Promise<void> {
   }
 }
 
-/** Strip the envelope off a start/reply payload — the chain state is inside. */
-function served(res: { bait: BaitDto } & Omit<ServedBait, "bait">): ServedBait {
+/**
+ * Strip the envelope off a start/reply payload — the chain state is inside.
+ *
+ * `relaxed` rides along from `/api/game/reply` only; start, verify and the
+ * «بدّل الحرف» hint have no قيود to leave, and `undefined` reads as false.
+ */
+function served(res: { bait: BaitDto; relaxed?: boolean } & Omit<ServedBait, "bait" | "relaxed">): ServedBait {
   return {
     bait: res.bait,
     poem: res.poem,
     poet: res.poet,
+    ...(res.relaxed === true ? { relaxed: true } : {}),
     requiredLetter: res.requiredLetter,
     requiredLetterSource: res.requiredLetterSource,
     alsoAccepted: res.alsoAccepted,

@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 
 // Dev API server sits on 5750 (prod runs on 8010 so the live site keeps
@@ -8,7 +8,7 @@ const API = "http://127.0.0.1:5750"
 
 export default defineConfig({
   root: "client",
-  plugins: [react()],
+  plugins: [react(), dropWoffFallbacks()],
   build: { outDir: "../dist", emptyOutDir: true },
   server: {
     port: 5751,
@@ -33,3 +33,40 @@ export default defineConfig({
     globalSetup: ["../test/fixtureDb.ts"],
   },
 })
+
+/**
+ * Drop the `.woff` fallbacks from the bundle — 445 KB nothing fetches.
+ *
+ * @fontsource ships every face twice, `src: url(…woff2) format('woff2'),
+ * url(…woff) format('woff')`, and vite faithfully emitted both. No browser that
+ * can run this app (ES2022 modules, `:has()`, container queries) lacks woff2 —
+ * support has been universal since Edge 14 / Safari 10 — so the second half of
+ * every `src` was dead weight in `dist/`, in the deploy, and on the wire budget.
+ *
+ * It is a `transform`, not a `generateBundle` filter, and `enforce: "pre"` is
+ * load-bearing: the fallback has to be gone BEFORE `vite:css` reads the url()s,
+ * because that is what decides which files become assets at all. Deleting the
+ * emitted `.woff` in `generateBundle` also works, but by then the stylesheet's
+ * content hash is already fixed — the CSS would ship rewritten under its OLD
+ * hash, `immutable` for a year, and the name would no longer describe the bytes.
+ * Here the woff is simply never referenced and never emitted, and the CSS hash
+ * moves with its content the way every other asset's does.
+ */
+function dropWoffFallbacks(): Plugin {
+  // `, url(<name>.woff) format('woff')` — the leading comma is required, so a
+  // src list carrying woff ALONE is left untouched (fontsource ships none, but
+  // a future dependency might, and a face with no src at all is a dead font).
+  // `.woff2` cannot match: the `)` is anchored immediately after `.woff`.
+  const FALLBACK = /\s*,\s*url\(\s*(['"]?)[^)'"]+\.woff\1\s*\)(\s*format\(\s*(['"])woff\3\s*\))?/g
+
+  return {
+    name: "qarid:drop-woff-fallbacks",
+    enforce: "pre",
+    apply: "build",
+    transform(code, id) {
+      if (!id.split("?")[0].endsWith(".css")) return null
+      const out = code.replace(FALLBACK, "")
+      return out === code ? null : { code: out, map: null }
+    },
+  }
+}

@@ -2,6 +2,7 @@
  * `/api/poets` — the شعراء index and one شاعر's page (design-server.md §7).
  *
  *   GET /api/poets              letter / era / q / fame, sorted, paginated
+ *   GET /api/poets?slugs=a,b,c  batch lookup, ≤30, in the order asked
  *   GET /api/poets/:slug        poet + signature بيت + first page + facet chips
  *   GET /api/poets/:slug/poems  that poet's ديوان, filtered and sorted
  *
@@ -15,6 +16,7 @@ import { Hono } from "hono"
 import { normalizeArabic } from "../../shared/arabic.ts"
 import { hijaiIndex } from "../../shared/letters.ts"
 import {
+  MAX_POET_SLUGS,
   PoetPoemsQuerySchema,
   PoetsQuerySchema,
   type ArabicLetter,
@@ -34,7 +36,7 @@ import {
   poetSummary,
   type Row,
 } from "../dto.ts"
-import { decodeParam, listBody, listPoems, notFound, parseQuery, poemFilter, slugMaps } from "../query.ts"
+import { csvParam, decodeParam, listBody, listPoems, notFound, parseQuery, poemFilter, slugMaps } from "../query.ts"
 
 export function poetsRoutes(db: Db, _config: Config): Hono {
   const app = new Hono()
@@ -44,6 +46,27 @@ export function poetsRoutes(db: Db, _config: Config): Hono {
     const parsed = parseQuery(c, PoetsQuerySchema)
     if (!parsed.ok) return parsed.res
     const q = parsed.data
+
+    // ── the batch door: `?slugs=a,b,c` ──────────────────────────────────
+    // A different question from the index's, so it answers before the filters
+    // are built and ignores them: «give me these شعراء in full», which the duel
+    // summary asks once with every شاعر the مساجلة met. Still the list contract
+    // — `{items, total, page, limit}` — and still «an unknown slug is an empty
+    // result, not a 400», so a summary naming a شاعر this artefact does not
+    // carry renders the rest instead of failing whole. The `IN (…)` shape
+    // varies with the list's LENGTH, which is what keeps `db.q`'s prepared
+    // cache bounded — at most 30 shapes, never one per slug.
+    if (q.slugs !== undefined) {
+      const slugs = csvParam(q.slugs, MAX_POET_SLUGS)
+      if (slugs.length === 0) return c.json(listBody([], 0, 1, MAX_POET_SLUGS))
+      const holes = slugs.map(() => "?").join(", ")
+      const rows = db
+        .q(`SELECT ${POET_COLS} FROM poets po ${POET_JOINS} WHERE po.slug IN (${holes})`)
+        .all(...slugs) as Row[]
+      const bySlug = new Map(rows.map((r) => [String(r.po_slug), poetSummary(r)]))
+      const items = slugs.map((s) => bySlug.get(s)).filter((p) => p !== undefined)
+      return c.json(listBody(items, items.length, 1, MAX_POET_SLUGS))
+    }
 
     const where: string[] = []
     const params: Array<string | number> = []

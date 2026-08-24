@@ -80,6 +80,8 @@ export interface CountedNounForms {
   one: string
   /** المثنى — «بيتان» */
   two: string
+  /** المثنى مجرورًا — «بيتين»، بعد حرف جرّ («سلسلة من بيتين») */
+  twoGenitive?: string
   /** 3 إلى 10 — «أبيات» */
   few: string
   /** 11 فأكثر — «بيتًا» */
@@ -102,10 +104,25 @@ export function countedNoun(n: number, forms: CountedNounForms): string {
   return `${num} ${forms.many}`
 }
 
+/**
+ * The same counted noun after a preposition — «سلسلة من بيتين», not «من بيتان».
+ *
+ * Only the dual moves: المثنى is مجرور there, and it is the one form whose
+ * ending a reader hears. Everything else (the singular «بيت واحد», the جمع
+ * «5 أبيات», the تمييز «14 بيتًا») is already right in that position, so this
+ * is `countedNoun` with one substitution rather than a second table.
+ */
+export function countedNounGenitive(n: number, forms: CountedNounForms): string {
+  const k = Math.abs(Math.trunc(n))
+  if (k === 2 && forms.twoGenitive) return forms.twoGenitive
+  return countedNoun(n, forms)
+}
+
 export const BAYT_FORMS: CountedNounForms = {
   zero: "لا أبيات",
   one: "بيت واحد",
   two: "بيتان",
+  twoGenitive: "بيتين",
   few: "أبيات",
   many: "بيتًا",
 }
@@ -114,6 +131,7 @@ export const QASIDA_FORMS: CountedNounForms = {
   zero: "لا قصائد",
   one: "قصيدة واحدة",
   two: "قصيدتان",
+  twoGenitive: "قصيدتين",
   few: "قصائد",
   many: "قصيدة",
 }
@@ -122,6 +140,7 @@ export const SHAIR_FORMS: CountedNounForms = {
   zero: "لا شعراء",
   one: "شاعر واحد",
   two: "شاعران",
+  twoGenitive: "شاعرين",
   few: "شعراء",
   many: "شاعرًا",
 }
@@ -136,6 +155,123 @@ export function formatPoems(n: number): string {
 
 export function formatPoets(n: number): string {
   return countedNoun(n, SHAIR_FORMS)
+}
+
+/**
+ * The unit WORD alone, for a layout that has already put the digits on screen
+ * — a stat tile's caption, a big due-count, a coloured number span.
+ *
+ * Only two of the five forms can appear there: جمع التكسير after 3–10 («5
+ * بطاقات») and the singular تمييز everywhere else («1 بطاقة», «12 بطاقة»). The
+ * word-numbers («بطاقة واحدة», «بطاقتان») are exactly what a caller who prints
+ * the digits himself cannot use, so `countedNoun` is the wrong function there.
+ */
+export function countedUnit(n: number, forms: CountedNounForms): string {
+  const k = Math.abs(Math.trunc(n))
+  const mod100 = k % 100
+  return k >= 3 && mod100 >= 3 && mod100 <= 10 ? forms.few : forms.many
+}
+
+/** «لا نتائج» · «نتيجة واحدة» · «4 نتائج» · «129 نتيجة» — the search count. */
+export const NATIJA_FORMS: CountedNounForms = {
+  zero: "لا نتائج",
+  one: "نتيجة واحدة",
+  two: "نتيجتان",
+  twoGenitive: "نتيجتين",
+  few: "نتائج",
+  many: "نتيجة",
+}
+
+/** نقاط المساجلة — «5 نقاط», «247 نقطة». */
+export const NUQTA_FORMS: CountedNounForms = {
+  zero: "لا نقاط",
+  one: "نقطة واحدة",
+  two: "نقطتان",
+  twoGenitive: "نقطتين",
+  few: "نقاط",
+  many: "نقطة",
+}
+
+/** بطاقات المذاكرة — «10 بطاقات», «11 بطاقة». */
+export const BITAQA_FORMS: CountedNounForms = {
+  zero: "لا بطاقات",
+  one: "بطاقة واحدة",
+  two: "بطاقتان",
+  twoGenitive: "بطاقتين",
+  few: "بطاقات",
+  many: "بطاقة",
+}
+
+/** كلمات الجواب في المذاكرة — «3 كلمات», «12 كلمة». */
+export const KALIMA_FORMS: CountedNounForms = {
+  zero: "لا كلمات",
+  one: "كلمة واحدة",
+  two: "كلمتان",
+  twoGenitive: "كلمتين",
+  few: "كلمات",
+  many: "كلمة",
+}
+
+/** سلسلة المذاكرة — «3 أيام متتالية» vs «12 يومًا متتاليًا» (see `dayStreak`). */
+export const YAWM_FORMS: CountedNounForms = {
+  zero: "لا أيام",
+  one: "يوم واحد",
+  two: "يومان",
+  twoGenitive: "يومين",
+  few: "أيام",
+  many: "يومًا",
+}
+
+export function formatResults(n: number): string {
+  return countedNoun(n, NATIJA_FORMS)
+}
+
+export function formatCards(n: number): string {
+  return countedNoun(n, BITAQA_FORMS)
+}
+
+export function formatWords(n: number): string {
+  return countedNoun(n, KALIMA_FORMS)
+}
+
+/**
+ * A counted noun with its نعت — «بيت واحد جديد», «بيتان جديدان», «5 أبيات
+ * جديدة», «12 بيتًا جديدًا».
+ *
+ * The adjective has to agree with the معدود in number, case AND (for a جمع
+ * تكسير of a non-human) gender, which is exactly the agreement that goes wrong
+ * when a phrase is assembled by concatenation. The four forms are given by the
+ * caller because only the caller knows the word.
+ */
+export interface AdjectiveForms {
+  /** مع المفرد — «جديد» */
+  one: string
+  /** مع المثنى — «جديدان» */
+  two: string
+  /** مع جمع التكسير (3–10) — «جديدة» */
+  few: string
+  /** مع التمييز المنصوب (11 فأكثر) — «جديدًا» */
+  many: string
+}
+
+export function countedNounWithAdjective(n: number, forms: CountedNounForms, adj: AdjectiveForms): string {
+  const k = Math.abs(Math.trunc(n))
+  const noun = countedNoun(k, forms)
+  if (k === 0) return noun
+  if (k === 1) return `${noun} ${adj.one}`
+  if (k === 2) return `${noun} ${adj.two}`
+  const mod100 = k % 100
+  return `${noun} ${mod100 >= 3 && mod100 <= 10 ? adj.few : adj.many}`
+}
+
+/** «يومان متتاليان» · «3 أيام متتالية» · «12 يومًا متتاليًا». */
+export function formatDayStreak(n: number): string {
+  return countedNounWithAdjective(n, YAWM_FORMS, {
+    one: "متتالٍ",
+    two: "متتاليان",
+    few: "متتالية",
+    many: "متتاليًا",
+  })
 }
 
 /**

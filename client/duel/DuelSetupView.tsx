@@ -19,7 +19,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react"
 import { THIN_POOL_WARNING } from "../../shared/constants.ts"
-import { formatCount, formatNumber } from "../../shared/format.ts"
+import { BAYT_FORMS, NUQTA_FORMS, countedUnit, formatCount, formatNumber } from "../../shared/format.ts"
 import {
   type ChainMode,
   type DuelFormat,
@@ -37,8 +37,28 @@ import { loadMeta } from "../store/libraryStore.ts"
 import { loadProfile, startDuel } from "../store/duelStore.ts"
 import { clampTier, configFor, presetOf, tierAllowed, TIER_PRESETS } from "./tiers.ts"
 
-/** `undefined` when the pool is still unknown — a count of 0 is a real answer. */
-type Pool = { total: number; stale: boolean } | null
+/**
+ * `null` when the pool is still unknown — a count of 0 is a real answer.
+ *
+ * Two numbers, not one. `total` is the chosen رتبة's own pool and is what the
+ * screen SHOWS, because that is the ديوان the duel will normally draw on.
+ * `effective` is what it can actually reach: `pickBait` relaxes one tier when
+ * the chosen one is dry (server/game.ts `RELAX`) and every arrow points at a
+ * strictly larger pool, so «هل هذه القيود صالحة للعب؟» is a question about
+ * `effective`. Warning off `total` cried thin over combinations that play
+ * perfectly well at مبتدئ, whose relax target is the whole سيف pool.
+ */
+export type Pool = { total: number; effective: number; stale: boolean } | null
+
+/**
+ * Does this combination deserve the «قليل؛ قد ينقطع الخصم سريعًا» warning?
+ *
+ * Off `effective`, never off `total` — that is the whole of amendments.md §2's
+ * second field. A pool still being counted (`null`) warns about nothing.
+ */
+export function poolIsThin(pool: Pool): boolean {
+  return pool !== null && pool.effective < THIN_POOL_WARNING
+}
 
 export function DuelSetupView() {
   const [tier, setTier] = useState<DuelTier>("poet")
@@ -82,7 +102,9 @@ export function DuelSetupView() {
     const t = setTimeout(() => {
       getGamePool({ difficulty: preset.difficulty, ...filters })
         .then((res) => {
-          if (mine === seq.current) setPool({ total: res.total, stale: false })
+          // `effectiveTotal` is optional on the wire; an older server that does
+          // not send it leaves the old behaviour exactly as it was.
+          if (mine === seq.current) setPool({ total: res.total, effective: res.effectiveTotal ?? res.total, stale: false })
         })
         .catch(() => {
           if (mine === seq.current) setPool(null)
@@ -99,7 +121,7 @@ export function DuelSetupView() {
     navigate({ view: "duel-play" })
   }
 
-  const thin = pool !== null && pool.total < THIN_POOL_WARNING
+  const thin = poolIsThin(pool)
 
   return (
     <div className="view duel-setup">
@@ -201,7 +223,8 @@ export function DuelSetupView() {
             "…يُحسب العدد المتاح"
           ) : (
             <>
-              العدد المتاح: <span className="setup-pool__n">{formatCount(pool.total)}</span> بيتًا
+              العدد المتاح: <span className="setup-pool__n">{formatCount(pool.total)}</span>{" "}
+              {countedUnit(pool.total, BAYT_FORMS)}
               {thin ? <span className="setup-pool__warn"> — قليل؛ قد ينقطع الخصم سريعًا</span> : null}
             </>
           )}
@@ -254,7 +277,9 @@ export function DuelSetupView() {
         <div className="setup-go__inner">
           <div className="setup-record">
             <span className="setup-record__label">أفضل ما بلغتَ</span>
-            <span className="setup-record__val">{formatCount(profile.bestScore)} نقطة</span>
+            <span className="setup-record__val">
+              {formatCount(profile.bestScore)} {countedUnit(profile.bestScore, NUQTA_FORMS)}
+            </span>
             <span className="setup-record__sep">·</span>
             <span className="setup-record__val">سلسلة {formatCount(profile.bestStreak)}</span>
           </div>

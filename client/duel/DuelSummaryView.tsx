@@ -10,9 +10,19 @@
  * A شاعر counts as new against the snapshot `duelStore` took BEFORE the duel
  * (`poetsMetBefore`), not against the profile as it stands now — by the time
  * this view renders, the profile has already absorbed this duel's شعراء.
+ *
+ * «الشعراء الذين لقيتهم» is the real PoetCard grid design-ux.md §4 asks for,
+ * not a row of chips. An `Exchange` denormalizes only `{slug, name}` — enough
+ * to render offline, not enough for a card — so the slugs are traded for full
+ * rows in ONE request (`/api/poets?slugs=`). That request is allowed to fail:
+ * the name it already has is rendered as the old chip, so a summary read on a
+ * dead connection still names every شاعر the مساجلة met.
  */
 import { useEffect, useMemo, useState } from "react"
-import { formatBaits, formatClock, formatCount, formatPoets, formatScore } from "../../shared/format.ts"
+import { BAYT_FORMS, countedNounGenitive, formatBaits, formatClock, formatCount, formatPoets, formatScore } from "../../shared/format.ts"
+import type { PoetSummary } from "../../shared/schema.ts"
+import { getPoetsBySlugs } from "../api/queries.ts"
+import { PoetCard } from "../views/shared.tsx"
 import { FLAVOR } from "../data/flavor.ts"
 import { Nib, Rule } from "../components/Ornaments.tsx"
 import { Panel } from "../components/Panel.tsx"
@@ -62,7 +72,7 @@ export function headlineOf(outcome: DuelOutcome, chain: number): string {
     case "match":
       return "انتهت المبارزة"
     default:
-      return chain > 0 ? `سلسلة من ${formatBaits(chain)}` : "لم تبدأ المساجلة"
+      return chain > 0 ? `سلسلة من ${countedNounGenitive(chain, BAYT_FORMS)}` : "لم تبدأ المساجلة"
   }
 }
 
@@ -101,6 +111,8 @@ export function DuelSummaryView() {
   const favorites = useCollections((s) => s.favorites)
   const toggleFavorite = useCollections((s) => s.toggle)
   const [totalPoets, setTotalPoets] = useState<number | null>(null)
+  /** slug → the full row, once `/api/poets?slugs=` has answered */
+  const [poetCards, setPoetCards] = useState<ReadonlyMap<string, PoetSummary>>(new Map())
   /** bumped once the duel has been written, so «لقيت …» re-reads the profile */
   const [recorded, setRecorded] = useState(0)
   const profile = useMemo(() => loadProfile(), [session?.endedAt, recorded])
@@ -132,11 +144,32 @@ export function DuelSummaryView() {
     }
   }, [])
 
+  // One batch request for every شاعر this مساجلة met. Keyed on the joined
+  // slugs rather than on `session`, so a re-render (a ♥, a toast) does not
+  // re-ask, and so a «مرة أخرى» that meets different شعراء does.
+  const metSlugs = useMemo(() => (session ? poetsOf(session).map((p) => p.slug) : []), [session?.exchanges.length])
+  const metKey = metSlugs.join(",")
+  useEffect(() => {
+    if (metSlugs.length === 0) return
+    let live = true
+    getPoetsBySlugs(metSlugs)
+      .then((res) => {
+        if (live) setPoetCards(new Map(res.items.map((p) => [p.slug, p])))
+      })
+      .catch(() => {
+        /* the chip fallback below is the offline answer */
+      })
+    return () => {
+      live = false
+    }
+  }, [metKey])
+
   if (!session) return null
 
   const chain = playerTurns(session)
-  // `endedAt` is transient (it is not in DuelSessionSlice), so a summary that
-  // survived a reload has none — the last بيت's timestamp is the honest floor.
+  // `endedAt` IS persisted now (v2), so a reloaded summary keeps its real
+  // elapsed time. The last بيت's timestamp stays the floor: a v1 payload
+  // migrated forward, or a session that ended before either was recorded.
   const lastAt = session.exchanges.length ? session.exchanges[session.exchanges.length - 1]!.at : 0
   const elapsed = Math.max(0, Math.max(session.endedAt ?? 0, lastAt) - session.startedAt)
   const poets = poetsOf(session)
@@ -271,16 +304,19 @@ export function DuelSummaryView() {
           <ul className="met-grid">
             {poets.map((p) => {
               const fresh = !metBefore.has(p.slug)
+              const card = poetCards.get(p.slug)
               return (
-                <li key={p.slug}>
-                  <a className="met" href={routeHash({ view: "poet", slug: p.slug })} data-new={fresh ? "1" : undefined}>
-                    {fresh ? (
-                      <span className="met__nib" title="جديد عليك">
-                        <Nib size={16} />
-                      </span>
-                    ) : null}
-                    <bdi className="met__name">{p.name}</bdi>
-                  </a>
+                <li key={p.slug} className="met-cell" data-new={fresh ? "1" : undefined}>
+                  {card ? <PoetCard poet={card} /> : (
+                    <a className="met" href={routeHash({ view: "poet", slug: p.slug })}>
+                      <bdi className="met__name">{p.name}</bdi>
+                    </a>
+                  )}
+                  {fresh ? (
+                    <span className="met-cell__nib" title="جديد عليك" aria-label="جديد عليك">
+                      <Nib size={16} />
+                    </span>
+                  ) : null}
                 </li>
               )
             })}

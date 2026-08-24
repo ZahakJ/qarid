@@ -464,17 +464,23 @@ export function fnv1a64Signed(s: string): bigint {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * The شهرة sort key: normalise, then drop a leading ال so المتنبي files under
- * الميم and الأخطل under الألف — which is where a reader looks for them.
+ * The شهرة sort key: strip the honorifics a source glued onto the front, then
+ * normalise, then drop a leading ال so المتنبي files under الميم and الأخطل
+ * under الألف — which is where a reader looks for them.
  *
  * The server groups `poets.letter` by `firstLetterOf(sortName(name))` and the
  * client's letter rail does the same call. They must not drift, which is why
  * the client imports this rather than doing its own `slice(2)`.
+ *
+ * `poets.letter` AND `poets.sort_key` are both derived from this function at
+ * ingest (`transform.ts`), so changing what it strips desyncs the artefact from
+ * the code until the next rebuild. Never ship a change here without one.
  */
 export function sortName(name: string | null | undefined): string {
-  const n = normalizeArabic(name)
+  const bare = stripHonorifics(name)
+  const n = normalizeArabic(bare)
   if (n === "") return ""
-  if (n.startsWith("ال") && n.length > 3 && !startsWithHamzaAlef(name) && !NOT_ARTICLE.has(firstWordOf(n))) {
+  if (n.startsWith("ال") && n.length > 3 && !startsWithHamzaAlef(bare) && !NOT_ARTICLE.has(firstWordOf(n))) {
     return n.slice(2)
   }
   return n
@@ -511,6 +517,96 @@ const NOT_ARTICLE: ReadonlySet<string> = new Set(["الياس"])
 function firstWordOf(norm: string): string {
   const space = norm.indexOf(" ")
   return space === -1 ? norm : norm.slice(0, space)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Honorifics
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Titles the sources glue onto a شاعر's name, in `normalizeArabic` form — that
+ * is the shape `stripLeadingHonorific` compares a token in, so ة/ه and أ/ا
+ * spellings are already folded together and «الدكتورة» is spelt «الدكتوره».
+ */
+const HONORIFIC_WORDS: ReadonlySet<string> = new Set([
+  "الدكتور", "الدكتوره", "دكتور", "دكتوره",
+  "الاستاذ", "الاستاذه", "استاذ", "استاذه",
+  "الشيخ", "الشيخه",
+  "المهندس", "المهندسه", "مهندس",
+  "القاضي", "القاضيه",
+  "السيد", "السيده",
+])
+
+/**
+ * Single letters that are an abbreviated title even when no dot follows: أ
+ * (أستاذ), د (دكتور), م (مهندس), ق (قاضٍ), ش (شيخ). «الشيخة د خلدية آل خليفة»
+ * is the corpus row that needs the no-dot case — its د stands alone between two
+ * spaces. Stored folded, so أ arrives here as ا.
+ */
+const HONORIFIC_INITIALS: ReadonlySet<string> = new Set(["ا", "د", "م", "ق", "ش"])
+
+/** What separates one name token from the next, dots and slashes included. */
+const NAME_SEP_RE = /[\s.\/\\|,،؛:_\-–—]/
+const NAME_SEP_RUN_RE = /^[\s.\/\\|,،؛:_\-–—]+/
+
+/**
+ * «أ.د/ مصطفى الشليح» → «مصطفى الشليح», so the شاعر files under الميم instead
+ * of leading the ألف section (CLAUDE.md backlog: "poet honorifics break the
+ * شعراء index"). «أ.عبدالله بن يحي علي البت» is the other shape the corpus
+ * carries — the initial glued straight onto the name with no space at all.
+ *
+ * Two guards keep this from eating a شهرة, and both are load-bearing:
+ *
+ *   · A WORD honorific is stripped only when at least two name tokens survive
+ *     it. «القاضي الفاضل», «السيد الحميري», «القاضي عياض», «القاضي التنوخي» and
+ *     «الشيخ علوان» are not men with titles — the title IS the name they are
+ *     known by, and filing them under ف/ح/ع/ت/ع would hide each one from the
+ *     only reader who was looking. A title in front of a real multi-token name
+ *     («الدكتور جاسم الفهيد», «الشيخ محمد متولي الشعراوي») is the other case,
+ *     and the surviving token count is what separates the two.
+ *   · Nothing is ever stripped down to a string with no Arabic letter left.
+ *
+ * An INITIAL needs no such guard: a lone letter, dotted or not, is never a
+ * شهرة. Runs peel one token at a time («أ», then «د»), capped so that no
+ * pathological name can spin.
+ *
+ * Operates on the RAW name, before `normalizeArabic`: `sortName`'s
+ * `startsWithHamzaAlef` check has to read the true first letter of what is
+ * LEFT, and folding first would already have thrown that hamza away.
+ */
+export function stripHonorifics(name: string | null | undefined): string {
+  let s = (name ?? "").trim()
+  for (let hop = 0; hop < 6; hop++) {
+    const next = stripLeadingHonorific(s)
+    if (next === null) return s
+    s = next
+  }
+  return s
+}
+
+function stripLeadingHonorific(s: string): string | null {
+  let i = 0
+  while (i < s.length && NAME_SEP_RE.test(s[i]!)) i++
+  let j = i
+  while (j < s.length && !NAME_SEP_RE.test(s[j]!)) j++
+  const token = s.slice(i, j)
+  if (token === "") return null
+
+  const letters = [...token].filter(isArabicLetter)
+  if (letters.length === 0) return null
+
+  const rest = s.slice(j).replace(NAME_SEP_RUN_RE, "").trim()
+  if (!HAS_ARABIC_RE.test(rest)) return null
+
+  if (letters.length === 1) {
+    const after = s[j] ?? ""
+    if (after === "." || after === "/" || HONORIFIC_INITIALS.has(foldLetters(letters[0]!))) return rest
+    return null
+  }
+
+  if (!HONORIFIC_WORDS.has(normalizeArabic(token))) return null
+  // the شهرة guard — «القاضي الفاضل» and «القاضي عياض» keep their title
+  return rest.split(WS_RE).filter((t) => HAS_ARABIC_RE.test(t)).length >= 2 ? rest : null
 }
 
 /** The section a شاعر files under in the poets index — one of the 28, or null. */

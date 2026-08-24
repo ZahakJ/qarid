@@ -23,6 +23,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react"
 import { ApiError } from "../api/client.ts"
 import { search } from "../api/queries.ts"
 import { useDebounced } from "../hooks/useDebounced.ts"
+import { useNarrow } from "../hooks/useMediaQuery.ts"
 import { navigate, routeHash } from "../router.ts"
 import type { SearchResponse } from "../../shared/schema.ts"
 import {
@@ -37,6 +38,18 @@ import {
 
 export const OMNIBOX_PLACEHOLDER = "ابحث في 239 ألف قصيدة… بيتٍ، أو شاعرٍ، أو قافية"
 
+/**
+ * The same invitation, short enough to survive a phone.
+ *
+ * A placeholder is the one string CSS cannot shorten — it clips, and it clips
+ * mid-word: at 390px the long one reads «… أو قافـ», which looks like a bug in
+ * the corpus rather than a narrow screen. So the swap is in JS, on the
+ * product's own NARROW breakpoint, and it drops the two things the reader can
+ * already see elsewhere — the corpus size (the hero line above says it) and
+ * the word «قصيدة» (the field is the only search on the page).
+ */
+export const OMNIBOX_PLACEHOLDER_NARROW = "ابحث: بيتٍ، أو شاعرٍ، أو قافية"
+
 /** The mounted omnibox's input, so `/` can reach it from the shell. */
 let mounted: HTMLInputElement | null = null
 
@@ -50,13 +63,16 @@ export function focusOmnibox(): boolean {
 
 export function Omnibox({
   autoFocus = false,
-  placeholder = OMNIBOX_PLACEHOLDER,
+  placeholder,
   initial = "",
 }: {
   autoFocus?: boolean
+  /** Overrides both defaults; leave it out to get the width-appropriate one. */
   placeholder?: string
   initial?: string
 }) {
+  const narrow = useNarrow()
+  const hint = placeholder ?? (narrow ? OMNIBOX_PLACEHOLDER_NARROW : OMNIBOX_PLACEHOLDER)
   const [text, setText] = useState(initial)
   const [res, setRes] = useState<SearchResponse | null>(null)
   const [open, setOpen] = useState(false)
@@ -190,7 +206,7 @@ export function Omnibox({
           aria-activedescendant={activeId}
           aria-autocomplete="list"
           aria-label="البحث في الديوان"
-          placeholder={placeholder}
+          placeholder={hint}
           value={text}
           onChange={(e) => {
             setText(e.target.value)

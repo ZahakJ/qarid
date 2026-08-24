@@ -4,5 +4,8 @@ dist/
 # tables, the flavour أبيات and the keymap — and silently kept four source
 # files out of the repository.
 /data/
-screenshots/*.png
+# ANCHORED and whole-directory: `screenshots/*.png` matched only the top level,
+# so every subfolder a smoke run writes (`--out screenshots/<name>`) was
+# untracked-but-not-ignored and `git add -A` would have committed 30 PNGs.
+/screenshots/
 .env

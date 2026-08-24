@@ -46,8 +46,6 @@ const LANG_VALUES: readonly LangType[] = ["فصيح", "عامي"]
 
 export function facetsRoutes(db: Db, _config: Config): Hono {
   const app = new Hono()
-  let unfiltered: FacetsResponse | null = null
-  const memo = new Map<string, FacetsResponse>()
 
   app.get("/", (c) => {
     const parsed = FacetsQuerySchema.safeParse(c.req.query())
@@ -55,31 +53,112 @@ export function facetsRoutes(db: Db, _config: Config): Hono {
       return c.json({ error: "bad_query", issues: parsed.error.issues.map((i) => ({ path: [...i.path], message: i.message })) }, 400)
     }
     const q = trimNoOps(db, parsed.data)
-
-    if (!anyFilter(q)) {
-      if (unfiltered === null) {
-        const fromMeta = FacetsResponseSchema.safeParse(metaJson(db, "facets_json"))
-        unfiltered = fromMeta.success ? fromMeta.data : computeFacets(db, q)
-      }
-      return c.json(unfiltered)
-    }
-
-    // The artefact is immutable, so `computeFacets(q)` is a pure function of the
-    // query — and it is six GROUP BYs over 245,675 قصائد, 88 ms for `?first=ا`
-    // and 285 ms for `?lang=فصيح`, every one of them blocking the event loop for
-    // its whole duration (`node:sqlite` is synchronous). A reader clicking
-    // through the browse rail asks for the same handful of combinations over
-    // and over, so each one is computed once per process.
-    const key = facetKey(q)
-    const hit = memo.get(key)
-    if (hit !== undefined) return c.json(hit)
-    const computed = computeFacets(db, q)
-    if (memo.size >= FACET_MEMO_MAX) memo.clear()
-    memo.set(key, computed)
-    return c.json(computed)
+    return c.json(anyFilter(q) ? filteredFacets(db, q) : unfilteredFacets(db))
   })
 
   return app
+}
+
+/**
+ * Both caches hang off the DB HANDLE, not off the route closure.
+ *
+ * They used to be `let unfiltered` / `const memo` inside `facetsRoutes`, which
+ * was fine while the only filler was the route itself. `warmFacets()` below
+ * fills the same maps from `server/index.ts`, before any request exists and
+ * without a `Hono` in hand, so the cache has to be reachable by handle — the
+ * shape `MAPS` in `server/query.ts` and `MAX_BAITS` below already use. It stays
+ * correct for the same reason those do: the artefact is immutable and opened
+ * `query_only`, so a facet answer is a pure function of (handle, query), and a
+ * second `createApp` over the same handle SHOULD see the first one's work.
+ */
+const UNFILTERED = new WeakMap<object, FacetsResponse>()
+const MEMO = new WeakMap<object, Map<string, FacetsResponse>>()
+
+/** The whole-corpus payload — precomputed at ingest into `meta.facets_json`. */
+function unfilteredFacets(db: Db): FacetsResponse {
+  const hit = UNFILTERED.get(db as object)
+  if (hit !== undefined) return hit
+  const fromMeta = FacetsResponseSchema.safeParse(metaJson(db, "facets_json"))
+  const value = fromMeta.success ? fromMeta.data : computeFacets(db, FacetsQuerySchema.parse({}))
+  UNFILTERED.set(db as object, value)
+  return value
+}
+
+/**
+ * The artefact is immutable, so `computeFacets(q)` is a pure function of the
+ * query — and it is six GROUP BYs over 238,733 قصائد, 102 ms for `?first=ا`
+ * and 232 ms for `?lang=فصيح`, every one of them blocking the event loop for
+ * its whole duration (`node:sqlite` is synchronous). A reader clicking through
+ * the browse rail asks for the same handful of combinations over and over, so
+ * each one is computed once per handle — by `warmFacets` at boot where it can,
+ * and by the first request that asks otherwise.
+ */
+function filteredFacets(db: Db, q: FacetsQuery): FacetsResponse {
+  let memo = MEMO.get(db as object)
+  if (memo === undefined) {
+    memo = new Map<string, FacetsResponse>()
+    MEMO.set(db as object, memo)
+  }
+  const key = facetKey(q)
+  const hit = memo.get(key)
+  if (hit !== undefined) return hit
+  const computed = computeFacets(db, q)
+  if (memo.size >= FACET_MEMO_MAX) memo.clear()
+  memo.set(key, computed)
+  return computed
+}
+
+/**
+ * Boot-time pre-warm: pay the 100–230 ms for the rail's own chips BEFORE a
+ * reader can ask for them.
+ *
+ * The combinations a `#/browse` visitor actually reaches with one click are the
+ * single-facet ones — one عصر, one بحر, one غرض — **62** of them on the real
+ * artefact (12 + 32 + 18). Warmed, every one of those first clicks is a b-tree
+ * lookup instead of six GROUP BYs on the request's own event-loop turn.
+ *
+ * Measured on `data/qarid.db`: the whole sweep is **646 ms**, worst single loop
+ * stall **69 ms**. It is much cheaper than the 100–230 ms the route's own note
+ * quotes because those three dimensions all ride `poems_filter(era_id,
+ * meter_id, theme_id, …)`; the pricey shapes are `?first=` and `?lang=`, which
+ * are 28 letters and two values wide and are NOT warmed — the point is to buy
+ * the rail's chips, not to precompute the query space.
+ *
+ * Three properties this must keep, in order of how easy they are to break:
+ *
+ *  1. **It must not delay listening.** `server/index.ts` fires it and drops the
+ *     promise, and the first thing every iteration does is yield — so nothing
+ *     is computed until the loop is idle and the socket is already accepting.
+ *  2. **It must yield between combinations.** `node:sqlite` is synchronous, so
+ *     taken in one turn this would be a 646 ms stall on every other visitor.
+ *     One `setImmediate` per combination caps it at a single query — 69 ms
+ *     measured, less than one un-warmed request would have cost anyway.
+ *  3. **It must never take the process down.** A caller with no corpus never
+ *     gets here (`server/index.ts` checks), and anything else that throws is
+ *     reported and swallowed: a cold cache is slow, not broken.
+ *
+ * Returns how many combinations it warmed, which is what the test asserts.
+ */
+export async function warmFacets(db: Db): Promise<number> {
+  const maps = slugMaps(db)
+  const combos: FacetsQuery[] = [
+    ...[...maps.eraName.values()].map((v) => FacetsQuerySchema.parse({ era: v.slug })),
+    ...[...maps.meterName.values()].map((v) => FacetsQuerySchema.parse({ meter: v.slug })),
+    ...[...maps.themeName.values()].map((v) => FacetsQuerySchema.parse({ theme: v.slug })),
+  ]
+
+  let warmed = 0
+  for (const q of combos) {
+    await new Promise((resolve) => setImmediate(resolve))
+    try {
+      filteredFacets(db, trimNoOps(db, q))
+      warmed += 1
+    } catch (err) {
+      console.error(`[qarid] facet pre-warm failed on ${facetKey(q)}: ${err instanceof Error ? err.message : err}`)
+      return warmed
+    }
+  }
+  return warmed
 }
 
 /** Bounded because the query space is not: 28 letters × 12 عصور × 32 بحور × … */
