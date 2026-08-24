@@ -1,0 +1,43 @@
+{
+  "name": "qarid",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "قريض — Arabic classical poetry corpus browser + مساجلة duel",
+  "scripts": {
+    "dev": "vite --port 5751 --strictPort",
+    "dev:server": "PORT=5750 node --watch --env-file-if-exists=.env server/index.ts",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 6750 --strictPort",
+    "start": "node --env-file-if-exists=.env server/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "smoke": "node tools/screenshot.mjs",
+    "ingest": "node --env-file-if-exists=.env scripts/ingest/build.ts",
+    "ingest:fixture": "node scripts/ingest/build.ts test/fixtures/ashaar-sample.jsonl data/fixture.db"
+  },
+  "dependencies": {
+    "@fontsource/amiri": "^5.3.0",
+    "@fontsource/aref-ruqaa": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@hono/node-server": "^1.19.17",
+    "hono": "^4.13.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "@vitejs/plugin-react": "^5.2.0",
+    "hyparquet": "^1.29.1",
+    "hyparquet-compressors": "^1.1.1",
+    "playwright": "^1.62.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.7"
+  }
+}
