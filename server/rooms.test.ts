@@ -25,6 +25,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import {
   RoomEventSchema,
+  RoomKnockResponseSchema,
   RoomStateResponseSchema,
   RoomTurnResponseSchema,
   type RoomEvent,
@@ -35,9 +36,11 @@ import { createApp } from "./app.ts"
 import { loadConfig, type Config } from "./config.ts"
 import { openDb, type Db } from "./db.ts"
 import { MAX_SOCKETS_PER_USER, newRoomCode } from "./rooms.ts"
-import { SOCKET_FRAME_LIMIT } from "./routes/rooms.ts"
+import { SOCKET_FRAME_LIMIT, bearerFromSubprotocol } from "./routes/rooms.ts"
 import {
+  DONE_ROOM_TTL_MS,
   SESSION_COOKIE,
+  WAITING_ROOM_TTL_MS,
   createSession,
   createUser,
   deleteSession,
@@ -45,6 +48,7 @@ import {
   hashToken,
   newSessionToken,
   openUsersDb,
+  purgeStaleRooms,
   recentMatches,
   type UsersDb,
 } from "./users.ts"
@@ -798,6 +802,216 @@ describe("what the profile page reads back", () => {
 })
 
 // ═════════════════════════════════════════════════════════════════════════════
+// Knock-to-join
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Create a WAITING room with no guest, and hand back the code and its key. */
+async function openWaiting(host: Player): Promise<{ code: string; key: string }> {
+  const created = RoomStateResponseSchema.parse(await (await postJson("/api/room", {}, host)).json()).state
+  return { code: created.code, key: created.joinKey! }
+}
+
+describe("knock-to-join", () => {
+  it("knock → host sees it → accept seats the knocker and activates the room", async () => {
+    const host = await register("knhost")
+    const guest = await register("knguest")
+    const { code } = await openWaiting(host)
+
+    // A guest who arrived by voice has no key: /state is the needs_key wall,
+    // never the transcript.
+    const walled = await req(`/api/room/${code}/state`, {}, guest)
+    expect(walled.status).toBe(403)
+    expect(await walled.json()).toMatchObject({ error: "needs_key" })
+
+    // He knocks. The answer is his OWN minimal status, never the room.
+    const knocked = await postJson(`/api/room/${code}/knock`, {}, guest)
+    expect(knocked.status).toBe(200)
+    const kv = RoomKnockResponseSchema.parse(await knocked.json()).knock
+    expect(kv.status).toBe("pending")
+    expect(kv.code).toBe(code)
+    expect(kv).not.toHaveProperty("turns")
+    expect(kv).not.toHaveProperty("host")
+
+    // The host's snapshot now names the knocker — over the poller, so a socket
+    // is not required to see the door.
+    const hostState = await stateOf(code, host)
+    expect(hostState.knock?.username).toBe(guest.username)
+    expect(hostState.knock?.displayName).toBe(guest.displayName)
+
+    // A knocker is NOT a player: he still cannot read the room.
+    expect((await req(`/api/room/${code}/state`, {}, guest)).status).toBe(403)
+
+    // Accept assigns the seat and activates — the SAME join path.
+    const accepted = await postJson(`/api/room/${code}/knock/accept`, {}, host)
+    expect(accepted.status).toBe(200)
+    const active = RoomStateResponseSchema.parse(await accepted.json()).state
+    expect(active.status).toBe("active")
+    expect(active.guest?.username).toBe(guest.username)
+    // The door prompt is gone once he is seated.
+    expect(active.knock).toBeNull()
+
+    // Now he is a player: /state succeeds with NO key, and his poll says so.
+    const guestState = await stateOf(code, guest)
+    expect(guestState.status).toBe("active")
+    expect(guestState.you.seat).toBe("guest")
+    const poll = RoomKnockResponseSchema.parse(await (await req(`/api/room/${code}/knock`, {}, guest)).json()).knock
+    expect(poll.status).toBe("accepted")
+  })
+
+  it("reject clears the knock; the seat stays open and the knocker is told", async () => {
+    const host = await register("rjhost")
+    const guest = await register("rjguest")
+    const { code } = await openWaiting(host)
+    await postJson(`/api/room/${code}/knock`, {}, guest)
+
+    const rejected = await postJson(`/api/room/${code}/knock/reject`, {}, host)
+    expect(rejected.status).toBe(200)
+    const st = RoomStateResponseSchema.parse(await rejected.json()).state
+    expect(st.status).toBe("waiting")
+    expect(st.knock).toBeNull()
+
+    const poll = RoomKnockResponseSchema.parse(await (await req(`/api/room/${code}/knock`, {}, guest)).json()).knock
+    expect(poll.status).toBe("rejected")
+    // Still no transcript for the refused knocker.
+    expect((await req(`/api/room/${code}/state`, {}, guest)).status).toBe(403)
+  })
+
+  it("only the host may accept or reject", async () => {
+    const host = await register("hohost")
+    const guest = await register("hoguest")
+    const stranger = await register("hostrange")
+    const { code } = await openWaiting(host)
+    await postJson(`/api/room/${code}/knock`, {}, guest)
+
+    expect((await postJson(`/api/room/${code}/knock/accept`, {}, stranger)).status).toBe(403)
+    expect((await postJson(`/api/room/${code}/knock/reject`, {}, guest)).status).toBe(403)
+    // The knock survived the failed attempts.
+    expect((await stateOf(code, host)).knock?.username).toBe(guest.username)
+  })
+
+  it("one pending knock at a time — a second knocker is told the room is busy", async () => {
+    const host = await register("bshost")
+    const first = await register("bsfirst")
+    const second = await register("bssecond")
+    const { code } = await openWaiting(host)
+    expect((await postJson(`/api/room/${code}/knock`, {}, first)).status).toBe(200)
+    const busy = await postJson(`/api/room/${code}/knock`, {}, second)
+    expect(busy.status).toBe(409)
+    expect(await busy.json()).toMatchObject({ error: "room_busy" })
+  })
+
+  it("the host cannot knock his own room", async () => {
+    const host = await register("selfhost")
+    const { code } = await openWaiting(host)
+    const res = await postJson(`/api/room/${code}/knock`, {}, host)
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ error: "cannot_knock" })
+  })
+
+  it("rate-limits a knocker who keeps hammering the door", async () => {
+    const host = await register("pesthost")
+    const pest = await register("pest")
+    const { code } = await openWaiting(host)
+    let limited = false
+    for (let i = 0; i < 8; i++) {
+      const res = await postJson(`/api/room/${code}/knock`, {}, pest)
+      if (res.status === 429) {
+        limited = true
+        break
+      }
+      expect(res.status).toBe(200)
+    }
+    expect(limited).toBe(true)
+  })
+
+  it("closing a WAITING room refuses the knocker at the door", async () => {
+    const host = await register("clhost")
+    const guest = await register("clguest")
+    const { code } = await openWaiting(host)
+    await postJson(`/api/room/${code}/knock`, {}, guest)
+
+    // «أغلق الغرفة» — resign on a waiting room ends it and clears the knock.
+    const closed = await postJson(`/api/room/${code}/resign`, {}, host)
+    expect(closed.status).toBe(200)
+    const st = RoomStateResponseSchema.parse(await closed.json()).state
+    expect(st.status).toBe("done")
+
+    const poll = RoomKnockResponseSchema.parse(await (await req(`/api/room/${code}/knock`, {}, guest)).json()).knock
+    expect(poll.status).toBe("rejected")
+  })
+})
+
+describe("bearerFromSubprotocol", () => {
+  it("reads the token off a `qarid.bearer.<token>` offer", () => {
+    expect(bearerFromSubprotocol("qarid.bearer.tok_abc-123")).toBe("tok_abc-123")
+  })
+
+  it("picks ours out of a multi-value offer and ignores the rest", () => {
+    expect(bearerFromSubprotocol("something, qarid.bearer.XYZ, other")).toBe("XYZ")
+  })
+
+  it("is null for a header that carries no bearer of ours", () => {
+    expect(bearerFromSubprotocol(undefined)).toBeNull()
+    expect(bearerFromSubprotocol("chat, superchat")).toBeNull()
+    expect(bearerFromSubprotocol("qarid.bearer.")).toBeNull()
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Stale-room cleanup
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("purgeStaleRooms", () => {
+  it("removes old waiting/done rooms, keeps active and recent ones, and cascades", () => {
+    const u = openUsersDb(tempUsersPath("purge"))
+    try {
+      const now = Date.now()
+      const owner = createUser(u, { username: "purgeowner", displayName: "purge", passHash: "x", now })!
+
+      // insert a room with a controlled updated_at and return its id
+      const insert = (code: string, status: string, updatedAt: number): number => {
+        u.q(
+          `INSERT INTO rooms (code, host_user_id, starting_bait_id, mode, strikes, status, created_at, updated_at, join_key)
+           VALUES (?, ?, 1, 'rhyme', 3, ?, ?, ?, 'k')`,
+        ).run(code, owner.id, status, updatedAt, updatedAt)
+        return Number((u.q("SELECT last_insert_rowid() AS id").get() as { id: number }).id)
+      }
+
+      const staleWaiting = insert("STALEW", "waiting", now - WAITING_ROOM_TTL_MS - 1000)
+      const freshWaiting = insert("FRESHW", "waiting", now - 60_000)
+      const staleDone = insert("STALED", "done", now - DONE_ROOM_TTL_MS - 1000)
+      const freshDone = insert("FRESHD", "done", now - 60_000)
+      const oldActive = insert("ACTIVE", "active", now - DONE_ROOM_TTL_MS - 1000)
+
+      // a knock hanging off the stale waiting room — it must cascade away
+      u.q("INSERT INTO room_knocks (room_id, user_id, status, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?)").run(
+        staleWaiting,
+        owner.id,
+        now,
+        now,
+      )
+
+      const removed = purgeStaleRooms(u, now)
+      expect(removed).toBe(2)
+
+      const alive = (id: number) => u.q("SELECT 1 AS ok FROM rooms WHERE id = ?").get(id) !== undefined
+      expect(alive(staleWaiting)).toBe(false)
+      expect(alive(staleDone)).toBe(false)
+      expect(alive(freshWaiting)).toBe(true)
+      expect(alive(freshDone)).toBe(true)
+      // An active room is never purged, however old its last update.
+      expect(alive(oldActive)).toBe(true)
+
+      // the knock went with its room (ON DELETE CASCADE)
+      const knocks = u.q("SELECT COUNT(*) AS n FROM room_knocks WHERE room_id = ?").get(staleWaiting) as { n: number }
+      expect(Number(knocks.n)).toBe(0)
+    } finally {
+      u.close()
+    }
+  })
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
 // The WebSocket, against a real listening server
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -890,6 +1104,43 @@ describe("/ws/room/:code", () => {
     await opened(ws)
     const evt = await nextEvent(ws, "error")
     expect(evt).toMatchObject({ type: "error", code: "unauthenticated" })
+    ws.close()
+  })
+
+  // The native room-socket fix: a WebView cannot set a header on an upgrade, so
+  // its ONLY credential is the `Sec-WebSocket-Protocol` subprotocol. The token
+  // rides in `qarid.bearer.<token>` and the server authenticates the same
+  // sessionUser/hashToken path off it (additive; the cookie/header still work).
+  it("authenticates an upgrade whose only credential is the bearer subprotocol", async () => {
+    const host = await wsRegister("subgood")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", { baitId: 1 }, host)).json()).state
+    const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/room/${created.code}`, [`qarid.bearer.${host.token}`])
+    await opened(ws)
+    const hello = await nextEvent(ws, "state")
+    expect(hello.type === "state" && hello.state.you.role).toBe("host")
+    ws.close()
+  })
+
+  it("refuses a bad bearer subprotocol and closes the socket", async () => {
+    const host = await wsRegister("subbad")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", { baitId: 1 }, host)).json()).state
+    const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/room/${created.code}`, ["qarid.bearer.not-a-real-token"])
+    await opened(ws)
+    const evt = await nextEvent(ws, "error")
+    expect(evt).toMatchObject({ type: "error", code: "unauthenticated" })
+    ws.close()
+  })
+
+  it("still separately requires the join_key — a subprotocol authenticates, it does not admit", async () => {
+    const host = await wsRegister("subhost")
+    const watcher = await wsRegister("subwatch")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", { baitId: 1 }, host)).json()).state
+    // A valid session over the subprotocol, but a non-player with no key: the
+    // room gate is untouched, so the socket is refused `needs_key`.
+    const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/room/${created.code}`, [`qarid.bearer.${watcher.token}`])
+    await opened(ws)
+    const evt = await nextEvent(ws, "error")
+    expect(evt).toMatchObject({ type: "error", code: "needs_key" })
     ws.close()
   })
 

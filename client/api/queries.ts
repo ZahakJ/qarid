@@ -32,6 +32,7 @@ import {
   PoetPageResponseSchema,
   PoetsResponseSchema,
   ProfileResponseSchema,
+  RoomKnockResponseSchema,
   RoomOpeningResponseSchema,
   RoomPlayableResponseSchema,
   RoomStateResponseSchema,
@@ -64,6 +65,7 @@ import {
   type PoetsResponse,
   type ProfileResponse,
   type CreateRoomRequest,
+  type RoomKnockResponse,
   type RoomOpeningResponse,
   type RoomPlayableResponse,
   type RoomStateResponse,
@@ -367,4 +369,31 @@ export function resignRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
 /** «رجعة» — a second room with the seats swapped; answers with the NEW one. */
 export function rematchRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
   return post(`/api/room/${encodeURIComponent(code)}/rematch`, RoomStateResponseSchema, {}, init(o))
+}
+
+// ── knock-to-join ─────────────────────────────────────────────────────────
+//
+// The knock endpoints answer with the KNOCKER's minimal status, never the room:
+// an unaccepted knocker is behind the same join_key gate a key-less spectator
+// is, so he learns only `pending`/`accepted`/`rejected` (server/rooms.ts). The
+// two HOST actions answer with the whole room, like every other room POST.
+
+/** «اطرق الباب» — ask the host to be let in (a guest with no key). */
+export function knockRoom(code: string, o?: Opts): Promise<RoomKnockResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/knock`, RoomKnockResponseSchema, {}, init(o))
+}
+
+/** The knocker's poll while he waits: `pending` → `accepted` | `rejected`. */
+export function getRoomKnock(code: string, o?: Opts): Promise<RoomKnockResponse> {
+  return request(`/api/room/${encodeURIComponent(code)}/knock`, RoomKnockResponseSchema, init(o))
+}
+
+/** «اقبل» — the host seats the knocker and the room goes active. */
+export function acceptKnock(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/knock/accept`, RoomStateResponseSchema, {}, init(o))
+}
+
+/** «ارفض» — the host refuses; the seat stays open. */
+export function rejectKnock(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/knock/reject`, RoomStateResponseSchema, {}, init(o))
 }

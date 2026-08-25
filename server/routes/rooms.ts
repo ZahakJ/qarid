@@ -34,6 +34,7 @@ import { GAME_RATE_LIMIT } from "../../shared/constants.ts"
 import {
   CreateRoomRequestSchema,
   ROOM_ERRORS,
+  ROOM_WS_BEARER_PREFIX,
   RoomCommandSchema,
   RoomJoinRequestSchema,
   RoomPlayableQuerySchema,
@@ -49,14 +50,18 @@ import { parseQuery } from "../query.ts"
 import { clientKey, createRateLimiter } from "../ratelimit.ts"
 import {
   RoomHub,
+  acceptKnock,
   joinKeyMatches,
   createRoom,
   findRoomByCode,
   isPlayableBait,
   joinRoom,
+  knockView,
   playTurn,
   randomStartingBait,
   baitRow,
+  recordKnock,
+  rejectKnock,
   rematchRoom,
   resignRoom,
   resolveExpiry,
@@ -93,6 +98,28 @@ function errorBody(code: string): { error: string; message: string } {
   return { error: code, message: ROOM_ERRORS[code] ?? "تعذّر تنفيذ الطلب" }
 }
 
+/**
+ * The bearer a WebSocket carried in its `Sec-WebSocket-Protocol` header, or null.
+ *
+ * The header is a comma-separated offer list; the native shell offers exactly
+ * one value, `qarid.bearer.<token>` (`ROOM_WS_BEARER_PREFIX`). The session token
+ * is base64url — no comma, space or `/` — so it survives the header intact, and
+ * the `.` in the scheme is an ordinary token character. We read the FIRST match
+ * and ignore the rest; a client that offers nothing of ours gets null and falls
+ * through to the `Authorization`/cookie doors.
+ */
+export function bearerFromSubprotocol(header: string | undefined): string | null {
+  if (!header) return null
+  for (const part of header.split(",")) {
+    const value = part.trim()
+    if (value.startsWith(ROOM_WS_BEARER_PREFIX)) {
+      const token = value.slice(ROOM_WS_BEARER_PREFIX.length).trim()
+      if (token) return token
+    }
+  }
+  return null
+}
+
 const STATUS_FOR: Record<string, 400 | 401 | 403 | 404 | 409 | 429> = {
   room_not_found: 404,
   unauthenticated: 401,
@@ -106,6 +133,10 @@ const STATUS_FOR: Record<string, 400 | 401 | 403 | 404 | 409 | 429> = {
   no_bait: 409,
   rooms_unavailable: 400,
   too_fast: 429,
+  not_the_host: 403,
+  no_knock: 409,
+  cannot_knock: 409,
+  room_busy: 409,
 }
 
 /**
@@ -187,10 +218,22 @@ export function broadcastRoom(
  */
 export const ROOM_READ_LIMIT = { tokens: 60, windowMs: 10_000 } as const
 
+/**
+ * What ONE account may KNOCK on ONE room, on top of the IP read bucket.
+ *
+ * A knock is cheap for the server but loud for the host — a stranger who was
+ * just rejected must not be able to re-knock the instant his cooldown passes,
+ * over and over. Five in two minutes is far above a real «طرقت فلم يُسمع، أطرق
+ * ثانية» and far below a nuisance. Keyed on the USER and the room, so it is the
+ * knocker who is bounded, not the whole IP a shared network sits behind.
+ */
+export const KNOCK_LIMIT = { tokens: 5, windowMs: 120_000 } as const
+
 export function roomRoutes(deps: RoomDeps): Hono {
   const app = new Hono()
   const limiter = createRateLimiter({ ...GAME_RATE_LIMIT, keyOf: clientKey })
   const readLimiter = createRateLimiter({ ...ROOM_READ_LIMIT, keyOf: clientKey })
+  const knockLimiter = createRateLimiter({ ...KNOCK_LIMIT, keyOf: clientKey })
 
   // `Cache-Control: private, no-store` for these paths is set by the OUTERMOST
   // middleware in server/app.ts (`cachePolicy`), not here — an inner middleware
@@ -338,6 +381,67 @@ export function roomRoutes(deps: RoomDeps): Hono {
     return c.json({ state: snapshot(deps, out.room, { id: user.id, username: user.username }, Date.now(), key ?? null) })
   })
 
+  // ── POST /api/room/:code/knock ───────────────────────────────────────────
+  //
+  // A logged-in guest who reached the room by VOICE (the spoken code, no key)
+  // asks to be let in. The answer is his own minimal status — NEVER the room:
+  // an unaccepted knocker is behind the same join_key gate a key-less spectator
+  // is, so he never sees the transcript. The host learns of it because
+  // `knockerFor` rides in his snapshot, so we broadcast a plain `state`.
+  app.post("/:code/knock", async (c) => {
+    const user = requireUser(c)
+    if (user instanceof Response) return user
+    const room = load(c, c.req.param("code") ?? "")
+    if (room instanceof Response) return room
+    // The knock bucket is per user+room, on top of the IP read bucket already
+    // charged by the `*` middleware above.
+    if (!knockLimiter.take(`u${user.id}:${room.code.toUpperCase()}`).ok) return fail(c, "too_fast")
+    const out = recordKnock(deps, room, user, Date.now())
+    if (!out.ok) return fail(c, out.code)
+    // The host sees «فلان يريد الدخول» on his socket AND his poller.
+    broadcastRoom(deps, out.room, (state) => ({ type: "state", state }))
+    return c.json({ knock: knockView(deps.users, out.room, user.id) })
+  })
+
+  // ── GET /api/room/:code/knock ────────────────────────────────────────────
+  //
+  // The knocker's poll while he waits. Minimal, and gated the same way: it tells
+  // him `pending` / `accepted` / `rejected`, and on `accepted` the client goes
+  // back to `GET /:code/state`, which now succeeds because his id is on the seat.
+  app.get("/:code/knock", (c) => {
+    const user = requireUser(c)
+    if (user instanceof Response) return user
+    const room = load(c, c.req.param("code") ?? "")
+    if (room instanceof Response) return room
+    return c.json({ knock: knockView(deps.users, room, user.id) })
+  })
+
+  // ── POST /api/room/:code/knock/accept ────────────────────────────────────
+  app.post("/:code/knock/accept", (c) => {
+    const user = requireUser(c)
+    if (user instanceof Response) return user
+    const room = load(c, c.req.param("code") ?? "")
+    if (room instanceof Response) return room
+    const out = acceptKnock(deps, room, user, Date.now())
+    if (!out.ok) return fail(c, out.code)
+    if (out.joined) broadcastRoom(deps, out.room, (state) => ({ type: "join", state, username: user.username }))
+    return c.json({ state: snapshot(deps, out.room, { id: user.id, username: user.username }, Date.now()) })
+  })
+
+  // ── POST /api/room/:code/knock/reject ────────────────────────────────────
+  app.post("/:code/knock/reject", (c) => {
+    const user = requireUser(c)
+    if (user instanceof Response) return user
+    const room = load(c, c.req.param("code") ?? "")
+    if (room instanceof Response) return room
+    const out = rejectKnock(deps, room, user, Date.now())
+    if (!out.ok) return fail(c, out.code)
+    // The host's own screen loses the «يريد الدخول» prompt; the knocker learns
+    // it from his poll (his row is now `rejected`).
+    broadcastRoom(deps, out.room, (state) => ({ type: "state", state }))
+    return c.json({ state: snapshot(deps, out.room, { id: user.id, username: user.username }, Date.now()) })
+  })
+
   // ── POST /api/room/:code/turn ────────────────────────────────────────────
   app.post("/:code/turn", async (c) => {
     const user = requireUser(c)
@@ -460,12 +564,21 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
     "/ws/room/:code",
     upgradeWebSocket((c) => {
       const code = c.req.param("code") ?? ""
-      // A browser cannot set a header on a WebSocket, so it authenticates the
-      // upgrade with the cookie (invariant). A native WebView CAN, and its
-      // cookies are unreliable cross-origin — so it sends the SAME bearer token
-      // it uses on every HTTP call in `Authorization`, and it wins where present
-      // (docs/roadmap-mobile.md §M1).
-      const token = parseBearerHeader(c.req.header("authorization")) ?? getCookie(c, SESSION_COOKIE)
+      // THREE doors, tried in order, all the SAME sessionUser/hashToken path.
+      //  1. The WebSocket SUBPROTOCOL. A browser/WebView cannot set a header on
+      //     an upgrade, but the constructor's `protocols` argument becomes the
+      //     `Sec-WebSocket-Protocol` request header — the one thing it CAN set.
+      //     The native shell offers `qarid.bearer.<token>`; the `ws` server
+      //     echoes the value back on the 101, so the handshake completes. This
+      //     is the fix for the native room socket looping «unauthenticated».
+      //  2. The `Authorization` header — a non-browser client (a test, a proxy)
+      //     that can set one.
+      //  3. The cookie — the web path, unchanged (`qarid_sess` on a same-origin
+      //     upgrade like any other GET).
+      const token =
+        bearerFromSubprotocol(c.req.header("sec-websocket-protocol")) ??
+        parseBearerHeader(c.req.header("authorization")) ??
+        getCookie(c, SESSION_COOKIE)
       const tokenHash = token ? hashToken(token) : null
       const rawKey = c.req.query("k")
       const offeredKey = rawKey && rawKey.length <= 64 ? rawKey : null

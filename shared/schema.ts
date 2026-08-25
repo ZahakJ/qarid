@@ -1797,6 +1797,68 @@ export const ROOM_STRIKES_DEFAULT = 3
 /** The longest a room's transcript may grow before the server calls it a draw. */
 export const MAX_ROOM_TURNS = 400
 
+/**
+ * KNOCK-TO-JOIN (owner's «أملِ عليه الرمز», restored securely).
+ *
+ * The keyed link is still the instant door: a guest who opens `#/room/<code>?k=`
+ * joins with «ادخل المساجلة» and no knock. But a logged-in guest who reaches a
+ * room by VOICE — the six spoken letters, no key — has no credential for the
+ * seat, and the old dead-end («هذه الغرفة بدعوة») made dictating the code a lie.
+ * So he KNOCKS: a pending request the host sees in the snapshot and accepts or
+ * rejects. A knocker is not a player until accepted — he never reads the
+ * transcript, only these four states.
+ *
+ *  • `none`      — this reader has no live knock on this room
+ *  • `pending`   — he knocked, the host has not answered
+ *  • `accepted`  — the host let him in; he is now the guest and reads the room
+ *  • `rejected`  — the host refused, or closed the room out from under him
+ */
+export const RoomKnockStatusSchema = z.enum(["none", "pending", "accepted", "rejected"])
+export type RoomKnockStatus = z.infer<typeof RoomKnockStatusSchema>
+
+/**
+ * The pending knocker, as the HOST sees him in the room snapshot — a name and
+ * nothing more, because a knock is a request for a seat, not a seat. It rides in
+ * `snapshot()` so the host learns of it over the socket AND the poller, and it
+ * is null for everyone who is not the host (a spectator does not vet the door).
+ */
+export const RoomKnockerSchema = z.object({
+  username: z.string(),
+  displayName: z.string(),
+})
+export type RoomKnocker = z.infer<typeof RoomKnockerSchema>
+
+/**
+ * What the KNOCKER himself is told — the minimal view that does NOT leak the
+ * room. `POST /:code/knock` and `GET /:code/knock` answer with this and never a
+ * `RoomState`: an unaccepted knocker is behind the same join_key gate a
+ * key-less spectator is, so he gets his own status, the code he is waiting on,
+ * and the host's name — never the transcript. On `accepted` the client re-opens
+ * the room the ordinary way, because his user id is now on the seat.
+ */
+export const RoomKnockViewSchema = z.object({
+  status: RoomKnockStatusSchema,
+  code: z.string(),
+  hostName: z.string().nullable(),
+})
+export type RoomKnockView = z.infer<typeof RoomKnockViewSchema>
+
+export const RoomKnockResponseSchema = z.object({ knock: RoomKnockViewSchema })
+export type RoomKnockResponse = z.infer<typeof RoomKnockResponseSchema>
+
+/**
+ * The WebSocket subprotocol scheme that carries a bearer on the UPGRADE.
+ *
+ * A browser (or a WebView) cannot set `Authorization` on a WebSocket handshake,
+ * but the constructor's `protocols` argument becomes the `Sec-WebSocket-Protocol`
+ * request header — the one thing it CAN set. So the native shell offers
+ * `qarid.bearer.<token>` as its subprotocol, the server reads the token off it
+ * (docs/roadmap-mobile.md), and the `ws` server echoes the value back on the 101
+ * so the handshake completes. This is ADDITIVE: the cookie path (web) and the
+ * `Authorization` header path are unchanged and still tried, in that order.
+ */
+export const ROOM_WS_BEARER_PREFIX = "qarid.bearer."
+
 /** A seat, as the other side sees it. `strikes` is derived from the turns. */
 export const RoomPlayerSchema = z.object({
   username: z.string(),
@@ -1877,6 +1939,13 @@ export const RoomStateSchema = z.object({
   spectators: z.number().int().nonnegative(),
   /** the absolute link to hand a friend (PUBLIC_ORIGIN + `#/room/<code>`) */
   shareUrl: z.string(),
+  /**
+   * The guest waiting at the door — present ONLY in the host's own snapshot,
+   * and only while a room is `waiting` with a pending knock (see
+   * `RoomKnockerSchema`). Null for a spectator, for the knocker, and whenever
+   * nobody is knocking.
+   */
+  knock: RoomKnockerSchema.nullable(),
 })
 export type RoomState = z.infer<typeof RoomStateSchema>
 
@@ -2015,4 +2084,9 @@ export const ROOM_ERRORS: Record<string, string> = {
   too_fast: "على رِسْلك",
   needs_key: "هذه الغرفة تُدخَل برابط الدعوة — اطلبه ممّن فتحها",
   too_many_sockets: "فُتحت هذه الغرفة في نوافذ كثيرة",
+  not_the_host: "لا يأذن بالدخول إلا صاحب الغرفة",
+  no_knock: "لا أحد ينتظر الإذن على الباب",
+  cannot_knock: "لا يمكنك الطرق على هذه الغرفة",
+  room_busy: "على الباب طارقٌ قبلك — انتظر حتى يُبتّ أمره",
+  knock_rejected: "لم يأذن لك صاحب الغرفة بالدخول",
 }

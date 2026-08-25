@@ -48,6 +48,7 @@ import {
   hashToken,
   newSessionToken,
   purgeExpiredSessions,
+  purgeStaleRooms,
   refreshSession,
   deleteSession,
   sessionUser,
@@ -324,6 +325,7 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
 
     const now = Date.now()
     purgeExpiredSessions(users, now)
+    purgeStaleRooms(users, now)
 
     // Cheap pre-check for the ordinary case; the UNIQUE index below is what
     // actually decides, because two signups can race this read.
@@ -359,6 +361,7 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
 
     const now = Date.now()
     purgeExpiredSessions(users, now)
+    purgeStaleRooms(users, now)
     touchUser(users, row.id, now)
     const token = startSession(c, users, config, row.id, now)
     return c.json(sessionBody({ ...row, last_seen: now }, wantBearer ? token : null))

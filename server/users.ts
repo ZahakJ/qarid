@@ -57,7 +57,7 @@ export const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 const MAX_UA = 200
 
 /** Schema version this build expects; `PRAGMA user_version` is the ledger. */
-export const USERS_SCHEMA_VERSION = 3
+export const USERS_SCHEMA_VERSION = 4
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handle
@@ -202,6 +202,32 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
     raw.exec(`
       ALTER TABLE rooms ADD COLUMN join_key TEXT;
       UPDATE rooms SET join_key = lower(hex(randomblob(12)));
+    `)
+  },
+
+  /*
+   * 3 → 4: `room_knocks` — knock-to-join (owner's «أملِ عليه الرمز»).
+   *
+   * The keyed link stays the instant door; this is the OTHER door, for a guest
+   * who reached the room by voice (the six spoken letters, no key). A knock is
+   * a pending request the host accepts or rejects — one row per (room, user),
+   * so a re-knock after a rejection REPLACES the old row rather than piling up,
+   * and `ON DELETE CASCADE` off `rooms(id)` means the stale-room purge and the
+   * account-delete both take the knocks with them. It is deliberately NOT part
+   * of `match_turns`: a knocker is not a player and owns no بيت until the host
+   * seats him, and until then he must not read the transcript at all.
+   */
+  (raw) => {
+    raw.exec(`
+      CREATE TABLE room_knocks (
+        room_id    INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        status     TEXT NOT NULL CHECK (status IN ('pending', 'rejected')),
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (room_id, user_id)
+      );
+      CREATE INDEX room_knocks_room ON room_knocks(room_id, status);
     `)
   },
 ]
@@ -529,6 +555,35 @@ export function deleteSession(db: UsersDb, tokenHash: string): void {
 /** Housekeeping: called on login/register, where one extra DELETE is free. */
 export function purgeExpiredSessions(db: UsersDb, now: number): number {
   return Number(db.q("DELETE FROM sessions WHERE expires_at <= ?").run(now).changes ?? 0)
+}
+
+/** A `waiting` room nobody ever joined is stale after this long (6 hours). */
+export const WAITING_ROOM_TTL_MS = 6 * 60 * 60_000
+
+/** A `done` room's transcript is kept this long for a re-read, then purged (7 days). */
+export const DONE_ROOM_TTL_MS = 7 * 24 * 60 * 60_000
+
+/**
+ * Purge stale rooms — the housekeeping twin of `purgeExpiredSessions`, run on
+ * the same login/register path.
+ *
+ * A `waiting` room whose host opened it and wandered off is a dead invite: it
+ * holds a code out of the 343,000-value space and shows nothing to anyone. A
+ * `done` room is a finished transcript — worth keeping for a re-read (a رجعة
+ * link, a profile «سجلّك» click) but not forever. Both are matched on the
+ * `rooms(status, updated_at DESC)` index, so this is two cheap range deletes,
+ * and `match_turns`/`room_knocks` fall away with each room by `ON DELETE
+ * CASCADE`. An `active` room is never touched: its clock is live and the only
+ * thing that ends it is a turn, a resignation or the deadline.
+ */
+export function purgeStaleRooms(db: UsersDb, now: number): number {
+  const waiting = Number(
+    db.q("DELETE FROM rooms WHERE status = 'waiting' AND updated_at <= ?").run(now - WAITING_ROOM_TTL_MS).changes ?? 0,
+  )
+  const done = Number(
+    db.q("DELETE FROM rooms WHERE status = 'done' AND updated_at <= ?").run(now - DONE_ROOM_TTL_MS).changes ?? 0,
+  )
+  return waiting + done
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

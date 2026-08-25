@@ -49,6 +49,9 @@ import {
   type GameVerifyResponse,
   type RoomEndReason,
   type RoomEvent,
+  type RoomKnocker,
+  type RoomKnockStatus,
+  type RoomKnockView,
   type RoomPlayer,
   type RoomSeat,
   type RoomState,
@@ -712,6 +715,9 @@ export function snapshot(
       ).size,
     ),
     shareUrl: shareUrlFor(deps.config, room.code, keyForViewer),
+    // The door is the host's to watch: only his snapshot names who is knocking,
+    // and only while the room is still waiting. A spectator vets nobody.
+    knock: seat === "host" ? knockerFor(deps.users, room) : null,
   }
 }
 
@@ -901,6 +907,136 @@ export function playTurn(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Knock-to-join
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type KnockRow = {
+  roomId: number
+  userId: number
+  status: "pending" | "rejected"
+  createdAt: number
+  updatedAt: number
+}
+
+function knockRow(row: unknown): KnockRow | null {
+  if (!row) return null
+  const r = row as Record<string, unknown>
+  return {
+    roomId: Number(r.room_id),
+    userId: Number(r.user_id),
+    status: String(r.status) as KnockRow["status"],
+    createdAt: Number(r.created_at),
+    updatedAt: Number(r.updated_at),
+  }
+}
+
+/** The ONE pending knock a room may hold — first come, and the others wait. */
+export function pendingKnock(users: UsersDb, roomId: number): KnockRow | null {
+  return knockRow(
+    users
+      .q("SELECT room_id, user_id, status, created_at, updated_at FROM room_knocks WHERE room_id = ? AND status = 'pending' ORDER BY created_at LIMIT 1")
+      .get(roomId),
+  )
+}
+
+/** This user's own knock on this room, whatever its state. */
+export function knockOf(users: UsersDb, roomId: number, userId: number): KnockRow | null {
+  return knockRow(
+    users.q("SELECT room_id, user_id, status, created_at, updated_at FROM room_knocks WHERE room_id = ? AND user_id = ?").get(roomId, userId),
+  )
+}
+
+/** The pending knocker as the host's snapshot shows him — a name, never a seat. */
+export function knockerFor(users: UsersDb, room: RoomRow): RoomKnocker | null {
+  if (room.status !== "waiting") return null
+  const k = pendingKnock(users, room.id)
+  if (!k) return null
+  const user = findUserById(users, k.userId)
+  return user ? { username: user.username, displayName: user.display_name } : null
+}
+
+/**
+ * The minimal status a KNOCKER is told — never the room. `accepted` is derived
+ * from the seat, not from a knock row (the row is cleared on accept), so a
+ * knocker whom the host seated learns it the same way a reload would.
+ */
+export function knockView(users: UsersDb, room: RoomRow, userId: number): RoomKnockView {
+  const host = findUserById(users, room.hostUserId)
+  const base = { code: room.code, hostName: host?.display_name ?? null }
+  if (seatOf(room, userId) !== null) return { ...base, status: "accepted" }
+  const mine = knockOf(users, room.id, userId)
+  const status: RoomKnockStatus = mine === null ? "none" : mine.status === "rejected" ? "rejected" : "pending"
+  return { ...base, status }
+}
+
+export type KnockOutcome = { ok: true; room: RoomRow; knocker: RoomKnocker } | { ok: false; code: string }
+
+/**
+ * Record a pending knock (a logged-in guest who reached the room by voice).
+ *
+ * The gate is deliberately strict and additive: the host cannot knock his own
+ * room, a room that is not `waiting` cannot be knocked (it is full, running or
+ * over), and only ONE knocker waits at a time — a second is told the room is
+ * busy rather than silently overwriting the first. Re-knocking after a
+ * rejection is allowed (it flips the row back to pending) but is rate-limited by
+ * the route, so a refused stranger cannot hammer the door.
+ */
+export function recordKnock(deps: RoomDeps, room: RoomRow, user: UserRow, now = Date.now()): KnockOutcome {
+  if (seatOf(room, user.id) !== null) return { ok: false, code: "cannot_knock" }
+  if (room.status !== "waiting") return { ok: false, code: room.status === "active" ? "room_full" : "room_not_active" }
+  if (room.guestUserId !== null) return { ok: false, code: "room_full" }
+  const existing = pendingKnock(deps.users, room.id)
+  if (existing && existing.userId !== user.id) return { ok: false, code: "room_busy" }
+  deps.users
+    .q(
+      `INSERT INTO room_knocks (room_id, user_id, status, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?)
+       ON CONFLICT(room_id, user_id) DO UPDATE SET status = 'pending', updated_at = excluded.updated_at`,
+    )
+    .run(room.id, user.id, now, now)
+  return { ok: true, room, knocker: { username: user.username, displayName: user.display_name } }
+}
+
+/**
+ * The host lets the knocker in: assign the seat and activate through the very
+ * same `startRoom` an invited join uses, then clear the room's knocks (the
+ * accepted one is now a seat; any stragglers are moot). Idempotent — a second
+ * accept after the room is active simply reports the live room.
+ */
+export function acceptKnock(deps: RoomDeps, room: RoomRow, host: UserRow, now = Date.now()): JoinOutcome {
+  if (seatOf(room, host.id) !== "host") return { ok: false, code: "not_the_host" }
+  if (room.status !== "waiting") return room.status === "active" ? { ok: true, room, joined: false } : { ok: false, code: "room_not_active" }
+  if (room.guestUserId !== null) return { ok: false, code: "room_full" }
+  const knock = pendingKnock(deps.users, room.id)
+  if (!knock) return { ok: false, code: "no_knock" }
+  const started = startRoom(deps.users, room, knock.userId, now)
+  deps.users.q("DELETE FROM room_knocks WHERE room_id = ?").run(room.id)
+  deps.hub.arm(started.code, started.turnDeadlineAt, now)
+  return { ok: true, room: started, joined: true }
+}
+
+export type RejectOutcome = { ok: true; room: RoomRow; knockerId: number } | { ok: false; code: string }
+
+/** The host refuses the knocker: the row goes `rejected`, the seat stays open. */
+export function rejectKnock(deps: RoomDeps, room: RoomRow, host: UserRow, now = Date.now()): RejectOutcome {
+  if (seatOf(room, host.id) !== "host") return { ok: false, code: "not_the_host" }
+  const knock = pendingKnock(deps.users, room.id)
+  if (!knock) return { ok: false, code: "no_knock" }
+  deps.users.q("UPDATE room_knocks SET status = 'rejected', updated_at = ? WHERE room_id = ? AND user_id = ?").run(now, room.id, knock.userId)
+  return { ok: true, room, knockerId: knock.userId }
+}
+
+/**
+ * Reject every pending knock on a room — called when the host CLOSES a waiting
+ * room. The knocker is not a player, so there is no seat to end; his poll simply
+ * turns to `rejected` and his «بانتظار…» view becomes «لم يُؤذن لك».
+ */
+export function rejectPendingKnocks(users: UsersDb, roomId: number, now: number): number {
+  return Number(
+    users.q("UPDATE room_knocks SET status = 'rejected', updated_at = ? WHERE room_id = ? AND status = 'pending'").run(now, roomId).changes ?? 0,
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Joining, resigning, رجعة
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -948,11 +1084,17 @@ export function joinRoom(
   return { ok: true, room: started, joined: true }
 }
 
-/** «انسحب» — a player concedes an active room. A spectator cannot. */
+/**
+ * «انسحب» on an active room, «أغلق الغرفة» on a waiting one — a player ends his
+ * own room. A spectator cannot. Closing a WAITING room also refuses any knocker
+ * still at the door (there is no seat to forfeit — his poll just turns to
+ * `rejected`).
+ */
 export function resignRoom(deps: RoomDeps, room: RoomRow, user: UserRow, now = Date.now()): JoinOutcome {
   if (seatOf(room, user.id) === null) return { ok: false, code: "not_a_player" }
   if (room.status === "done") return { ok: true, room, joined: false }
   const winner = room.status === "active" ? opponentOf(room, user.id) : null
+  if (room.status === "waiting") rejectPendingKnocks(deps.users, room.id, now)
   const ended = endRoom(deps.users, room, winner, room.status === "active" ? "resign" : "abandoned", now)
   deps.hub.disarm(ended.code)
   return { ok: true, room: ended, joined: false }
