@@ -7,7 +7,7 @@ import path from "node:path"
 import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
 import type { UsersDb } from "./users.ts"
-import { originGuard } from "./origin.ts"
+import { allowlistedOrigin, corsPreflightResponse, originGuard } from "./origin.ts"
 import { authRoutes } from "./routes/auth.ts"
 import { baitsRoutes } from "./routes/baits.ts"
 import { facetsRoutes } from "./routes/facets.ts"
@@ -43,11 +43,31 @@ export function createApp(
 
   // security headers on every response
   app.use("*", async (c, next) => {
+    /**
+     * CORS for the Capacitor app (docs/roadmap-mobile.md §M1), handled in the
+     * OUTERMOST middleware for the same reason `Cache-Control` is: an inner
+     * middleware's header is dropped when `compress()` rebuilds the response
+     * (the first CLAUDE.md invariant). `Access-Control-Allow-Origin` is ECHOED
+     * from a three-entry allowlist, never `*` — a wildcard cannot ride with
+     * `Allow-Credentials: true`. A preflight (OPTIONS) from an allowlisted
+     * origin is answered here, before the CSRF guard and before any route.
+     */
+    const corsOrigin = allowlistedOrigin(c.req.header("origin"))
+    if (corsOrigin && c.req.method === "OPTIONS") {
+      return corsPreflightResponse(corsOrigin)
+    }
+
     await next()
     const h = c.res.headers
     h.set("X-Content-Type-Options", "nosniff")
     h.set("Referrer-Policy", "strict-origin-when-cross-origin")
     h.set("Cross-Origin-Opener-Policy", "same-origin")
+
+    if (corsOrigin) {
+      h.set("Access-Control-Allow-Origin", corsOrigin)
+      h.set("Access-Control-Allow-Credentials", "true")
+      h.append("Vary", "Origin")
+    }
 
     /**
      * Cache-Control on `/api/*`, which had none at all — so Cloudflare cached
