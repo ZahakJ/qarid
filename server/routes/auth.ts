@@ -28,6 +28,7 @@ import type { z } from "zod"
 import {
   AuthMeResponseSchema,
   LoginRequestSchema,
+  PasswordChangeRequestSchema,
   RegisterRequestSchema,
   toErrorBody,
   type AuthUser,
@@ -40,6 +41,7 @@ import {
   SESSION_TTL_MS,
   createSession,
   createUser,
+  deleteUserSessions,
   dummyPasswordHash,
   findUserByUsername,
   hashPassword,
@@ -49,6 +51,7 @@ import {
   refreshSession,
   deleteSession,
   sessionUser,
+  setPassword,
   touchUser,
   verifyPassword,
   type UserRow,
@@ -167,6 +170,59 @@ export function cookieSecure(config: Config): boolean {
   return config.publicOrigin.startsWith("https://")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Bearer tokens (docs/roadmap-mobile.md §M1)
+//
+// A native WebView's cookies are unreliable cross-origin, so the Capacitor app
+// authenticates with `Authorization: Bearer <token>`. A bearer token IS a
+// session token — 32 random bytes whose SHA-256 sits in the SAME `sessions`
+// table the cookie uses — just handed back in the login/register body instead
+// of (as well as) the cookie, and only when the client asks. Nothing about the
+// web flow changes: web clients send no bearer, get no `token`, keep the cookie.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Parse a raw `Authorization` header value → the token, or null. */
+export function parseBearerHeader(value: string | undefined): string | null {
+  if (!value) return null
+  const m = /^Bearer[ \t]+(.+)$/i.exec(value.trim())
+  const token = m?.[1]?.trim()
+  return token ? token : null
+}
+
+/** The bearer token this request carries in its `Authorization` header. */
+export function bearerToken(c: Context): string | null {
+  return parseBearerHeader(c.req.header("authorization"))
+}
+
+/**
+ * Did the client ask for a bearer token? Two equivalent signals: the
+ * `X-Client: capacitor` header the app sets on every request, or an explicit
+ * `{bearer: true}` in the request body. The header is the documented one; the
+ * flag exists so the behaviour is exercisable without spoofing a client header.
+ */
+export function wantsBearer(c: Context, body?: { bearer?: boolean }): boolean {
+  if ((c.req.header("x-client") ?? "").trim().toLowerCase() === "capacitor") return true
+  return body?.bearer === true
+}
+
+/**
+ * A bearer token may be MINTED only over a secure transport — an https
+ * `PUBLIC_ORIGIN` (production) or a localhost origin (dev, smoke, the emulator).
+ * A token returned in a body over plain http to a public host would be a
+ * credential travelling in the clear, so issuance is refused there. Same
+ * `cookieSecure` logic the `Secure` cookie flag already keys on.
+ */
+export function bearerIssuanceAllowed(config: Config): boolean {
+  if (cookieSecure(config)) return true
+  let host: string
+  try {
+    host = new URL(config.publicOrigin).hostname.toLowerCase()
+  } catch {
+    return false
+  }
+  return host === "localhost" || host === "127.0.0.1" || host === "::1"
+}
+
 /** One place that writes the session cookie — register, login and the roll. */
 export function writeSessionCookie(c: Context, config: Config, token: string): void {
   setCookie(c, SESSION_COOKIE, token, {
@@ -183,6 +239,23 @@ export function clearSessionCookie(c: Context, config: Config): void {
 }
 
 /**
+ * Mint one session and set the cookie, returning the raw token. The cookie is
+ * ALWAYS written — that is the web flow, unchanged — and the caller decides
+ * whether to also hand the token back in the body for a bearer client.
+ */
+function startSession(c: Context, users: UsersDb, config: Config, userId: number, now: number): string {
+  const token = newSessionToken()
+  createSession(users, { userId, tokenHash: hashToken(token), now, ua: c.req.header("user-agent") ?? null })
+  writeSessionCookie(c, config, token)
+  return token
+}
+
+/** The body for a session response — `token` present only for a bearer client. */
+function sessionBody(user: UserRow, token: string | null): { user: AuthUser; token?: string } {
+  return token ? { user: authUser(user), token } : { user: authUser(user) }
+}
+
+/**
  * The signed-in user, or null — the door every authenticated route uses.
  *
  * It also does the ROLL: a session more than a day old has its expiry pushed
@@ -191,13 +264,19 @@ export function clearSessionCookie(c: Context, config: Config): void {
  */
 export function currentUser(c: Context, users: UsersDb | null, config: Config, now = Date.now()): UserRow | null {
   if (!users) return null
-  const token = getCookie(c, SESSION_COOKIE)
+  // Bearer beats cookie: a native client sends the header, a browser the cookie.
+  // Both are session tokens hashed into the same table, so the lookup is one path.
+  const bearer = bearerToken(c)
+  const token = bearer ?? getCookie(c, SESSION_COOKIE)
   if (!token) return null
   const found = sessionUser(users, hashToken(token), now)
   if (!found) return null
   if (now - (found.session.expires_at - SESSION_TTL_MS) > SESSION_REFRESH_AFTER_MS) {
+    // Tokens roll exactly like cookie sessions — same 90-day push. A bearer
+    // session rolls in the TABLE only; there is no cookie to re-send, and the
+    // token itself is unchanged, so the native client keeps the one it holds.
     refreshSession(users, found.session.token_hash, now + SESSION_TTL_MS)
-    writeSessionCookie(c, config, token)
+    if (!bearer) writeSessionCookie(c, config, token)
   }
   return found.user
 }
@@ -220,8 +299,15 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
   const unavailable = (c: Context) =>
     c.json({ error: "auth_unavailable", message: "الحسابات غير متاحة على هذا الخادم" }, 503)
 
+  /** A bearer token was asked for over an insecure transport — refused. */
+  const insecureBearer = (c: Context) =>
+    c.json({ error: "insecure_bearer", message: "الرمز يُصدر عبر https فقط" }, 403)
+
   app.use("/register", registerLimiter.middleware)
   app.use("/login", loginLimiter.middleware)
+  // Password change reuses the auth (login) bucket — it is an auth-sensitive
+  // write, and «reuse the auth limiter» is the roadmap's own instruction.
+  app.use("/password", loginLimiter.middleware)
 
   app.post("/register", async (c) => {
     if (!users) return unavailable(c)
@@ -232,6 +318,9 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
     if (!inviteAccepted(config, invite)) {
       return c.json({ error: "invite_required", message: "رمز الدعوة مطلوب أو غير صحيح" }, 403)
     }
+
+    const wantBearer = wantsBearer(c, parsed.data)
+    if (wantBearer && !bearerIssuanceAllowed(config)) return insecureBearer(c)
 
     const now = Date.now()
     purgeExpiredSessions(users, now)
@@ -246,10 +335,8 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
     const row = createUser(users, { username, displayName: displayName ?? username, passHash, now })
     if (!row) return c.json({ error: "username_taken", message: "هذا الاسم مأخوذ" }, 409)
 
-    const token = newSessionToken()
-    createSession(users, { userId: row.id, tokenHash: hashToken(token), now, ua: c.req.header("user-agent") ?? null })
-    writeSessionCookie(c, config, token)
-    return c.json({ user: authUser(row) }, 201)
+    const token = startSession(c, users, config, row.id, now)
+    return c.json(sessionBody(row, wantBearer ? token : null), 201)
   })
 
   app.post("/login", async (c) => {
@@ -257,6 +344,9 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
     const parsed = await parseBody(c, LoginRequestSchema)
     if (!parsed.ok) return parsed.res
     const { username, password } = parsed.data
+
+    const wantBearer = wantsBearer(c, parsed.data)
+    if (wantBearer && !bearerIssuanceAllowed(config)) return insecureBearer(c)
 
     const row = findUserByUsername(users, username)
     // An unknown name still pays for one scrypt, so the response time cannot be
@@ -270,19 +360,52 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
     const now = Date.now()
     purgeExpiredSessions(users, now)
     touchUser(users, row.id, now)
-    const token = newSessionToken()
-    createSession(users, { userId: row.id, tokenHash: hashToken(token), now, ua: c.req.header("user-agent") ?? null })
-    writeSessionCookie(c, config, token)
-    return c.json({ user: authUser({ ...row, last_seen: now }) })
+    const token = startSession(c, users, config, row.id, now)
+    return c.json(sessionBody({ ...row, last_seen: now }, wantBearer ? token : null))
   })
 
   app.post("/logout", (c) => {
     // Logging out of a server with no accounts is a no-op, not an error: the
-    // client's own state is what it is really asking to clear.
-    const token = users ? getCookie(c, SESSION_COOKIE) : undefined
+    // client's own state is what it is really asking to clear. A bearer client
+    // sends its token in the header; a web client in the cookie — either revokes.
+    const token = users ? (bearerToken(c) ?? getCookie(c, SESSION_COOKIE)) : undefined
     if (users && token) deleteSession(users, hashToken(token))
     clearSessionCookie(c, config)
     return c.json({ ok: true as const })
+  })
+
+  /**
+   * POST /api/auth/password — change the password, revoking EVERY session.
+   *
+   * The revoke is the whole reason this route exists (docs/roadmap-mobile.md
+   * §M1): cookie and bearer tokens share one table, so `deleteUserSessions`
+   * kills all of them at once — every other device, and this one. The current
+   * device is then re-established with a fresh session so the reader who just
+   * changed their password is not thrown out of the tab they did it in. The
+   * OLD password is verified first, in constant time, so a ridden cookie cannot
+   * silently re-key the account.
+   */
+  app.post("/password", async (c) => {
+    if (!users) return unavailable(c)
+    const me = currentUser(c, users, config)
+    if (!me) return c.json({ error: "unauthenticated", message: "سجّل الدخول أولًا" }, 401)
+    const parsed = await parseBody(c, PasswordChangeRequestSchema)
+    if (!parsed.ok) return parsed.res
+    const { oldPassword, newPassword } = parsed.data
+
+    const wantBearer = wantsBearer(c, parsed.data)
+    if (wantBearer && !bearerIssuanceAllowed(config)) return insecureBearer(c)
+
+    if (!(await verifyPassword(oldPassword, me.pass_hash))) {
+      return c.json({ error: "bad_credentials", message: "كلمة السر الحالية غير صحيحة" }, 401)
+    }
+
+    const now = Date.now()
+    setPassword(users, me.id, await hashPassword(newPassword))
+    // Revoke everything — cookie AND bearer — then re-issue this one device.
+    deleteUserSessions(users, me.id)
+    const token = startSession(c, users, config, me.id, now)
+    return c.json(sessionBody(me, wantBearer ? token : null))
   })
 
   app.get("/me", (c) => {

@@ -71,7 +71,7 @@ import {
   type RoomRow,
 } from "../rooms.ts"
 import { SESSION_COOKIE, findUserById, hashToken, sessionUser, type UserRow, type UsersDb } from "../users.ts"
-import { currentUser, parseBody } from "./auth.ts"
+import { currentUser, parseBearerHeader, parseBody } from "./auth.ts"
 
 /** A room body is a code and 600 characters of بيت — 8 KB is generous. */
 export const MAX_ROOM_BODY = 8 * 1024
@@ -460,7 +460,12 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
     "/ws/room/:code",
     upgradeWebSocket((c) => {
       const code = c.req.param("code") ?? ""
-      const token = getCookie(c, SESSION_COOKIE)
+      // A browser cannot set a header on a WebSocket, so it authenticates the
+      // upgrade with the cookie (invariant). A native WebView CAN, and its
+      // cookies are unreliable cross-origin — so it sends the SAME bearer token
+      // it uses on every HTTP call in `Authorization`, and it wins where present
+      // (docs/roadmap-mobile.md §M1).
+      const token = parseBearerHeader(c.req.header("authorization")) ?? getCookie(c, SESSION_COOKIE)
       const tokenHash = token ? hashToken(token) : null
       const rawKey = c.req.query("k")
       const offeredKey = rawKey && rawKey.length <= 64 ? rawKey : null
