@@ -210,6 +210,56 @@ export function createApp(
       c.header("Cache-Control", "no-cache")
       return c.html(indexHtml)
     })
+
+    /**
+     * PWA files served from the scope ROOT (docs/roadmap-mobile.md §M0).
+     *
+     * They must sit at `/…`, not under `/assets/`, because a service worker's
+     * scope is its own directory: `/sw.js` controls the whole app, `/assets/sw.js`
+     * could not. Each is read once at boot like index.html, so a deploy needs
+     * the same restart the bundle already needs.
+     *
+     * Two header rules matter. `sw.js` is `no-cache` (`must-revalidate`): the
+     * worker file itself must never be pinned, or a deploy's new worker is never
+     * discovered — the worker's OWN versioned cache is what makes assets fast,
+     * not an HTTP cache on the script. And `Service-Worker-Allowed: /` lets the
+     * worker claim the root scope even though the script is fetched from it (a
+     * belt-and-braces header; the scope is already root here). The icons and
+     * manifest are not content-hashed, so they get a short cache, not the
+     * year-long `immutable` the hashed `/assets/*` get.
+     */
+    const serveRootFile = (
+      url: string,
+      file: string,
+      type: string,
+      cache: string,
+      extra?: Record<string, string>,
+    ) => {
+      const p = path.join(distDir, file)
+      if (!fs.existsSync(p)) return
+      const body = fs.readFileSync(p)
+      app.get(url, (c) => {
+        c.header("Content-Type", type)
+        c.header("Cache-Control", cache)
+        for (const [k, v] of Object.entries(extra ?? {})) c.header(k, v)
+        return c.body(body)
+      })
+    }
+
+    serveRootFile("/sw.js", "sw.js", "text/javascript; charset=utf-8", "no-cache, must-revalidate", {
+      "Service-Worker-Allowed": "/",
+    })
+    serveRootFile(
+      "/manifest.webmanifest",
+      "manifest.webmanifest",
+      "application/manifest+json; charset=utf-8",
+      "public, max-age=3600",
+    )
+    serveRootFile("/offline.html", "offline.html", "text/html; charset=utf-8", "public, max-age=300")
+    for (const icon of ["icon-192.png", "icon-512.png", "icon-192-maskable.png", "icon-512-maskable.png"]) {
+      serveRootFile(`/icons/${icon}`, path.join("icons", icon), "image/png", "public, max-age=86400")
+    }
+
     app.notFound((c) => {
       if (c.req.path.startsWith("/api/")) return c.json({ error: "not_found" }, 404)
       // A missing `/assets/<hash>` is a 404, NOT the SPA shell. Serving

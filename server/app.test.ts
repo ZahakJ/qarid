@@ -819,3 +819,64 @@ describe("the client bundle", () => {
     expect(spa.headers.get("Content-Type") ?? "").toContain("text/html")
   })
 })
+
+describe("PWA files (docs/roadmap-mobile.md §M0)", () => {
+  const dist = path.join(REPO_ROOT, "dist")
+  const built = fs.existsSync(path.join(dist, "sw.js"))
+  const app = createApp(loadConfig({ NODE_ENV: "test" } as NodeJS.ProcessEnv), null).app
+
+  it.runIf(built)("serves /sw.js as javascript from the scope root, never immutable", async () => {
+    const res = await app.request("/sw.js")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("Content-Type") ?? "").toContain("javascript")
+    // the worker file must revalidate every load, or a deploy's worker is never seen
+    const cache = res.headers.get("Cache-Control") ?? ""
+    expect(cache).toContain("no-cache")
+    expect(cache).not.toContain("immutable")
+    expect(cache).not.toMatch(/max-age=\d{4,}/) // not a long pin
+    expect(res.headers.get("Service-Worker-Allowed")).toBe("/")
+    const body = await res.text()
+    expect(body).toContain("qarid-pwa-") // the versioned cache name
+  })
+
+  it.runIf(built)("serves the manifest with the manifest content type", async () => {
+    const res = await app.request("/manifest.webmanifest")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("Content-Type") ?? "").toContain("application/manifest+json")
+    const json = JSON.parse(await res.text())
+    expect(json.name).toBe("قريض")
+    expect(json.dir).toBe("rtl")
+    expect(json.lang).toBe("ar")
+    expect(json.display).toBe("standalone")
+    expect(json.theme_color).toBe("#07080c")
+    expect(json.start_url).toBe("/")
+    // both maskable and any-purpose icons at 192 and 512
+    const purposes = json.icons.map((i: { purpose: string; sizes: string }) => `${i.purpose} ${i.sizes}`)
+    expect(purposes).toContain("maskable 192x192")
+    expect(purposes).toContain("maskable 512x512")
+    expect(purposes).toContain("any 192x192")
+    expect(purposes).toContain("any 512x512")
+  })
+
+  it.runIf(built)("serves the offline page with the offline message", async () => {
+    const res = await app.request("/offline.html")
+    expect(res.status).toBe(200)
+    expect(res.headers.get("Content-Type") ?? "").toContain("text/html")
+    expect(await res.text()).toContain("لا اتصال")
+  })
+
+  it.runIf(built)("serves each icon as a png", async () => {
+    for (const icon of ["icon-192.png", "icon-512.png", "icon-192-maskable.png", "icon-512-maskable.png"]) {
+      const res = await app.request(`/icons/${icon}`)
+      expect(res.status).toBe(200)
+      expect(res.headers.get("Content-Type")).toBe("image/png")
+    }
+  })
+
+  it.runIf(built)("references the manifest and theme-color from the shell", async () => {
+    const res = await app.request("/")
+    const html = await res.text()
+    expect(html).toContain('rel="manifest"')
+    expect(html).toContain('name="theme-color"')
+  })
+})
