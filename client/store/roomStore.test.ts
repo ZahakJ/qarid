@@ -13,8 +13,8 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { rejectionOf, rematchIsNew, roomTimeLeft, socketUrl } from "./roomStore.ts"
-import type { BaitDto, RoomState, RoomVerdict } from "../../shared/schema.ts"
+import { bearerSubprotocol, rejectionOf, rematchIsNew, roomTimeLeft, socketUrl } from "./roomStore.ts"
+import { ROOM_WS_BEARER_PREFIX, type BaitDto, type RoomState, type RoomVerdict } from "../../shared/schema.ts"
 
 const BAIT: BaitDto = {
   id: 7,
@@ -57,6 +57,24 @@ describe("socketUrl", () => {
     // socket streams the same transcript, so it needs the same proof.
     expect(socketUrl("BADIRU", "abc23xyz", https)).toBe("wss://qarid.avicenna.space/ws/room/BADIRU?k=abc23xyz")
     expect(socketUrl("BADIRU", null, https)).not.toContain("?")
+  })
+})
+
+describe("bearerSubprotocol", () => {
+  it("offers the bearer as a subprotocol in the native shell — the one header a WS can set", () => {
+    // A WebView cannot set `Authorization` on an upgrade, so the token rides in
+    // `Sec-WebSocket-Protocol` via the constructor's protocols argument.
+    expect(bearerSubprotocol(true, "tok_abc-123")).toBe(`${ROOM_WS_BEARER_PREFIX}tok_abc-123`)
+  })
+
+  it("offers NOTHING on the web — the same-origin cookie authenticates the upgrade", () => {
+    // Undefined means `new WebSocket(url)` with no protocols: the web path is
+    // byte-for-byte unchanged and the cookie carries the session.
+    expect(bearerSubprotocol(false, "tok_abc-123")).toBeUndefined()
+  })
+
+  it("offers nothing when the native shell holds no token yet", () => {
+    expect(bearerSubprotocol(true, null)).toBeUndefined()
   })
 })
 

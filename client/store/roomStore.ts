@@ -31,15 +31,27 @@
 import { create } from "zustand"
 import { ApiError } from "../api/client.ts"
 import {
+  acceptKnock as acceptKnockRequest,
   createRoom as createRoomRequest,
+  getRoomKnock,
   getRoomState,
   joinRoom as joinRoomRequest,
+  knockRoom as knockRequest,
   playRoomTurn,
+  rejectKnock as rejectKnockRequest,
   rematchRoom as rematchRequest,
   resignRoom as resignRequest,
 } from "../api/queries.ts"
-import { RoomEventSchema, ROOM_ERRORS, type CreateRoomRequest, type RoomState, type RoomVerdict } from "../../shared/schema.ts"
-import { apiSocketLoc } from "../platform/native.ts"
+import {
+  RoomEventSchema,
+  ROOM_ERRORS,
+  ROOM_WS_BEARER_PREFIX,
+  type CreateRoomRequest,
+  type RoomKnockView,
+  type RoomState,
+  type RoomVerdict,
+} from "../../shared/schema.ts"
+import { apiSocketLoc, currentToken, isNative } from "../platform/native.ts"
 import type { Rejection } from "../duel/machine.ts"
 
 /** How often the poller asks when there is no live socket. */
@@ -71,6 +83,14 @@ type RoomStore = {
   strikesLeft: number
   /** `serverNow - Date.now()` at the last snapshot */
   skew: number
+  /**
+   * The KNOCKER's own status when this reader reached a room by code with no
+   * key — `pending`/`accepted`/`rejected`. Null when he is a player, a keyed
+   * spectator, or simply has not knocked. It never carries the room.
+   */
+  knock: RoomKnockView | null
+  /** the knock button is in flight */
+  knocking: boolean
 
   open: (code: string, key?: string | null) => void
   close: () => void
@@ -81,6 +101,12 @@ type RoomStore = {
   rematch: () => Promise<string | null>
   dismissRejection: () => void
   refresh: () => Promise<void>
+  /** «اطرق الباب» — a guest with no key asks to be let in, then polls. */
+  sendKnock: () => Promise<void>
+  /** «اقبل» — the host seats the pending knocker (activates the room). */
+  acceptKnock: () => Promise<void>
+  /** «ارفض» — the host refuses the pending knocker. */
+  rejectKnock: () => Promise<void>
 }
 
 /**
@@ -103,7 +129,16 @@ let socket: WebSocket | null = null
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let retryTimer: ReturnType<typeof setTimeout> | null = null
+let knockTimer: ReturnType<typeof setInterval> | null = null
 let attempt = 0
+/**
+ * A FATAL socket close — `unauthenticated` (the native room-socket defect) or
+ * `room_not_found` — must NOT be reconnected. The old loop reopened ~40 times in
+ * 16 s against a door that would never open, while the HTTP poller (which
+ * carries the bearer like every other call) was the answer all along. Set here,
+ * checked in `reopen`, cleared on every fresh `open`.
+ */
+let socketFatal = false
 /** the invite key this room was opened with (`#/room/<code>?k=…`) */
 let joinKey: string | null = null
 /** bumped on every `open`/`close`, so a late callback from a previous room dies */
@@ -113,9 +148,11 @@ function clearTimers(): void {
   if (pollTimer !== null) clearInterval(pollTimer)
   if (heartbeatTimer !== null) clearInterval(heartbeatTimer)
   if (retryTimer !== null) clearTimeout(retryTimer)
+  if (knockTimer !== null) clearInterval(knockTimer)
   pollTimer = null
   heartbeatTimer = null
   retryTimer = null
+  knockTimer = null
 }
 
 function dropSocket(): void {
@@ -152,6 +189,20 @@ export function socketUrl(
   const scheme = loc.protocol === "https:" ? "wss:" : "ws:"
   const base = `${scheme}//${loc.host}/ws/room/${encodeURIComponent(code)}`
   return key === null ? base : `${base}?k=${encodeURIComponent(key)}`
+}
+
+/**
+ * The WebSocket subprotocol the NATIVE shell authenticates its upgrade with.
+ *
+ * A WebView cannot set `Authorization` on a WS handshake, so the bearer rides in
+ * the one header the constructor CAN set — `Sec-WebSocket-Protocol`, via the
+ * `protocols` argument — as `qarid.bearer.<token>` (server/routes/rooms.ts reads
+ * it, the `ws` server echoes it back). On the WEB this is `undefined`: the
+ * same-origin cookie authenticates the upgrade and no subprotocol is offered, so
+ * the web path is byte-for-byte unchanged.
+ */
+export function bearerSubprotocol(native: boolean, token: string | null): string | undefined {
+  return native && token ? `${ROOM_WS_BEARER_PREFIX}${token}` : undefined
 }
 
 /** The verifier's refusal, in the shape the duel's own card already renders. */
@@ -214,6 +265,40 @@ export const useRoom = create<RoomStore>()((set, get) => {
     heartbeatTimer = null
   }
 
+  const stopKnockPoll = () => {
+    if (knockTimer === null) return
+    clearInterval(knockTimer)
+    knockTimer = null
+  }
+
+  /**
+   * The knocker's wait, polled — the ONE room read that is NOT `getRoomState`,
+   * because an unaccepted knocker is behind the join_key gate and `/state` would
+   * 403 him. On `accepted` he re-opens the room the ordinary way (his id is on
+   * the seat now); on `rejected` the poll stops and the view says so.
+   */
+  const startKnockPoll = (code: string, mine: number) => {
+    if (knockTimer !== null) return
+    knockTimer = setInterval(() => {
+      if (mine !== generation) return
+      void getRoomKnock(code)
+        .then((res) => {
+          if (mine !== generation) return
+          set({ knock: res.knock })
+          if (res.knock.status === "accepted") {
+            // `open` resets everything (knock poll included) and loads the room
+            // the normal way — which now succeeds, because we are seated.
+            get().open(code, null)
+          } else if (res.knock.status !== "pending") {
+            stopKnockPoll()
+          }
+        })
+        .catch(() => {
+          /* a knock poll that blips is simply retried on the next tick */
+        })
+    }, POLL_MS)
+  }
+
   const connect = (code: string, mine: number) => {
     if (typeof WebSocket === "undefined") {
       set({ transport: "polling" })
@@ -224,10 +309,14 @@ export const useRoom = create<RoomStore>()((set, get) => {
     try {
       // Same-origin on the web; the deployment host in the native shell, whose
       // page origin (https://localhost) has no server behind it. A WebView
-      // cannot set the Authorization header a cross-origin upgrade would need,
-      // so when the socket cannot authenticate the store falls back to the HTTP
-      // poller, which carries the bearer like every other call.
-      ws = new WebSocket(socketUrl(code, joinKey, apiSocketLoc()))
+      // cannot set the Authorization header a cross-origin upgrade would need —
+      // so the native shell carries the bearer in the WebSocket SUBPROTOCOL
+      // instead (`qarid.bearer.<token>`), the one thing a WebView WS CAN set.
+      // On the web `proto` is undefined and the same-origin cookie authenticates
+      // the upgrade, exactly as before.
+      const url = socketUrl(code, joinKey, apiSocketLoc())
+      const proto = bearerSubprotocol(isNative, currentToken())
+      ws = proto ? new WebSocket(url, proto) : new WebSocket(url)
     } catch {
       set({ transport: "polling" })
       startPolling()
@@ -259,9 +348,14 @@ export const useRoom = create<RoomStore>()((set, get) => {
       const event = parsed.data
       if (event.type === "error") {
         // A socket-level error is about the CONNECTION, not about a بيت: the
-        // room stays on screen and the poller takes over.
+        // room stays on screen and the poller takes over. `unauthenticated` and
+        // `room_not_found` are FATAL — the door will not open on a retry — so we
+        // mark the close so `reopen` STOPS the loop instead of hammering it ~40
+        // times in 16 s. The message is shown only when the poller has nothing
+        // either; a room already in hand is never hidden by a transport error.
         if (event.code === "unauthenticated" || event.code === "room_not_found") {
-          set({ error: ROOM_ERRORS[event.code] ?? event.message, transport: "polling" })
+          socketFatal = true
+          set({ transport: "polling", ...(get().state === null ? { error: ROOM_ERRORS[event.code] ?? event.message } : {}) })
         }
         return
       }
@@ -276,6 +370,10 @@ export const useRoom = create<RoomStore>()((set, get) => {
       // net over anything — the 2-second poller is now the only news there is.
       stopHeartbeat()
       startPolling()
+      // A FATAL close (unauthenticated / room_not_found) does not reconnect: the
+      // poller carries the bearer like every other call and keeps the room live,
+      // so the socket loop stays down until the next `open`.
+      if (socketFatal) return
       const wait = BACKOFF[Math.min(attempt, BACKOFF.length - 1)]!
       attempt += 1
       retryTimer = setTimeout(() => {
@@ -303,12 +401,15 @@ export const useRoom = create<RoomStore>()((set, get) => {
     rejection: null,
     strikesLeft: 0,
     skew: 0,
+    knock: null,
+    knocking: false,
 
     open: (code, key = null) => {
       const mine = ++generation
       clearTimers()
       dropSocket()
       attempt = 0
+      socketFatal = false
       joinKey = key
       set({
         code,
@@ -321,6 +422,8 @@ export const useRoom = create<RoomStore>()((set, get) => {
         draft: "",
         rejection: null,
         transport: "offline",
+        knock: null,
+        knocking: false,
       })
       // The FIRST read is HTTP, always: it is the one that can say 401 or 404
       // in a way the reader understands, and the socket cannot.
@@ -345,7 +448,8 @@ export const useRoom = create<RoomStore>()((set, get) => {
       generation += 1
       clearTimers()
       dropSocket()
-      set({ code: null, state: null, transport: "offline", draft: "", rejection: null, notice: null })
+      socketFatal = false
+      set({ code: null, state: null, transport: "offline", draft: "", rejection: null, notice: null, knock: null, knocking: false })
     },
 
     setDraft: (v) => set({ draft: v }),
@@ -433,6 +537,51 @@ export const useRoom = create<RoomStore>()((set, get) => {
     },
 
     dismissRejection: () => set({ rejection: null }),
+
+    sendKnock: async () => {
+      const code = get().code
+      if (!code || get().knocking) return
+      const mine = generation
+      set({ knocking: true, notice: null })
+      try {
+        const res = await knockRequest(code)
+        if (mine !== generation) return
+        set({ knocking: false, knock: res.knock })
+        // Wait for the host: poll the minimal knock status, NOT the room.
+        startKnockPoll(code, mine)
+      } catch (err) {
+        if (mine !== generation) return
+        set({ knocking: false, notice: messageOf(err) })
+      }
+    },
+
+    acceptKnock: async () => {
+      const code = get().code
+      if (!code || get().busy) return
+      set({ busy: true, notice: null })
+      try {
+        const res = await acceptKnockRequest(code)
+        apply(res.state)
+        set({ busy: false })
+      } catch (err) {
+        set({ busy: false, notice: messageOf(err) })
+        void get().refresh()
+      }
+    },
+
+    rejectKnock: async () => {
+      const code = get().code
+      if (!code || get().busy) return
+      set({ busy: true, notice: null })
+      try {
+        const res = await rejectKnockRequest(code)
+        apply(res.state)
+        set({ busy: false })
+      } catch (err) {
+        set({ busy: false, notice: messageOf(err) })
+        void get().refresh()
+      }
+    },
   }
 })
 
