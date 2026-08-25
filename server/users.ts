@@ -455,6 +455,20 @@ export function setDisplayName(db: UsersDb, userId: number, displayName: string)
   db.q("UPDATE users SET display_name = ? WHERE id = ?").run(displayName, userId)
 }
 
+/** Re-key an account. The caller MUST revoke the old sessions (see below). */
+export function setPassword(db: UsersDb, userId: number, passHash: string): void {
+  db.q("UPDATE users SET pass_hash = ? WHERE id = ?").run(passHash, userId)
+}
+
+/**
+ * Drop EVERY session a user holds — cookie and bearer live in the one table, so
+ * one DELETE revokes both (docs/roadmap-mobile.md §M1: a password change must
+ * kill all tokens). Returns how many rows went, for the caller's audit line.
+ */
+export function deleteUserSessions(db: UsersDb, userId: number): number {
+  return Number(db.q("DELETE FROM sessions WHERE user_id = ?").run(userId).changes ?? 0)
+}
+
 export function touchUser(db: UsersDb, userId: number, now: number): void {
   db.q("UPDATE users SET last_seen = ? WHERE id = ?").run(now, userId)
 }

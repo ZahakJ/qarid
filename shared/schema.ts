@@ -1591,6 +1591,12 @@ export const RegisterRequestSchema = z.object({
   password: PasswordSchema,
   /** only read when the server runs with REQUIRE_INVITE=1 */
   invite: InviteCodeSchema.optional(),
+  /**
+   * Ask for a bearer token in the response body (docs/roadmap-mobile.md §M1).
+   * The Capacitor app sets the `X-Client: capacitor` header instead; either is
+   * honoured. Web clients omit it and keep using the cookie unchanged.
+   */
+  bearer: z.boolean().optional(),
 })
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
 
@@ -1603,10 +1609,37 @@ export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
 export const LoginRequestSchema = z.object({
   username: z.string().trim().min(1).max(64),
   password: z.string().min(1).max(200),
+  /** ask for a bearer token in the body (see RegisterRequestSchema.bearer) */
+  bearer: z.boolean().optional(),
 })
 export type LoginRequest = z.infer<typeof LoginRequestSchema>
 
-export const AuthSessionResponseSchema = z.object({ user: AuthUserSchema })
+/**
+ * Change the signed-in account's password (docs/roadmap-mobile.md §M1).
+ *
+ * The reason this route exists at all is the revoke requirement: a password
+ * change must invalidate EVERY session — cookie and bearer alike — so there has
+ * to be a route that changes the password. `oldPassword` is verified so a
+ * ridden cookie cannot silently re-key the account out from under its owner.
+ */
+export const PasswordChangeRequestSchema = z.object({
+  oldPassword: z.string().min(1).max(200),
+  newPassword: PasswordSchema,
+  /** re-issue the current device as a bearer token (see the flag above) */
+  bearer: z.boolean().optional(),
+})
+export type PasswordChangeRequest = z.infer<typeof PasswordChangeRequestSchema>
+
+/**
+ * The login/register/password response. `token` is present ONLY when the client
+ * asked for a bearer session and the origin is secure (https or localhost); web
+ * clients never see it and read the cookie instead. It appears here, in a body,
+ * and NOWHERE else — never a URL, a log line, or an error message.
+ */
+export const AuthSessionResponseSchema = z.object({
+  user: AuthUserSchema,
+  token: z.string().optional(),
+})
 export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>
 
 /**
