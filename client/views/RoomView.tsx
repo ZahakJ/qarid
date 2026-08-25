@@ -472,7 +472,9 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
               rejection={rejection}
               livesLeft={strikesLeft}
               strike={rejection.kind === "wrong_letter" || rejection.kind === "not_found"}
-              costLabel={`‎−ضربة · بقي ${formatNumber(strikesLeft)}`}
+              // «بقيت ضربتان», never «بقي 2» — the معدود is not optional
+              // (CLAUDE.md, العدد والمعدود live in shared/format.ts)
+              costLabel={`‎−ضربة · ${strikesLeft === 0 ? "ولا ضربة بعدها" : `بقيت ${countedNoun(strikesLeft, DARBA_FORMS)}`}`}
               onFill={(text) => setDraft(text)}
               onCommit={(bait) => void submit(copyableBayt(bait.sadr, bait.ajuz))}
               onDismiss={dismissRejection}

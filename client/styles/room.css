@@ -114,9 +114,17 @@
   color: var(--text-3);
 }
 
+/* One CLUSTER, not four pinned fragments.
+ *
+ * The name column used to be the `1fr`, so on a 58rem room the seat was 445px
+ * wide and everything else was pushed to its far edge: the socket lamp sat 300px
+ * from the name it reports on and «لا أبيات» sat 300px from the نِيب row it
+ * belongs beside. The slack is its own column now (the third), and the two
+ * trailing pieces hug what they describe — a card whose content starts on the
+ * reading edge, like every other card in the app. */
 .seat {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
   grid-template-areas:
     "disc name live"
     "disc role role"
@@ -202,7 +210,7 @@ a.seat__name:hover {
 
 .seat__turns {
   grid-area: turns;
-  justify-self: end;
+  justify-self: start;
   font-size: var(--fs-ui-1);
   color: var(--text-3);
   font-variant-numeric: tabular-nums;
@@ -211,6 +219,7 @@ a.seat__name:hover {
 /* The socket lamp. Small, quiet, and never the only thing that says anything. */
 .seat__live {
   grid-area: live;
+  justify-self: start;
   inline-size: 0.5rem;
   aspect-ratio: 1;
   border-radius: 50%;
@@ -258,11 +267,17 @@ a.seat__name:hover {
   color: var(--text-3);
 }
 
+/* The link is the whole point of this card, so it has to be READABLE, not just
+   present: at 30rem the field held ~46 mono characters and
+   `https://qarid.avicenna.space/#/room/KORAZU?k=<24>` is 62, so every host saw
+   his own invite cut off mid-key inside a panel with 400px to spare. 40rem
+   fits the longest link this app can mint and still collapses to 100% on a
+   phone, where the «انسخ الرابط» button is the affordance anyway. */
 .room-share {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--sp-2);
-  inline-size: min(30rem, 100%);
+  inline-size: min(40rem, 100%);
 }
 
 .room-share__input {
