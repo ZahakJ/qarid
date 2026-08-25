@@ -216,6 +216,7 @@
  * what distinguishes it at the inline-end (left), the way a printed فهرس sets
  * a title against its author. A بيت overrides this below. */
 .palette__row {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline;
@@ -223,12 +224,26 @@
   row-gap: var(--sp-1);
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r-2);
-  border-inline-start: 2px solid transparent;
-  transition:
-    background-color var(--dur-2) var(--ease-enter),
-    border-color var(--dur-2) var(--ease-enter);
+  transition: background-color var(--dur-2) var(--ease-enter);
   animation: palette-row-in 320ms var(--ease-enter) both;
   animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+/* The highlight's marker is a RULE, not a border. A `border-inline-start` on a
+ * `--r-2` box is drawn along the two rounded corners as well, so it tapers to a
+ * point at each end and reads as a bracket around the row rather than a nib in
+ * the margin (measured at 1024: a 2px gold parenthesis). A pseudo-element is a
+ * straight bar, inset from the row's own corners, and it can fade. */
+.palette__row::before {
+  content: "";
+  position: absolute;
+  inset-block: var(--sp-1);
+  inset-inline-start: 0;
+  inline-size: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-enter);
 }
 
 @keyframes palette-row-in {
@@ -254,7 +269,10 @@ body[data-reduce-motion="1"] .palette__row {
 
 .palette__row[data-cursor="1"] {
   background: var(--accent-wash);
-  border-inline-start-color: var(--accent);
+}
+
+.palette__row[data-cursor="1"]::before {
+  opacity: 1;
 }
 
 .palette__row-main {
