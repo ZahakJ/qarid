@@ -8,6 +8,7 @@ import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
 import type { UsersDb } from "./users.ts"
 import { allowlistedOrigin, corsPreflightResponse, originGuard } from "./origin.ts"
+import { ASSETLINKS } from "./assetlinks.ts"
 import { authRoutes } from "./routes/auth.ts"
 import { baitsRoutes } from "./routes/baits.ts"
 import { facetsRoutes } from "./routes/facets.ts"
@@ -125,6 +126,19 @@ export function createApp(
   app.use("*", originGuard(config))
 
   app.get("/healthz", (c) => c.text("ok"))
+
+  /**
+   * Digital Asset Links (docs/roadmap-mobile.md §M1). Android fetches this to
+   * verify the site↔app pairing so a `#/room/<code>` link opens the قريض app.
+   * It is a fixed statement (server/assetlinks.ts), served whether or not the
+   * client bundle is built, cached an hour. Not under `/api`, so the corpus gate
+   * and its `no-store` policy never touch it.
+   */
+  app.get("/.well-known/assetlinks.json", (c) => {
+    c.header("Content-Type", "application/json; charset=utf-8")
+    c.header("Cache-Control", "public, max-age=3600")
+    return c.body(JSON.stringify(ASSETLINKS))
+  })
 
   /**
    * Compression, everywhere — not just `/api/*`.
