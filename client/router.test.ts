@@ -248,6 +248,16 @@ describe("#/room/<code> (v2.md §5)", () => {
     expect(routeHash({ view: "room", code: "BADIRU" })).toBe("#/room/BADIRU")
   })
 
+  it("carries the invite key out of the share link and back into the hash", () => {
+    // `#/room/<CODE>?k=<key>` — the code names the room and is spoken aloud;
+    // the key is what proves you were given the link (server/rooms.ts).
+    expect(parseHash("#/room/badiru?k=abc23xyz")).toEqual({ view: "room", code: "BADIRU", key: "abc23xyz" })
+    expect(routeHash({ view: "room", code: "BADIRU", key: "abc23xyz" })).toBe("#/room/BADIRU?k=abc23xyz")
+    // A room reached without one is still a room — the server decides what it
+    // will show a reader who has no key.
+    expect(parseHash("#/room/BADIRU")).toEqual({ view: "room", code: "BADIRU" })
+  })
+
   it("falls back to home for anything that is not six letters", () => {
     for (const bad of ["#/room/", "#/room/ABC", "#/room/ABCDEFG", "#/room/BAD1RU", "#/room/بديرو"]) {
       expect(parseHash(bad)).toEqual({ view: "home" })

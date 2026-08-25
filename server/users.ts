@@ -57,7 +57,7 @@ export const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 const MAX_UA = 200
 
 /** Schema version this build expects; `PRAGMA user_version` is the ledger. */
-export const USERS_SCHEMA_VERSION = 2
+export const USERS_SCHEMA_VERSION = 3
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handle
@@ -181,6 +181,28 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
    */
   (raw) => {
     raw.exec(`ALTER TABLE rooms ADD COLUMN rematch_code TEXT`)
+  },
+
+  /*
+   * 2 → 3: `rooms.join_key` — the secret the six-letter code is not.
+   *
+   * The code is SPOKEN, so it is short: 14³ × 5³ = 343,000 values, ~18 bits.
+   * It was also the only thing guarding a seat — `joinRoom` admitted any
+   * authenticated request that arrived first — and neither `/state` nor
+   * `/join` was rate-limited, so the whole space was measured at 6,412 probes
+   * a second in-process: a full sweep in minutes, with every `waiting` room
+   * snipeable and every active room's transcript readable. A code identifies a
+   * room; this is what proves you were INVITED to it.
+   *
+   * Existing rows are backfilled rather than left null, so «no key» never
+   * means «anyone»: a room open at deploy time simply needs a fresh link, and
+   * a room is minutes long.
+   */
+  (raw) => {
+    raw.exec(`
+      ALTER TABLE rooms ADD COLUMN join_key TEXT;
+      UPDATE rooms SET join_key = lower(hex(randomblob(12)));
+    `)
   },
 ]
 

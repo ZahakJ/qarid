@@ -47,8 +47,15 @@ export type Route =
   | { view: "rules" }
   /** `#/u/<username>` — an account's page (v2.md §4) */
   | { view: "profile"; username: string }
-  /** `#/room/<code>` — a 1v1 مساجلة room (v2.md §5) */
-  | { view: "room"; code: string }
+  /**
+   * `#/room/<code>` — a 1v1 مساجلة room (v2.md §5).
+   *
+   * `key` is the invite that rides in the share link (`?k=…`). The CODE names
+   * the room and is spoken aloud; the KEY is what proves you were given the
+   * link, and the server checks it before it hands out the empty seat or the
+   * transcript (server/rooms.ts `newJoinKey`).
+   */
+  | { view: "room"; code: string; key?: string }
 
 export const HOME: Route = { view: "home" }
 
@@ -192,7 +199,9 @@ export function parseHash(raw: string): Route {
 
     case "room": {
       const code = roomCodeOf(seg[1])
-      return code ? { view: "room", code } : HOME
+      if (!code) return HOME
+      const key = params.get("k")
+      return key ? { view: "room", code, key } : { view: "room", code }
     }
 
     case "u": {
@@ -305,7 +314,7 @@ export function routeHash(r: Route): string {
     case "profile":
       return `#/u/${encodeURIComponent(r.username)}`
     case "room":
-      return `#/room/${r.code}`
+      return r.key ? `#/room/${r.code}?k=${encodeURIComponent(r.key)}` : `#/room/${r.code}`
   }
 }
 

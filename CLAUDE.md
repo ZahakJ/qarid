@@ -215,6 +215,11 @@ was assembled rather than written. See the invariant below.
   fallback `GET /api/room/:code/state` is the same snapshot the socket pushes,
   so there is ONE code path; and a dropped socket forfeits nothing, because the
   only thing that can end a turn unanswered is a timestamp in the database.
+  That last one has a sharp edge: `POST /:code/turn` is the ONE async handler,
+  so a row loaded before `await parseBody` is a row a concurrent turn can have
+  moved underneath it — judging the stale `turn_deadline_at` ended matches on a
+  timeout that never happened. `resolveExpiry` re-reads the row by id now; a
+  caller's snapshot says WHICH room, never what is in it.
   Two rules inside that: `match_turns` holds the host's `opening` بيت, accepted
   `ok` أبيات and the two strike tags (`wrong_letter`/`not_found`), and only the
   first two are part of the CHAIN — so a strike does not pass the turn — while
@@ -223,9 +228,40 @@ was assembled rather than written. See the invariant below.
   what the other side almost knows). The room's `Cache-Control` lives in
   `cachePolicy` with the rest, `private, no-store`: `you.canPlay` is in the
   payload.
+- **`SameSite=Lax` is not a CSRF defence HERE, because this box is a suite.**
+  SameSite is computed on the REGISTRABLE DOMAIN, so meme., alchemy., vestige.,
+  alexandria. and leyline.avicenna.space are all *same-site* with
+  qarid.avicenna.space and their pages' requests carry `qarid_sess`. Measured
+  before it was closed: a `text/plain` POST from a sibling renamed a signed-in
+  reader's account, and `/api/room/:code/resign` threw their live مساجلة.
+  `server/origin.ts` is the guard — `Sec-Fetch-Site` must be `same-origin` or
+  `none`, and `Origin`, when present, must be `PUBLIC_ORIGIN` or the request's
+  own `Host` — and it covers every non-GET plus the `/ws` upgrade. The second
+  lock is `readJsonBody`: a body MUST declare `application/json`, the one
+  content type a browser will not send cross-origin without a preflight, so the
+  `<form enctype="text/plain">` shape does not exist. A request with NO `Origin`
+  at all (curl, a test, a native client) is allowed — it carries nobody's cookie
+  by accident.
+- **A room CODE is a name; `rooms.join_key` is the credential.** Six speakable
+  letters are 14³×5³ = 343,000 values, and `joinRoom` used to seat whoever
+  arrived first — so a scan (measured at 6,412 `/state` probes a second before
+  the limiter) could snipe every waiting room and read every live transcript,
+  and the profile page published the codes to unauthenticated readers outright.
+  The share link is `#/room/<CODE>?k=<24 chars>`; `POST /:code/join` and a
+  non-player's `/state` or socket require it, a رجعة's named guest never does
+  (his id is on the seat), and `snapshot()` sends `joinKey` and the keyed
+  `shareUrl` to the two players only. Every `/api/room/*` path is under
+  `ROOM_READ_LIMIT` (60/10 s/IP) on top of the duel's own bucket, and the
+  WebSocket spends `SOCKET_FRAME_LIMIT` per USER — a per-socket counter is
+  defeated by opening a second socket.
 - **`/ws/room/:code` is cookie-authenticated on the UPGRADE**, which is the
   only authentication a WebSocket can have — a browser cannot set a header on
   one, but it sends `qarid_sess` with a same-origin upgrade like any other GET.
+  The upgrade is where auth STARTS, not where it ends: the session is re-read
+  on every inbound command (a deleted session row — README §Accounts' only
+  remediation — must reach a live socket), the hub caps sockets per user and
+  per room, and `onOpen` broadcasts only for a seated player (a spectator's
+  arrival is what made attaching N sockets cost N(N+1)/2 full snapshots).
   So the socket URL is always same-origin (`client/store/roomStore.ts`
   `socketUrl`), `createApp` returns an `injectWebSocket` that `server/index.ts`
   must hand EVERY server it opens (127.0.0.1 *and* ::1), and `vite.config.ts`
@@ -524,10 +560,22 @@ worker thread stays unbuilt and what would change that.
 - **`/api/game/*` bodies are capped at 64 KB** (`MAX_GAME_BODY`), counted off
   the stream and not just the `Content-Length` header. Six concurrent 67 MB
   bodies used to add 577 MB of RSS before the schema could reject them.
+- **A starred term's floor is measured on the token the star EXPANDS, and at
+  most `STAR_TERM_CAP` (2) stars are honoured per query.** FTS5 applies `*` to
+  the last token only, so counting `PREFIX_MIN_LENGTH` over a whole phrase let
+  `"يا ا"*` scan the one-letter prefix «ا»: **19,799 ms** on one anonymous
+  `GET /api/search`, now 3 ms. And the floor bounds ONE star, not how many — a
+  71-character query of twelve legal four-letter starred words cost 594 ms, now
+  126 ms. `/api/search` also carries `SEARCH_RATE_LIMIT` (60/10 s/IP), the only
+  bucket on a read route, because v2 is what gave it the prefix operator.
 - **The rate limiter keys on `CF-Connecting-IP`, then `X-Real-IP`, then the
   RIGHT-most `X-Forwarded-For` hop.** Cloudflare APPENDS the true client to a
   client-supplied XFF, so the left-most entry is attacker text: keyed on it,
-  60 requests got 59 tokens instead of 12.
+  60 requests got 59 tokens instead of 12. Its sweep must REFILL before it
+  judges: `tokens` is written lazily, so an idle bucket carries the count from
+  its last request (≤ capacity − 1) and `tokens >= capacity` was unsatisfiable —
+  200,000 one-shot IPs retained 200,000 buckets and 208 MB while a full O(n)
+  scan ran on every new key. It sweeps at most once per window now.
 
 ### Corpus quirks to know before you "fix" them
 

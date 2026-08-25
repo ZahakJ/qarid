@@ -340,13 +340,19 @@ export function createRoom(body: Partial<CreateRoomRequest>, o?: Opts): Promise<
   return post("/api/room", RoomStateResponseSchema, body, init(o))
 }
 
-/** The polling fallback, and the first read `#/room/<code>` makes. */
-export function getRoomState(code: string, o?: Opts): Promise<RoomStateResponse> {
-  return request(`/api/room/${encodeURIComponent(code)}/state`, RoomStateResponseSchema, init(o))
+/**
+ * The polling fallback, and the first read `#/room/<code>` makes.
+ *
+ * `key` is the invite out of the share link. A player never needs it — his
+ * seat is a better claim — but a spectator does, because the snapshot carries
+ * both usernames and the whole transcript.
+ */
+export function getRoomState(code: string, key?: string | null, o?: Opts): Promise<RoomStateResponse> {
+  return request(qs(`/api/room/${encodeURIComponent(code)}/state`, { k: key }), RoomStateResponseSchema, init(o))
 }
 
-export function joinRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
-  return post(`/api/room/${encodeURIComponent(code)}/join`, RoomStateResponseSchema, {}, init(o))
+export function joinRoom(code: string, key?: string | null, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/join`, RoomStateResponseSchema, { key: key ?? null }, init(o))
 }
 
 /** One بيت. The verdict is the SAME `GameVerifyResponse` the solo duel gets. */

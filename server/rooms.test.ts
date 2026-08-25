@@ -34,11 +34,13 @@ import { FIXTURE_DB, REPO_ROOT, ensureFixtureDb } from "../test/fixtureDb.ts"
 import { createApp } from "./app.ts"
 import { loadConfig, type Config } from "./config.ts"
 import { openDb, type Db } from "./db.ts"
-import { newRoomCode } from "./rooms.ts"
+import { MAX_SOCKETS_PER_USER, newRoomCode } from "./rooms.ts"
+import { SOCKET_FRAME_LIMIT } from "./routes/rooms.ts"
 import {
   SESSION_COOKIE,
   createSession,
   createUser,
+  deleteSession,
   duelStats,
   hashToken,
   newSessionToken,
@@ -148,25 +150,33 @@ async function register(name: string): Promise<Player> {
   return player(name)
 }
 
-async function stateOf(code: string, who: Player): Promise<RoomState> {
-  const res = await req(`/api/room/${code}/state`, {}, who)
+async function stateOf(code: string, who: Player, key?: string | null): Promise<RoomState> {
+  const res = await req(`/api/room/${code}/state${key ? `?k=${encodeURIComponent(key)}` : ""}`, {}, who)
   expect(res.status).toBe(200)
   return RoomStateResponseSchema.parse(await res.json()).state
 }
 
-/** Create a room, join it with the guest, and hand back the live snapshot. */
+/**
+ * Create a room, join it with the guest, and hand back the live snapshot.
+ *
+ * The guest presents the room's `joinKey` — the invite that rides in
+ * `shareUrl` — because the code alone no longer opens a seat: a room link is
+ * not public, it is a link you were given (server/rooms.ts `newJoinKey`).
+ */
 async function openRoom(
   host: Player,
   guest: Player | null,
   body: Record<string, unknown> = {},
-): Promise<{ code: string; state: RoomState }> {
+): Promise<{ code: string; state: RoomState; key: string }> {
   const res = await postJson("/api/room", body, host)
   expect(res.status).toBe(201)
   const created = RoomStateResponseSchema.parse(await res.json()).state
-  if (!guest) return { code: created.code, state: created }
-  const joined = await postJson(`/api/room/${created.code}/join`, {}, guest)
+  const key = created.joinKey!
+  expect(key).toBeTruthy()
+  if (!guest) return { code: created.code, state: created, key }
+  const joined = await postJson(`/api/room/${created.code}/join`, { key }, guest)
   expect(joined.status).toBe(200)
-  return { code: created.code, state: RoomStateResponseSchema.parse(await joined.json()).state }
+  return { code: created.code, state: RoomStateResponseSchema.parse(await joined.json()).state, key }
 }
 
 /**
@@ -277,7 +287,10 @@ describe("POST /api/room", () => {
     expect(state.turnSeat).toBeNull()
     expect(state.deadlineAt).toBeNull()
     expect(state.you.role).toBe("host")
-    expect(state.shareUrl).toBe(`https://qarid.example/#/room/${state.code}`)
+    // The link the host hands over carries the invite; the code alone names
+    // the room but does not open its seat.
+    expect(state.joinKey).toMatch(/^[a-z2-9]{24}$/)
+    expect(state.shareUrl).toBe(`https://qarid.example/#/room/${state.code}?k=${state.joinKey}`)
   })
 
   it("takes the host's own بيت, and refuses one the game pool does not hold", async () => {
@@ -333,13 +346,13 @@ describe("joining", () => {
     const host = await register("host")
     const guest = await register("guest")
     const watcher = await register("watcher")
-    const { code } = await openRoom(host, guest)
+    const { code, key } = await openRoom(host, guest)
 
-    const join = await postJson(`/api/room/${code}/join`, {}, watcher)
+    const join = await postJson(`/api/room/${code}/join`, { key }, watcher)
     expect(join.status).toBe(409)
     expect(await join.json()).toMatchObject({ error: "room_full" })
 
-    const seen = await stateOf(code, watcher)
+    const seen = await stateOf(code, watcher, key)
     expect(seen.you.role).toBe("spectator")
     expect(seen.you.canPlay).toBe(false)
     expect(seen.turns).toHaveLength(1)
@@ -538,6 +551,151 @@ describe("the server's clock", () => {
 })
 
 // ═════════════════════════════════════════════════════════════════════════════
+// The seat, the clock, and the two things that used to get past them
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("the invite key", () => {
+  it("keeps a stranger out of a seat the host meant for a friend", async () => {
+    const host = await register("layth")
+    const friend = await register("amr")
+    const mallory = await register("mallory")
+    const { code, key } = await openRoom(host, null)
+
+    // The code alone is what a scan of 343,000 values finds, and what the
+    // profile page used to publish. It is not an invitation.
+    const sniped = await postJson(`/api/room/${code}/join`, {}, mallory)
+    expect(sniped.status).toBe(403)
+    expect(await sniped.json()).toMatchObject({ error: "needs_key" })
+
+    const guessed = await postJson(`/api/room/${code}/join`, { key: "aaaaaaaaaaaaaaaaaaaaaaaa" }, mallory)
+    expect(guessed.status).toBe(403)
+
+    // …and the seat is still there for the person who was given the link.
+    const joined = await postJson(`/api/room/${code}/join`, { key }, friend)
+    expect(joined.status).toBe(200)
+    expect(RoomStateResponseSchema.parse(await joined.json()).state.guest?.username).toBe(friend.username)
+  })
+
+  it("keeps the transcript from a code-holder who was never given the link", async () => {
+    const host = await register("host")
+    const guest = await register("guest")
+    const watcher = await register("watcher")
+    const scanner = await register("scanner")
+    const { code, key } = await openRoom(host, guest)
+
+    const blind = await req(`/api/room/${code}/state`, {}, scanner)
+    expect(blind.status).toBe(403)
+    expect(await blind.json()).toMatchObject({ error: "needs_key" })
+
+    // A watcher WITH the link is v2.md §5's spectator and still sees it all.
+    const seen = await stateOf(code, watcher, key)
+    expect(seen.you.role).toBe("spectator")
+    expect(seen.turns.length).toBeGreaterThan(0)
+    // …but never the key itself, so he cannot pass a seat on to anyone.
+    expect(seen.joinKey).toBeNull()
+    expect(seen.shareUrl).not.toContain("?k=")
+    expect(seen.you.canJoin).toBe(false)
+
+    // Both players always get in on their seat alone — a lost link is not a
+    // locked door for someone already sitting at the table.
+    expect((await stateOf(code, host)).you.role).toBe("host")
+    expect((await stateOf(code, guest)).joinKey).toBe(key)
+  })
+
+  it("needs no key from the player a رجعة already named", async () => {
+    const host = await register("host")
+    const guest = await register("guest")
+    const { code } = await openRoom(host, guest)
+    await postJson(`/api/room/${code}/resign`, {}, guest)
+    const next = RoomStateResponseSchema.parse(
+      await (await postJson(`/api/room/${code}/rematch`, {}, guest)).json(),
+    ).state
+
+    // His id is on the seat, which is a stronger claim than any link.
+    const joined = await postJson(`/api/room/${next.code}/join`, {}, host)
+    expect(joined.status).toBe(200)
+    expect(RoomStateResponseSchema.parse(await joined.json()).state.status).toBe("active")
+  })
+})
+
+describe("the room bucket", () => {
+  it("rate-limits a scan of the code space, which used to be free", async () => {
+    const scanner = await register("scanner")
+    let limited = 0
+    // 6,412 `/state` probes a second were measured on invented codes with no
+    // 429 at all — the whole 343,000-code space in minutes.
+    for (let i = 0; i < 80; i++) {
+      const res = await req(`/api/room/ZAZAZ${i % 10}/state`, {}, scanner)
+      if (res.status === 429) limited += 1
+    }
+    expect(limited).toBeGreaterThan(0)
+  })
+})
+
+describe("two turns in flight at once", () => {
+  it("does not lose the match on a deadline the database no longer holds", async () => {
+    const host = await register("host")
+    const guest = await register("guest")
+    const { code, state } = await openRoom(host, guest, { baitId: 1, timerS: 30 })
+    const roomId = (users.raw.prepare("SELECT id FROM rooms WHERE code = ?").get(code) as { id: number }).id
+
+    // A deadline 400 ms out, and a first request whose BODY has not arrived.
+    // `POST /:code/turn` is the one async handler: it loaded the row at
+    // dispatch, awaited the body, and then judged the STALE `turn_deadline_at`
+    // against a transcript it read fresh — ending the match `timeout` against
+    // the player who had just been handed a full clock.
+    const deadline = Date.now() + 300
+    users.raw.prepare("UPDATE rooms SET turn_deadline_at = ? WHERE id = ?").run(deadline, roomId)
+
+    let release: (() => void) | null = null
+    const gate = new Promise<void>((r) => {
+      release = r
+    })
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        await gate
+        controller.enqueue(new TextEncoder().encode(JSON.stringify({ text: "بيتٌ لا وجود له في الديوان أبدًا" })))
+        controller.close()
+      },
+    })
+    const slow = app.request(
+      new Request(`http://local/api/room/${code}/turn`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: `${SESSION_COOKIE}=${guest.token}`,
+          "CF-Connecting-IP": guest.ip,
+        },
+        body,
+        // @ts-expect-error node's fetch needs `duplex` for a streamed body
+        duplex: "half",
+      }),
+    )
+
+    // …meanwhile the guest answers properly, in time, and the clock moves to
+    // the host with a fresh thirty seconds.
+    const after = await playOne(code, guest, state)
+    expect(after.status).toBe("active")
+    expect(after.turnSeat).toBe("host")
+    expect(after.deadlineAt!).toBeGreaterThan(deadline)
+
+    // Now let the first request's body land, well past the OLD deadline.
+    while (Date.now() <= deadline + 80) await new Promise((r) => setTimeout(r, 20))
+    release!()
+    const late = await slow
+    // It is simply out of turn now. What it must NOT be is the end of the room.
+    expect(late.status).toBe(409)
+    expect(await late.json()).toMatchObject({ error: "not_your_turn" })
+
+    const final = await stateOf(code, host)
+    expect(final.status).toBe("active")
+    expect(final.endReason).toBeNull()
+    expect(final.winner).toBeNull()
+    expect(final.turnSeat).toBe("host")
+  }, 20_000)
+})
+
+// ═════════════════════════════════════════════════════════════════════════════
 // انسحاب, رجعة, and the profile
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -649,8 +807,9 @@ describe("what the profile page reads back", () => {
  * an upgrade — a browser sends it by itself, a test has to say it. The DOM lib
  * types the second parameter as a protocol list, hence the cast.
  */
-function connect(code: string, token: string): WebSocket {
-  return new WebSocket(`ws://127.0.0.1:${wsPort}/ws/room/${code}`, {
+function connect(code: string, token: string, key?: string | null): WebSocket {
+  const url = `ws://127.0.0.1:${wsPort}/ws/room/${code}${key ? `?k=${encodeURIComponent(key)}` : ""}`
+  return new WebSocket(url, {
     headers: { Cookie: `${SESSION_COOKIE}=${token}` },
   } as unknown as string[])
 }
@@ -749,17 +908,19 @@ describe("/ws/room/:code", () => {
     expect(hello.type === "state" && hello.state.status).toBe("waiting")
 
     // The guest joins over HTTP; the host's socket learns it without asking.
-    const guestWs = connect(code, guest.token)
+    // He opens the socket with the invite, because until he has actually sat
+    // down he is a visitor holding a link like any other.
+    const guestWs = connect(code, guest.token, created.joinKey)
     await opened(guestWs)
     await nextEvent(guestWs, "state")
     const joinSeen = nextEvent(hostWs, "join")
-    await wsPost(`/api/room/${code}/join`, {}, guest)
+    await wsPost(`/api/room/${code}/join`, { key: created.joinKey }, guest)
     const joined = await joinSeen
     expect(joined.type === "join" && joined.state.status).toBe("active")
     expect(joined.type === "join" && joined.username).toBe(guest.username)
 
     // A spectator sees the room read-only, and is told about every بيت.
-    const watchWs = connect(code, watcher.token)
+    const watchWs = connect(code, watcher.token, created.joinKey)
     await opened(watchWs)
     const watched = await nextEvent(watchWs, "state")
     expect(watched.type === "state" && watched.state.you.role).toBe("spectator")
@@ -824,14 +985,86 @@ describe("/ws/room/:code", () => {
     back.close()
   }, 30_000)
 
+  it("stops answering a socket whose session was deleted under it", async () => {
+    // README §Accounts makes deleting a session row the ONLY remediation this
+    // system offers, and the socket used to resolve its user once, at the
+    // upgrade, and close over the answer for the life of the connection: a
+    // logout 401'd every HTTP route and the tab kept playing.
+    const host = await wsRegister("hostrev")
+    const guest = await wsRegister("guestrev")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", {}, host)).json()).state
+    await wsPost(`/api/room/${created.code}/join`, { key: created.joinKey }, guest)
+
+    const ws = connect(created.code, guest.token)
+    await opened(ws)
+    await nextEvent(ws, "state")
+
+    // Exactly what `POST /api/auth/logout` does.
+    deleteSession(wsUsers, hashToken(guest.token))
+    const denied = await wsApp.request(`/api/room/${created.code}/state`, {
+      headers: { Cookie: `${SESSION_COOKIE}=${guest.token}`, "CF-Connecting-IP": guest.ip },
+    })
+    expect(denied.status).toBe(401)
+
+    const refusal = nextEvent(ws, "error")
+    ws.send(JSON.stringify({ type: "turn", text: "قفا نبك من ذكرى حبيب ومنزل" }))
+    expect(await refusal).toMatchObject({ type: "error", code: "unauthenticated" })
+    ws.close()
+  }, 20_000)
+
+  it("caps the sockets one account may hold on one room", async () => {
+    // There was no cap of any kind, and `onOpen` broadcast a full snapshot to
+    // everyone already attached — so attaching N sockets cost N(N+1)/2
+    // snapshots (600 of them fanned out 1,312 MB on the real artefact) while
+    // both players read «1 مشاهد», because spectators dedupe by user id.
+    const host = await wsRegister("hostcap")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", {}, host)).json()).state
+
+    const open: WebSocket[] = []
+    for (let i = 0; i < MAX_SOCKETS_PER_USER; i++) {
+      const ws = connect(created.code, host.token)
+      await opened(ws)
+      await nextEvent(ws, "state")
+      open.push(ws)
+    }
+    const extra = connect(created.code, host.token)
+    await opened(extra)
+    expect(await nextEvent(extra, "error")).toMatchObject({ type: "error", code: "too_many_sockets" })
+    extra.close()
+    for (const ws of open) ws.close()
+  }, 30_000)
+
+  it("charges a `state` frame to a bucket, so a socket cannot amplify itself", async () => {
+    // One socket sent 5,000 `{"type":"state"}` frames (80 KB in) and got 5,000
+    // full snapshots back — 36 MB out — because the 250 ms gap guarded only
+    // `turn`. The bucket is keyed on the USER, not on the socket: a per-socket
+    // counter is defeated by opening a second socket.
+    const host = await wsRegister("hostflood")
+    const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", {}, host)).json()).state
+    const ws = connect(created.code, host.token)
+    await opened(ws)
+    await nextEvent(ws, "state")
+
+    const seen: string[] = []
+    ws.addEventListener("message", (evt: MessageEvent) => {
+      const parsed = RoomEventSchema.safeParse(JSON.parse(String(evt.data)))
+      if (parsed.success) seen.push(parsed.data.type === "error" ? `error:${parsed.data.code}` : parsed.data.type)
+    })
+    for (let i = 0; i < SOCKET_FRAME_LIMIT.tokens + 6; i++) ws.send(JSON.stringify({ type: "state" }))
+    await new Promise((r) => setTimeout(r, 400))
+    expect(seen).toContain("error:too_fast")
+    expect(seen.filter((t) => t === "state").length).toBeLessThanOrEqual(SOCKET_FRAME_LIMIT.tokens)
+    ws.close()
+  }, 20_000)
+
   it("refuses a بيت from a spectator's socket and a second one inside the throttle", async () => {
     const host = await wsRegister("hostb")
     const guest = await wsRegister("guestb")
     const watcher = await wsRegister("watchb")
     const created = RoomStateResponseSchema.parse(await (await wsPost("/api/room", {}, host)).json()).state
-    await wsPost(`/api/room/${created.code}/join`, {}, guest)
+    await wsPost(`/api/room/${created.code}/join`, { key: created.joinKey }, guest)
 
-    const watchWs = connect(created.code, watcher.token)
+    const watchWs = connect(created.code, watcher.token, created.joinKey)
     await opened(watchWs)
     await nextEvent(watchWs, "state")
     const refused = nextEvent(watchWs, "error")
@@ -839,7 +1072,7 @@ describe("/ws/room/:code", () => {
     expect((await refused).type === "error" && (await refused as { code: string }).code).toBeTruthy()
     watchWs.close()
 
-    const guestWs = connect(created.code, guest.token)
+    const guestWs = connect(created.code, guest.token, created.joinKey)
     await opened(guestWs)
     await nextEvent(guestWs, "state")
     guestWs.send(JSON.stringify({ type: "turn", text: "زقفونة برجلة مهملة لا وجود لها" }))

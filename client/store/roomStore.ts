@@ -57,6 +57,8 @@ type RoomStore = {
   state: RoomState | null
   /** null until the first answer; an ApiError message when the room is gone */
   error: string | null
+  /** the server's machine code for `error`, so the view can say WHICH wall */
+  errorCode: string | null
   /** a passing message — «على رِسْلك», a failed انسحاب — not a page state */
   notice: string | null
   loading: boolean
@@ -69,7 +71,7 @@ type RoomStore = {
   /** `serverNow - Date.now()` at the last snapshot */
   skew: number
 
-  open: (code: string) => void
+  open: (code: string, key?: string | null) => void
   close: () => void
   setDraft: (v: string) => void
   submit: (text?: string) => Promise<void>
@@ -86,16 +88,32 @@ type RoomStore = {
  * thing that changes on every frame of the connection's life.
  */
 let socket: WebSocket | null = null
+/**
+ * The 2-second fallback poller — and NOTHING else.
+ *
+ * The slow heartbeat used to be parked in this same variable, which made
+ * `startPolling()`'s «already running?» guard read a heartbeat as a poller: a
+ * socket that opened and later DROPPED left the 20 s interval installed,
+ * `reopen()`'s `startPolling()` returned immediately, and the room kept
+ * refreshing every twenty seconds while the header chip promised «يُحدَّث كل
+ * ثانيتين». On a 30-second turn clock that is a strike, a بيت and the end of
+ * the match arriving up to 20 s late. Two intervals, two slots.
+ */
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let attempt = 0
+/** the invite key this room was opened with (`#/room/<code>?k=…`) */
+let joinKey: string | null = null
 /** bumped on every `open`/`close`, so a late callback from a previous room dies */
 let generation = 0
 
 function clearTimers(): void {
   if (pollTimer !== null) clearInterval(pollTimer)
+  if (heartbeatTimer !== null) clearInterval(heartbeatTimer)
   if (retryTimer !== null) clearTimeout(retryTimer)
   pollTimer = null
+  heartbeatTimer = null
   retryTimer = null
 }
 
@@ -125,9 +143,14 @@ function dropSocket(): void {
  *
  * `loc` is a parameter so this is testable without a DOM; nothing passes it.
  */
-export function socketUrl(code: string, loc: { protocol: string; host: string } = location): string {
+export function socketUrl(
+  code: string,
+  key: string | null = null,
+  loc: { protocol: string; host: string } = location,
+): string {
   const scheme = loc.protocol === "https:" ? "wss:" : "ws:"
-  return `${scheme}//${loc.host}/ws/room/${encodeURIComponent(code)}`
+  const base = `${scheme}//${loc.host}/ws/room/${encodeURIComponent(code)}`
+  return key === null ? base : `${base}?k=${encodeURIComponent(key)}`
 }
 
 /** The verifier's refusal, in the shape the duel's own card already renders. */
@@ -165,7 +188,7 @@ function messageOf(err: unknown): string {
 export const useRoom = create<RoomStore>()((set, get) => {
   /** Take a snapshot from any source. The newest one always wins. */
   const apply = (state: RoomState) => {
-    set({ state, skew: state.serverNow - Date.now(), error: null, loading: false })
+    set({ state, skew: state.serverNow - Date.now(), error: null, errorCode: null, loading: false })
   }
 
   const startPolling = () => {
@@ -179,6 +202,17 @@ export const useRoom = create<RoomStore>()((set, get) => {
     pollTimer = null
   }
 
+  const startHeartbeat = () => {
+    if (heartbeatTimer !== null) return
+    heartbeatTimer = setInterval(() => void get().refresh(), HEARTBEAT_MS)
+  }
+
+  const stopHeartbeat = () => {
+    if (heartbeatTimer === null) return
+    clearInterval(heartbeatTimer)
+    heartbeatTimer = null
+  }
+
   const connect = (code: string, mine: number) => {
     if (typeof WebSocket === "undefined") {
       set({ transport: "polling" })
@@ -187,7 +221,7 @@ export const useRoom = create<RoomStore>()((set, get) => {
     }
     let ws: WebSocket
     try {
-      ws = new WebSocket(socketUrl(code))
+      ws = new WebSocket(socketUrl(code, joinKey))
     } catch {
       set({ transport: "polling" })
       startPolling()
@@ -201,9 +235,10 @@ export const useRoom = create<RoomStore>()((set, get) => {
       set({ transport: "socket" })
       // The slow heartbeat is the only thing the socket polls for: a dead
       // connection that never fires `onclose` (a laptop lid, a captive portal)
-      // is otherwise invisible until someone tries to play.
+      // is otherwise invisible until someone tries to play. It lives in its
+      // OWN slot — see `pollTimer`.
       stopPolling()
-      pollTimer = setInterval(() => void get().refresh(), HEARTBEAT_MS)
+      startHeartbeat()
     }
 
     ws.onmessage = (evt) => {
@@ -231,6 +266,9 @@ export const useRoom = create<RoomStore>()((set, get) => {
       if (mine !== generation) return
       dropSocket()
       set({ transport: "polling" })
+      // The socket is gone, so the heartbeat it installed is no longer a safety
+      // net over anything — the 2-second poller is now the only news there is.
+      stopHeartbeat()
       startPolling()
       const wait = BACKOFF[Math.min(attempt, BACKOFF.length - 1)]!
       attempt += 1
@@ -250,6 +288,7 @@ export const useRoom = create<RoomStore>()((set, get) => {
     code: null,
     state: null,
     error: null,
+    errorCode: null,
     notice: null,
     loading: false,
     busy: false,
@@ -259,15 +298,17 @@ export const useRoom = create<RoomStore>()((set, get) => {
     strikesLeft: 0,
     skew: 0,
 
-    open: (code) => {
+    open: (code, key = null) => {
       const mine = ++generation
       clearTimers()
       dropSocket()
       attempt = 0
+      joinKey = key
       set({
         code,
         state: null,
         error: null,
+        errorCode: null,
         notice: null,
         loading: true,
         busy: false,
@@ -277,7 +318,7 @@ export const useRoom = create<RoomStore>()((set, get) => {
       })
       // The FIRST read is HTTP, always: it is the one that can say 401 or 404
       // in a way the reader understands, and the socket cannot.
-      void getRoomState(code)
+      void getRoomState(code, key)
         .then((res) => {
           if (mine !== generation) return
           apply(res.state)
@@ -285,7 +326,12 @@ export const useRoom = create<RoomStore>()((set, get) => {
         })
         .catch((err: unknown) => {
           if (mine !== generation) return
-          set({ error: messageOf(err), loading: false, transport: "offline" })
+          set({
+            error: messageOf(err),
+            errorCode: err instanceof ApiError ? err.code : null,
+            loading: false,
+            transport: "offline",
+          })
         })
     },
 
@@ -303,7 +349,7 @@ export const useRoom = create<RoomStore>()((set, get) => {
       if (!code) return
       const mine = generation
       try {
-        const res = await getRoomState(code)
+        const res = await getRoomState(code, joinKey)
         if (mine !== generation) return
         apply(res.state)
       } catch (err) {
@@ -344,7 +390,7 @@ export const useRoom = create<RoomStore>()((set, get) => {
       if (!code || get().busy) return
       set({ busy: true, notice: null })
       try {
-        const res = await joinRoomRequest(code)
+        const res = await joinRoomRequest(code, joinKey)
         apply(res.state)
         set({ busy: false })
       } catch (err) {
@@ -388,6 +434,20 @@ export const useRoom = create<RoomStore>()((set, get) => {
 export async function createRoom(body: Partial<CreateRoomRequest>): Promise<RoomState> {
   const res = await createRoomRequest(body)
   return res.state
+}
+
+/**
+ * Is this رجعة somewhere to GO, or just something that happened?
+ *
+ * `rooms.rematch_code` is permanent once written and rides on every later
+ * snapshot of the old room, so «redirect when the snapshot has one» sent every
+ * viewer — a spectator included — out of any old room they opened, chaining
+ * through every generation to the newest one. Only a code that appears WHILE
+ * you are in the room is news: `seenAtMount` is `undefined` before the first
+ * snapshot lands, and null when that snapshot had no رجعة yet.
+ */
+export function rematchIsNew(seenAtMount: string | null | undefined, current: string | null): boolean {
+  return current !== null && seenAtMount !== undefined && seenAtMount !== current
 }
 
 /** ms left on the current turn, on the SERVER's clock. null when there is none. */

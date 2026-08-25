@@ -167,7 +167,10 @@ function FriendDialog({ onClose }: { onClose: () => void }) {
         strikes: Number(strikes),
       })
       onClose()
-      navigate({ view: "room", code: state.code })
+      // The key rides in the URL from the very first moment: the host's own
+      // address bar IS the link he hands over, so «انسخ الرابط» and a copy out
+      // of the browser are the same string.
+      navigate(state.joinKey ? { view: "room", code: state.code, key: state.joinKey } : { view: "room", code: state.code })
     } catch (err) {
       setBusy(false)
       setError(err instanceof ApiError ? err.message : "تعذّر فتح الغرفة")

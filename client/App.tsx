@@ -275,7 +275,7 @@ function Body({ route }: { route: Route }) {
     case "room":
       // Keyed on the code: «رجعة» opens a DIFFERENT room, and the store's
       // socket, poller and draft all belong to the room they were opened for.
-      return <RoomView key={route.code} code={route.code} />
+      return <RoomView key={route.code} code={route.code} joinKey={route.key} />
     default:
       return <ViewStub route={route} />
   }

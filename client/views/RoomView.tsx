@@ -23,7 +23,7 @@
  * countdown, and it computes it from the server's deadline and the server's
  * clock offset.
  */
-import { useEffect, useMemo, useReducer, useState } from "react"
+import { useEffect, useMemo, useReducer, useRef, useState } from "react"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { Chip } from "../components/Chip.tsx"
 import { EmptyState } from "../components/EmptyState.tsx"
@@ -34,7 +34,7 @@ import { LetterIndicator } from "../duel/LetterIndicator.tsx"
 import { RejectionCard } from "../duel/RejectionCard.tsx"
 import { navigate, routeHash } from "../router.ts"
 import { initialOf, useAuth } from "../store/authStore.ts"
-import { roomTimeLeft, useRoom } from "../store/roomStore.ts"
+import { rematchIsNew as isNewRematch, roomTimeLeft, useRoom } from "../store/roomStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { BAYT_FORMS, DARBA_FORMS, copyableBayt, countedNoun, formatClock, formatNumber } from "../../shared/format.ts"
@@ -212,9 +212,10 @@ function RoomLog({ state, mySeat, tashkeel, showRawiyy }: { state: RoomState; my
   )
 }
 
-export function RoomView({ code }: { code: string }) {
+export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) {
   const state = useRoom((s) => s.state)
   const error = useRoom((s) => s.error)
+  const errorCode = useRoom((s) => s.errorCode)
   const notice = useRoom((s) => s.notice)
   const loading = useRoom((s) => s.loading)
   const busy = useRoom((s) => s.busy)
@@ -241,9 +242,9 @@ export function RoomView({ code }: { code: string }) {
 
   useEffect(() => {
     if (authStatus !== "ready" || !user) return
-    open(code)
+    open(code, joinKey ?? null)
     return () => close()
-  }, [code, authStatus, user, open, close])
+  }, [code, joinKey, authStatus, user, open, close])
 
   // The countdown redraws on a tick; the time itself is read at render off the
   // server's deadline, so a slow frame can never show more time than is left.
@@ -257,13 +258,30 @@ export function RoomView({ code }: { code: string }) {
   const msLeft = roomTimeLeft(state ?? null, skew)
   const turnMs = (state?.timerS ?? 0) * 1000
 
-  // A room whose رجعة exists is a room with somewhere to go: follow it once.
+  /**
+   * A رجعة that OPENS while you are looking at the room is somewhere to go.
+   * One that was already there is just history.
+   *
+   * `rooms.rematch_code` is permanent once written and rides on every later
+   * snapshot of the old room, so redirecting on its mere presence bounced every
+   * viewer — a spectator included — out of any old room they opened. From the
+   * profile's match list that chained: match 1 → 2 → 3 → the newest room, 900 ms
+   * apart, and no older transcript was reachable through the UI at all. So the
+   * code seen on the FIRST snapshot is remembered and only a NEW one navigates;
+   * for the rest there is a link, below.
+   */
   const rematchCode = state?.rematchCode ?? null
+  const rematchAtMount = useRef<string | null | undefined>(undefined)
   useEffect(() => {
-    if (!rematchCode) return
+    if (state === null) return
+    if (rematchAtMount.current === undefined) rematchAtMount.current = rematchCode
+  }, [state, rematchCode])
+  const rematchIsNew = isNewRematch(rematchAtMount.current, rematchCode)
+  useEffect(() => {
+    if (!rematchIsNew || !rematchCode) return
     const t = setTimeout(() => navigate({ view: "room", code: rematchCode }), 900)
     return () => clearTimeout(t)
-  }, [rematchCode])
+  }, [rematchIsNew, rematchCode])
 
   const shareLink = useMemo(() => state?.shareUrl ?? "", [state])
 
@@ -305,13 +323,18 @@ export function RoomView({ code }: { code: string }) {
   }
 
   if (error) {
+    // A room you were not invited into is not a room that does not exist, and
+    // saying so is the difference between «you mistyped» and «ask for the
+    // link»: the code names the room, the link opens it (v2.md §5).
+    const locked = errorCode === "needs_key"
     return (
       <div className="view room-view">
         <div className="view__head">
           <h1 className="view__title">مساجلة الأصدقاء</h1>
         </div>
-        <EmptyState flavor="search-none" title="لا غرفة بهذا الرمز">
+        <EmptyState flavor="search-none" title={locked ? "هذه الغرفة بدعوة" : "لا غرفة بهذا الرمز"}>
           <p className="empty__note">{error}</p>
+          {locked ? <p className="empty__note">الرمز يدلّ على الغرفة، والرابط هو الذي يفتحها.</p> : null}
           <a className="btn" href={routeHash({ view: "duel" })}>
             افتح غرفة جديدة
           </a>
@@ -525,6 +548,14 @@ export function RoomView({ code }: { code: string }) {
             {countedNoun(state.turns.filter((t) => t.bait !== null).length, BAYT_FORMS)} في هذه المساجلة.
           </p>
           <div className="room-end__acts">
+            {/* A رجعة that was already open when this room loaded is a place to
+                go, not a place to be sent: the reader may have come here to
+                re-read this transcript. */}
+            {rematchCode !== null && !rematchIsNew ? (
+              <a className="btn btn--primary" href={routeHash({ view: "room", code: rematchCode })}>
+                إلى الرجعة
+              </a>
+            ) : null}
             {!spectating ? (
               <button
                 type="button"

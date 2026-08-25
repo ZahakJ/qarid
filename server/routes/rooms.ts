@@ -35,6 +35,7 @@ import {
   CreateRoomRequestSchema,
   ROOM_ERRORS,
   RoomCommandSchema,
+  RoomJoinRequestSchema,
   RoomPlayableQuerySchema,
   RoomTurnRequestSchema,
   type RoomEvent,
@@ -48,6 +49,7 @@ import { parseQuery } from "../query.ts"
 import { clientKey, createRateLimiter } from "../ratelimit.ts"
 import {
   RoomHub,
+  joinKeyMatches,
   createRoom,
   findRoomByCode,
   isPlayableBait,
@@ -80,6 +82,13 @@ const SOCKET_IDLE_MS = 5 * 60_000
 /** The smallest gap between two submitted أبيات on one socket. */
 const TURN_MIN_GAP_MS = 250
 
+/**
+ * What ONE account may send over its sockets in ten seconds, `state` frames
+ * included. A room emits a handful of commands a minute; twenty is a whole
+ * order of magnitude above that and two orders below an amplifier.
+ */
+export const SOCKET_FRAME_LIMIT = { tokens: 20, windowMs: 10_000 } as const
+
 function errorBody(code: string): { error: string; message: string } {
   return { error: code, message: ROOM_ERRORS[code] ?? "تعذّر تنفيذ الطلب" }
 }
@@ -87,6 +96,7 @@ function errorBody(code: string): { error: string; message: string } {
 const STATUS_FOR: Record<string, 400 | 401 | 403 | 404 | 409 | 429> = {
   room_not_found: 404,
   unauthenticated: 401,
+  needs_key: 403,
   room_full: 409,
   room_not_active: 409,
   not_your_turn: 409,
@@ -105,7 +115,13 @@ const STATUS_FOR: Record<string, 400 | 401 | 403 | 404 | 409 | 429> = {
  */
 export function roomDeps(db: Db, users: UsersDb, config: Config): RoomDeps {
   const hub = new RoomHub()
-  const deps: RoomDeps = { db, users, config, hub }
+  const deps: RoomDeps = {
+    db,
+    users,
+    config,
+    hub,
+    socketLimiter: createRateLimiter({ ...SOCKET_FRAME_LIMIT, keyOf: clientKey }),
+  }
   // The clock's own callback: when a deadline passes with nobody watching, the
   // room still ends, and everyone still connected is told.
   hub.onDeadline((code) => {
@@ -133,7 +149,10 @@ export function roomDeps(db: Db, users: UsersDb, config: Config): RoomDeps {
  * A snapshot is not viewer-independent — `you.role`, `you.canPlay` and
  * `you.canJoin` are the whole of what a client renders its controls from — so
  * one serialized payload for everyone would tell the guest it was the host's
- * turn to type. The cost is one snapshot per connected socket, which is two.
+ * turn to type. The cost is one snapshot per connected socket — six SQLite
+ * calls each, against the 1.5 GiB corpus — which is why `RoomHub.add` caps how
+ * many sockets a room may carry at all: the fanout is linear in that number and
+ * the code was written for a room with two connections in it.
  */
 export function broadcastRoom(
   deps: RoomDeps,
@@ -156,9 +175,22 @@ export function broadcastRoom(
 // HTTP
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * The bucket every room request pays into, on top of the duel's own.
+ *
+ * `/:code/state`, `/:code/join`, `/opening` and `/playable` were outside every
+ * limiter: 300 `/state` probes on invented codes ran in 29 ms with no 429, so
+ * the 343,000-code space was a few minutes of scanning, and `/opening` runs the
+ * same `pickBait` over the 1.7M-row pool that `GAME_RATE_LIMIT` exists to
+ * bound. Sixty per ten seconds is far above what the 2-second poller and a
+ * human playing a match can emit, and far below what a scan needs.
+ */
+export const ROOM_READ_LIMIT = { tokens: 60, windowMs: 10_000 } as const
+
 export function roomRoutes(deps: RoomDeps): Hono {
   const app = new Hono()
   const limiter = createRateLimiter({ ...GAME_RATE_LIMIT, keyOf: clientKey })
+  const readLimiter = createRateLimiter({ ...ROOM_READ_LIMIT, keyOf: clientKey })
 
   // `Cache-Control: private, no-store` for these paths is set by the OUTERMOST
   // middleware in server/app.ts (`cachePolicy`), not here — an inner middleware
@@ -166,8 +198,9 @@ export function roomRoutes(deps: RoomDeps): Hono {
   // (CLAUDE.md's first invariant). A room state cached for a minute would be
   // one player looking at the other player's screen.
 
-  // The verify pipeline is the expensive thing here, exactly as it is under
-  // /api/game — same bucket size, its own instance.
+  // Everything under /api/room pays the read bucket; the verify pipeline pays
+  // the duel's own on top, exactly as it does under /api/game.
+  app.use("*", readLimiter.middleware)
   app.use("/:code/turn", limiter.middleware)
   app.use("/", limiter.middleware)
 
@@ -182,6 +215,25 @@ export function roomRoutes(deps: RoomDeps): Hono {
   }
 
   const fail = (c: Context, code: string) => c.json(errorBody(code), STATUS_FOR[code] ?? 400)
+
+  /** The invite key this request carries — `?k=` on a GET, the body on a POST. */
+  const keyOfQuery = (c: Context): string | null => {
+    const k = c.req.query("k")
+    return k && k.length <= 64 ? k : null
+  }
+
+  /**
+   * May this reader SEE the room at all?
+   *
+   * v2.md §5 makes a spectator «anyone logged-in opening the link», and the
+   * link is now the link WITH the key: `snapshot()` hands out both usernames
+   * and the whole transcript, and `/:code/state` had neither an auth check
+   * beyond «any account» nor a rate limit, so a scan of the code space read
+   * every live مساجلة on the site. A player is always let in — his seat is a
+   * better claim than the link he lost.
+   */
+  const mayView = (room: RoomRow, user: UserRow, key: string | null): boolean =>
+    seatOf(room, user.id) !== null || joinKeyMatches(room.joinKey, key)
 
   // ── POST /api/room ───────────────────────────────────────────────────────
   //
@@ -256,24 +308,34 @@ export function roomRoutes(deps: RoomDeps): Hono {
     if (user instanceof Response) return user
     const room = load(c, c.req.param("code") ?? "")
     if (room instanceof Response) return room
+    const key = keyOfQuery(c)
+    if (!mayView(room, user, key)) return fail(c, "needs_key")
     const now = Date.now()
     const { room: live, expired } = resolveExpiry(deps, room, now)
     if (expired) broadcastRoom(deps, live, (state) => ({ type: "end", state }))
-    return c.json({ state: snapshot(deps, live, { id: user.id, username: user.username }, now) })
+    return c.json({ state: snapshot(deps, live, { id: user.id, username: user.username }, now, key) })
   })
 
   // ── POST /api/room/:code/join ────────────────────────────────────────────
-  app.post("/:code/join", (c) => {
+  app.post("/:code/join", async (c) => {
     const user = requireUser(c)
     if (user instanceof Response) return user
     const room = load(c, c.req.param("code") ?? "")
     if (room instanceof Response) return room
-    const out = joinRoom(deps, room, user)
+    const parsed = await parseBody(c, RoomJoinRequestSchema, MAX_ROOM_BODY)
+    if (!parsed.ok) return parsed.res
+    const key = parsed.data.key ?? keyOfQuery(c)
+    // The room may have started while this body was arriving — the same reason
+    // /turn re-reads (see `resolveExpiry`). One row read, and nobody can be
+    // seated against a snapshot taken before the await.
+    const fresh = findRoomByCode(deps.users, room.code)
+    if (!fresh) return fail(c, "room_not_found")
+    const out = joinRoom(deps, fresh, user, Date.now(), key ?? null)
     if (!out.ok) return fail(c, out.code)
     if (out.joined) {
       broadcastRoom(deps, out.room, (state) => ({ type: "join", state, username: user.username }))
     }
-    return c.json({ state: snapshot(deps, out.room, { id: user.id, username: user.username }) })
+    return c.json({ state: snapshot(deps, out.room, { id: user.id, username: user.username }, Date.now(), key ?? null) })
   })
 
   // ── POST /api/room/:code/turn ────────────────────────────────────────────
@@ -369,6 +431,29 @@ function announceTurn(
  * added to the hub, it receives the full snapshot immediately (which IS the
  * reconnect story), and on close it is removed — no forfeit, no timer touched.
  * Only the deadline in the database can end a turn.
+ *
+ * FOUR THINGS THE UPGRADE ALONE IS NOT ENOUGH FOR, all of them fixed here:
+ *
+ *  • THE SESSION IS RE-READ ON EVERY COMMAND. `sessionUser()` used to run once,
+ *    in this factory, and the result was closed over for the life of the
+ *    connection — so `POST /api/auth/logout` deleted the row, every HTTP route
+ *    401'd immediately, and the socket carried on playing as the user. Since
+ *    the idle timer is re-armed by every inbound frame, «for as long as the tab
+ *    stays open» had no upper bound, and README §Accounts makes deleting a
+ *    session row the only remediation this system offers.
+ *  • A `turn` PAYS THE GAME BUCKET, keyed on the USER. `GAME_RATE_LIMIT` was
+ *    mounted on `POST /:code/turn` only, while the socket ran the identical
+ *    `playTurn` — the FTS5 MATCH plus five jaccard comparisons that
+ *    server/ratelimit.ts's header calls the one expensive thing here — against
+ *    nothing but a 250 ms gap held in ONE socket's closure. More sockets, more
+ *    verifies; ~15 of them saturate the loop.
+ *  • `state`/`ping` PAY A BUCKET TOO. One socket sent 5,000 `{"type":"state"}`
+ *    frames (80 KB in) and got 5,000 full snapshots back — 36 MB out, 455×
+ *    amplification, `/api/meta` p50 from 5.0 ms to 74.6 ms — because the gap
+ *    check guarded only `turn`.
+ *  • THE HUB CAPS CONNECTIONS, and `onOpen` no longer broadcasts for a viewer
+ *    who is not seated: that broadcast is what made attaching N sockets cost
+ *    N(N+1)/2 snapshots.
  */
 export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: UpgradeWebSocket): void {
   app.get(
@@ -376,11 +461,18 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
     upgradeWebSocket((c) => {
       const code = c.req.param("code") ?? ""
       const token = getCookie(c, SESSION_COOKIE)
-      const found = token ? sessionUser(deps.users, hashToken(token), Date.now()) : null
+      const tokenHash = token ? hashToken(token) : null
+      const rawKey = c.req.query("k")
+      const offeredKey = rawKey && rawKey.length <= 64 ? rawKey : null
+      const found = tokenHash ? sessionUser(deps.users, tokenHash, Date.now()) : null
 
       let conn: RoomConn | null = null
       let lastTurnAt = 0
       let idle: ReturnType<typeof setTimeout> | null = null
+
+      /** The session, NOW — not the one this socket was opened with. */
+      const liveUser = (): UserRow | null =>
+        tokenHash ? (sessionUser(deps.users, tokenHash, Date.now())?.user ?? null) : null
 
       const armIdle = (ws: { close: () => void }) => {
         if (idle) clearTimeout(idle)
@@ -402,8 +494,21 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
             ws.close()
             return
           }
+          const seat = seatOf(room, found.user.id)
+          // A watcher needs the invite, exactly as `GET /:code/state` does —
+          // the socket streams the same snapshot, transcript and all.
+          if (seat === null && !joinKeyMatches(room.joinKey, offeredKey)) {
+            send({ type: "error", code: "needs_key", message: ROOM_ERRORS.needs_key! })
+            ws.close()
+            return
+          }
           conn = { userId: found.user.id, username: found.user.username, send }
-          deps.hub.add(room.code, conn)
+          if (!deps.hub.add(room.code, conn)) {
+            conn = null
+            send({ type: "error", code: "too_many_sockets", message: ROOM_ERRORS.too_many_sockets! })
+            ws.close()
+            return
+          }
           armIdle(ws)
 
           const now = Date.now()
@@ -412,13 +517,17 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
           // even be the process serving this connection.
           const { room: live, expired } = resolveExpiry(deps, room, now)
           if (!expired && live.status === "active") deps.hub.arm(live.code, live.turnDeadlineAt, now)
-          send({ type: "state", state: snapshot(deps, live, { id: found.user.id, username: found.user.username }, now) })
-          // Everyone else learns that a seat lit up (`connected` on the snapshot).
-          broadcastRoom(deps, live, (state) => ({ type: "state", state }), conn)
+          send({
+            type: "state",
+            state: snapshot(deps, live, { id: found.user.id, username: found.user.username }, now, offeredKey),
+          })
+          // A SEAT lighting up is news; a spectator arriving is not — and that
+          // broadcast is what made attaching N sockets cost N(N+1)/2 snapshots.
+          if (seat !== null) broadcastRoom(deps, live, (state) => ({ type: "state", state }), conn)
         },
 
         onMessage(evt, ws) {
-          if (!conn || !found) return
+          if (!conn) return
           const send = conn.send
           armIdle(ws)
           const raw = typeof evt.data === "string" ? evt.data : ""
@@ -432,17 +541,36 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
           if (!parsed.success) return
           const cmd = parsed.data
 
+          // WHO IS THIS, NOW. The session may have been deleted (a logout, the
+          // owner clearing a compromised row per README §Accounts) or simply
+          // expired since the upgrade; a socket frozen at handshake identity
+          // kept playing as a user who no longer exists.
+          const user = liveUser()
+          if (!user) {
+            send({ type: "error", code: "unauthenticated", message: ROOM_ERRORS.unauthenticated! })
+            ws.close()
+            return
+          }
+
+          // Every inbound frame costs a token, keyed on the USER: a per-socket
+          // counter is defeated by opening a second socket, and `state` buys a
+          // whole snapshot for sixteen bytes.
+          if (!deps.socketLimiter.take(`u${user.id}`).ok) {
+            send({ type: "error", code: "too_fast", message: ROOM_ERRORS.too_fast! })
+            return
+          }
+
           const room = findRoomByCode(deps.users, code)
           if (!room) {
             send({ type: "error", code: "room_not_found", message: ROOM_ERRORS.room_not_found! })
             return
           }
-          const me = { id: found.user.id, username: found.user.username }
+          const me = { id: user.id, username: user.username }
 
           if (cmd.type === "ping" || cmd.type === "state") {
             const now = Date.now()
             const { room: live, expired } = resolveExpiry(deps, room, now)
-            send({ type: "state", state: snapshot(deps, live, me, now) })
+            send({ type: "state", state: snapshot(deps, live, me, now, offeredKey) })
             if (expired) broadcastRoom(deps, live, (state) => ({ type: "end", state }), conn)
             return
           }
@@ -454,7 +582,7 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
             return
           }
           lastTurnAt = now
-          const out = playTurn(deps, room, found.user, cmd.text, now)
+          const out = playTurn(deps, room, user, cmd.text, now)
           if (!out.ok) {
             const after = findRoomByCode(deps.users, room.code) ?? room
             send({ type: "error", code: out.code, message: ROOM_ERRORS[out.code] ?? "تعذّر" })
@@ -472,7 +600,7 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
               (state) => ({
                 type: "turn",
                 state,
-                username: found.user.username,
+                username: user.username,
                 verdict: out.verdict.result.ok ? "ok" : (out.verdict.result.reason as RoomTurnVerdict),
               }),
               conn,

@@ -37,7 +37,7 @@
  * a near-miss is a hint about what the other side almost knows.
  */
 
-import { randomInt } from "node:crypto"
+import { randomInt, randomBytes, timingSafeEqual } from "node:crypto"
 
 import {
   MAX_ROOM_TURNS,
@@ -60,6 +60,7 @@ import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
 import { BAIT_COLS, BAIT_CONTEXT_COLS, BAIT_JOINS, baitDto, num, numOrNull, str, strOrNull, type Row } from "./dto.ts"
 import { chainState, pickBait, verifyAnswer } from "./game.ts"
+import type { RateLimiter } from "./ratelimit.ts"
 import { findUserById, type UsersDb, type UserRow } from "./users.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +91,41 @@ export function newRoomCode(): string {
   return out
 }
 
+/**
+ * The invite — 24 base32 characters, 120 bits, and NOT the room code.
+ *
+ * The code above is short because it is spoken; that is the right trade for a
+ * NAME and the wrong one for a CREDENTIAL. `joinRoom` used to admit whoever
+ * arrived first at a `waiting` room, so the 343,000-value code was the only
+ * thing between a مساجلة and a stranger — and the routes' own header already
+ * said what the model was meant to be («a room link is not public, it is a link
+ * you were given»). This is what makes that sentence true: it rides in the
+ * share link (`#/room/<CODE>?k=<key>`), it is shown to the two players and to
+ * nobody else, and it is what `POST /:code/join` and a spectator's read
+ * actually check. The code still names the room, and «badiru» is still
+ * «BADIRU».
+ */
+const KEY_ALPHABET = "abcdefghijkmnpqrstuvwxyz23456789"
+export const JOIN_KEY_LENGTH = 24
+
+export function newJoinKey(): string {
+  const bytes = randomBytes(JOIN_KEY_LENGTH)
+  let out = ""
+  // `randomBytes` is uniform over 256 and the alphabet is 32 long, so the
+  // modulo divides exactly — no bias, unlike a 26- or 62-character alphabet.
+  for (let i = 0; i < JOIN_KEY_LENGTH; i++) out += KEY_ALPHABET[bytes[i]! % KEY_ALPHABET.length]
+  return out
+}
+
+/** Constant-time key comparison. A null stored key admits nobody. */
+export function joinKeyMatches(stored: string | null, offered: string | null | undefined): boolean {
+  if (!stored || !offered) return false
+  const a = Buffer.from(stored, "utf8")
+  const b = Buffer.from(offered, "utf8")
+  if (a.length !== b.length) return false
+  return timingSafeEqual(a, b)
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Rows
 // ─────────────────────────────────────────────────────────────────────────────
@@ -112,6 +148,8 @@ export type RoomRow = {
   turnDeadlineAt: number | null
   updatedAt: number
   rematchCode: string | null
+  /** the invite secret; see `newJoinKey`. Never leaves the two players. */
+  joinKey: string | null
 }
 
 export type TurnRow = {
@@ -126,7 +164,8 @@ export type TurnRow = {
 }
 
 const ROOM_COLS = `id, code, host_user_id, guest_user_id, starting_bait_id, mode, timer_s, strikes, status,
-  winner_user_id, end_reason, created_at, started_at, ended_at, turn_deadline_at, updated_at, rematch_code`
+  winner_user_id, end_reason, created_at, started_at, ended_at, turn_deadline_at, updated_at, rematch_code,
+  join_key`
 
 function roomRow(row: unknown): RoomRow | null {
   if (!row) return null
@@ -149,6 +188,7 @@ function roomRow(row: unknown): RoomRow | null {
     turnDeadlineAt: r.turn_deadline_at === null || r.turn_deadline_at === undefined ? null : Number(r.turn_deadline_at),
     updatedAt: Number(r.updated_at),
     rematchCode: r.rematch_code === null || r.rematch_code === undefined ? null : String(r.rematch_code),
+    joinKey: r.join_key === null || r.join_key === undefined ? null : String(r.join_key),
   }
 }
 
@@ -254,6 +294,12 @@ export type RoomConn = {
  * it, and every room carries on from the database exactly where it was — with
  * the deadline re-armed by the first request that touches it.
  */
+/** Tabs one account may hold on one room — two real ones and slack for a reload. */
+export const MAX_SOCKETS_PER_USER = 4
+
+/** Sockets one room may carry at all: two seats and v2.md §5's spectators. */
+export const MAX_ROOM_SOCKETS = 24
+
 export class RoomHub {
   private conns = new Map<string, Set<RoomConn>>()
   private timers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -264,14 +310,31 @@ export class RoomHub {
     this.onExpire = fn
   }
 
-  add(code: string, conn: RoomConn): void {
+  /**
+   * Attach a socket, or refuse it — `false` means the caller must close.
+   *
+   * There was no cap of any kind here, and every event fans out one FULL
+   * `snapshot()` per connected socket (~6 synchronous SQLite calls against the
+   * 1.5 GiB corpus), while `onOpen` itself broadcast to everyone already
+   * attached. Attaching N sockets therefore cost N(N+1)/2 snapshots: measured
+   * on the real artefact, 600 sockets from ONE account fanned out 1,312 MB of
+   * JSON, and `spectators` dedupes by user id so both players read «1 مشاهد»
+   * throughout. Two caps, because they answer two different questions: how
+   * many tabs one person may keep open, and how many people may watch.
+   */
+  add(code: string, conn: RoomConn): boolean {
     const key = code.toUpperCase()
     let set = this.conns.get(key)
     if (!set) {
       set = new Set()
       this.conns.set(key, set)
     }
+    if (set.size >= MAX_ROOM_SOCKETS) return false
+    let mine = 0
+    for (const c of set) if (c.userId === conn.userId) mine += 1
+    if (mine >= MAX_SOCKETS_PER_USER) return false
     set.add(conn)
+    return true
   }
 
   remove(code: string, conn: RoomConn): void {
@@ -342,6 +405,16 @@ export type RoomDeps = {
   users: UsersDb
   config: Config
   hub: RoomHub
+  /**
+   * The bucket every inbound WebSocket frame spends, keyed on the USER id.
+   *
+   * `GAME_RATE_LIMIT` is Hono middleware and an upgrade never reaches it, so
+   * the socket ran the same `playTurn` — and answered the same full snapshot to
+   * `{"type":"state"}` — with no bucket at all. Keyed on the user rather than
+   * on the socket because a per-socket counter is defeated by opening a second
+   * socket, which is exactly what the measurement did.
+   */
+  socketLimiter: RateLimiter
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -383,8 +456,8 @@ export function createRoom(users: UsersDb, input: CreateRoomInput): RoomRow {
       users
         .q(
           `INSERT INTO rooms (code, host_user_id, guest_user_id, starting_bait_id, mode, timer_s, strikes, status,
-                              created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?)`,
+                              created_at, updated_at, join_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?, ?)`,
         )
         .run(
           code,
@@ -396,6 +469,7 @@ export function createRoom(users: UsersDb, input: CreateRoomInput): RoomRow {
           input.strikes,
           now,
           now,
+          newJoinKey(),
         )
       const id = Number((users.q("SELECT last_insert_rowid() AS id").get() as { id: number }).id)
       users
@@ -555,12 +629,27 @@ export function requiredOf(deps: RoomDeps, room: RoomRow, rows: readonly TurnRow
   return row ? chainState(row, room.mode) : null
 }
 
-export function shareUrlFor(config: Config, code: string): string {
+/**
+ * The link you hand a friend — and the ONLY place the invite key is written
+ * into a URL. `joinKey` is null for anyone who is not seated in this room, so a
+ * spectator's snapshot carries the plain address of a room they can read and
+ * not the credential for a seat they were not offered.
+ */
+export function shareUrlFor(config: Config, code: string, joinKey: string | null = null): string {
   const origin = config.publicOrigin.replace(/\/+$/, "")
-  return `${origin}/#/room/${code}`
+  const base = `${origin}/#/room/${code}`
+  return joinKey === null ? base : `${base}?k=${encodeURIComponent(joinKey)}`
 }
 
-export function snapshot(deps: RoomDeps, room: RoomRow, viewer: Viewer, now = Date.now()): RoomState {
+export function snapshot(
+  deps: RoomDeps,
+  room: RoomRow,
+  viewer: Viewer,
+  now = Date.now(),
+  /** the invite key this reader arrived with, if any — see `canJoin` below */
+  offeredKey: string | null = null,
+): RoomState {
+  const invited = joinKeyMatches(room.joinKey, offeredKey)
   const rows = roomTurns(deps.users, room.id)
   const host = playerOf(deps, room, "host", room.hostUserId, rows)
   const guest = playerOf(deps, room, "guest", room.guestUserId, rows)
@@ -571,12 +660,20 @@ export function snapshot(deps: RoomDeps, room: RoomRow, viewer: Viewer, now = Da
   const winner = room.winnerUserId === null ? null : (findUserById(deps.users, room.winnerUserId)?.username ?? null)
 
   // «canJoin»: the room is still waiting and this seat is open to you. A room
-  // whose guest is pre-assigned (a رجعة) is open only to that player.
+  // whose guest is pre-assigned (a رجعة) is open only to that player — and an
+  // open seat is only offered to a reader who arrived with the invite key,
+  // because that is the whole of «a room link is not public, it is a link you
+  // were given» (server/routes/rooms.ts).
   const canJoin =
     viewer !== null &&
     room.status === "waiting" &&
     seat !== "host" &&
-    (room.guestUserId === null || room.guestUserId === viewer.id)
+    (room.guestUserId === viewer.id || (room.guestUserId === null && invited))
+
+  // The key belongs to the two players. A spectator — who reached the room
+  // with the key, or is watching a room they are seated in nowhere — gets the
+  // room, never the credential for its empty seat.
+  const keyForViewer = seat !== null ? room.joinKey : null
 
   return {
     code: room.code,
@@ -604,6 +701,7 @@ export function snapshot(deps: RoomDeps, room: RoomRow, viewer: Viewer, now = Da
     winner,
     endReason: room.endReason,
     rematchCode: room.rematchCode,
+    joinKey: keyForViewer,
     spectators: Math.max(
       0,
       new Set(
@@ -613,7 +711,7 @@ export function snapshot(deps: RoomDeps, room: RoomRow, viewer: Viewer, now = Da
           .filter((id) => seatOf(room, id) === null),
       ).size,
     ),
-    shareUrl: shareUrlFor(deps.config, room.code),
+    shareUrl: shareUrlFor(deps.config, room.code, keyForViewer),
   }
 }
 
@@ -639,17 +737,30 @@ export function userIdForSeat(room: RoomRow, seat: RoomSeat): number | null {
  * that touches the room, and a socket connecting — because the timer is the
  * only one of the three that a restart can lose. The database says what time
  * the turn was due; whoever gets here first writes the same ending.
+ *
+ * IT RE-READS THE ROW, and that is the whole of the bug this signature used to
+ * carry. `POST /:code/turn` is the one async handler: it loaded the row at
+ * dispatch and then AWAITED the body, so a second turn arriving in that window
+ * moved the deadline while the first request still held the old number. This
+ * function then judged the STALE `turn_deadline_at` against a transcript it
+ * read fresh, and ended the match `timeout` against the player who had just
+ * been handed a full clock — measured, reproducible over a real socket, and a
+ * direct contradiction of CLAUDE.md's «the only thing that can end a turn
+ * unanswered is a timestamp in the database»: the timestamp used was one the
+ * database no longer held. The caller's snapshot is now a hint about WHICH row,
+ * never about what is in it.
  */
 export function resolveExpiry(deps: RoomDeps, room: RoomRow, now: number): { room: RoomRow; expired: boolean } {
-  if (room.status !== "active" || room.turnDeadlineAt === null || now < room.turnDeadlineAt) {
-    return { room, expired: false }
+  const live = findRoomById(deps.users, room.id) ?? room
+  if (live.status !== "active" || live.turnDeadlineAt === null || now < live.turnDeadlineAt) {
+    return { room: live, expired: false }
   }
-  const chain = chainTurns(roomTurns(deps.users, room.id))
+  const chain = chainTurns(roomTurns(deps.users, live.id))
   const loserSeat = turnSeatOf(chain)
-  const loser = userIdForSeat(room, loserSeat)
-  const winner = loser === null ? null : opponentOf(room, loser)
-  const ended = endRoom(deps.users, room, winner, "timeout", now)
-  deps.hub.disarm(room.code)
+  const loser = userIdForSeat(live, loserSeat)
+  const winner = loser === null ? null : opponentOf(live, loser)
+  const ended = endRoom(deps.users, live, winner, "timeout", now)
+  deps.hub.disarm(live.code)
   return { room: ended, expired: true }
 }
 
@@ -805,7 +916,13 @@ export type JoinOutcome =
  * is full and you are watching, or the room is a رجعة whose seat is reserved
  * for somebody else.
  */
-export function joinRoom(deps: RoomDeps, room: RoomRow, user: UserRow, now = Date.now()): JoinOutcome {
+export function joinRoom(
+  deps: RoomDeps,
+  room: RoomRow,
+  user: UserRow,
+  now = Date.now(),
+  offeredKey: string | null = null,
+): JoinOutcome {
   const seat = seatOf(room, user.id)
   // Already under way (or over): a player is simply back, anyone else watches.
   if (room.status !== "waiting") {
@@ -817,6 +934,15 @@ export function joinRoom(deps: RoomDeps, room: RoomRow, user: UserRow, now = Dat
   // would for a stranger taking an empty seat. Returning early because he
   // already had a seat left the rematch waiting forever.
   if (room.guestUserId !== null && room.guestUserId !== user.id) return { ok: false, code: "room_full" }
+  // AN OPEN SEAT NEEDS THE INVITE. Without this the first authenticated
+  // request to arrive took it, whoever it belonged to: the host texted his
+  // friend a link and a third account could sit down first, leaving the friend
+  // with `room_full` and no way to evict the stranger. A رجعة's named guest
+  // needs no key — the seat already carries his id, which is a stronger claim
+  // than the link.
+  if (room.guestUserId === null && !joinKeyMatches(room.joinKey, offeredKey)) {
+    return { ok: false, code: "needs_key" }
+  }
   const started = startRoom(deps.users, room, user.id, now)
   deps.hub.arm(started.code, started.turnDeadlineAt, now)
   return { ok: true, room: started, joined: true }

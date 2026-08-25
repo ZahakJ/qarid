@@ -1834,6 +1834,13 @@ export const RoomStateSchema = z.object({
   endReason: RoomEndReasonSchema.nullable(),
   /** the room «رجعة» opened, once someone pressed it */
   rematchCode: z.string().nullable(),
+  /**
+   * The invite key — present ONLY for the two players (server/rooms.ts
+   * `newJoinKey`). It is what `POST /:code/join` checks before it hands out
+   * the empty seat, and it rides in `shareUrl`; a spectator's snapshot carries
+   * null and a link with no key in it.
+   */
+  joinKey: z.string().nullable(),
   spectators: z.number().int().nonnegative(),
   /** the absolute link to hand a friend (PUBLIC_ORIGIN + `#/room/<code>`) */
   shareUrl: z.string(),
@@ -1889,6 +1896,17 @@ export const RoomPlayableQuerySchema = z.object({
 })
 export const RoomPlayableResponseSchema = z.object({ ids: z.array(z.number().int().positive()) })
 export type RoomPlayableResponse = z.infer<typeof RoomPlayableResponseSchema>
+
+/**
+ * POST /api/room/:code/join — the invite, out of `#/room/<CODE>?k=…`.
+ *
+ * Optional, because a رجعة's named guest needs none: his seat carries his user
+ * id, which is a stronger claim than any link.
+ */
+export const RoomJoinRequestSchema = z.object({
+  key: z.string().max(64).nullish().transform((v) => v ?? undefined),
+})
+export type RoomJoinRequest = z.infer<typeof RoomJoinRequestSchema>
 
 /** POST /api/room/:code/turn — the same 600 characters `/api/game/verify` takes. */
 export const RoomTurnRequestSchema = z.object({ text: z.string().min(1).max(600) })
@@ -1962,4 +1980,6 @@ export const ROOM_ERRORS: Record<string, string> = {
   no_bait: "لم أجد بيتًا صالحًا للبدء",
   rooms_unavailable: "المساجلة مع الأصدقاء غير متاحة على هذا الخادم",
   too_fast: "على رِسْلك",
+  needs_key: "هذه الغرفة تُدخَل برابط الدعوة — اطلبه ممّن فتحها",
+  too_many_sockets: "فُتحت هذه الغرفة في نوافذ كثيرة",
 }

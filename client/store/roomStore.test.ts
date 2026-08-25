@@ -13,7 +13,7 @@ import path from "node:path"
 
 import { describe, expect, it } from "vitest"
 
-import { rejectionOf, roomTimeLeft, socketUrl } from "./roomStore.ts"
+import { rejectionOf, rematchIsNew, roomTimeLeft, socketUrl } from "./roomStore.ts"
 import type { BaitDto, RoomState, RoomVerdict } from "../../shared/schema.ts"
 
 const BAIT: BaitDto = {
@@ -41,15 +41,45 @@ describe("socketUrl", () => {
   const https = { protocol: "https:", host: "qarid.avicenna.space" }
 
   it("is same-origin, so the session cookie rides the upgrade", () => {
-    expect(socketUrl("BADIRU", http)).toBe("ws://127.0.0.1:5751/ws/room/BADIRU")
+    expect(socketUrl("BADIRU", null, http)).toBe("ws://127.0.0.1:5751/ws/room/BADIRU")
   })
 
   it("follows the page's scheme — the tunnel is https and dev is not", () => {
-    expect(socketUrl("BADIRU", https)).toBe("wss://qarid.avicenna.space/ws/room/BADIRU")
+    expect(socketUrl("BADIRU", null, https)).toBe("wss://qarid.avicenna.space/ws/room/BADIRU")
   })
 
   it("encodes whatever it is handed rather than trusting it into a URL", () => {
-    expect(socketUrl("A B", http)).toContain("A%20B")
+    expect(socketUrl("A B", null, http)).toContain("A%20B")
+  })
+
+  it("carries the invite key a spectator needs, and nothing when there is none", () => {
+    // A watcher's upgrade is checked exactly like `GET /:code/state`: the
+    // socket streams the same transcript, so it needs the same proof.
+    expect(socketUrl("BADIRU", "abc23xyz", https)).toBe("wss://qarid.avicenna.space/ws/room/BADIRU?k=abc23xyz")
+    expect(socketUrl("BADIRU", null, https)).not.toContain("?")
+  })
+})
+
+describe("rematchIsNew", () => {
+  it("follows a رجعة that opens while you are watching", () => {
+    expect(rematchIsNew(null, "BADIRU")).toBe(true)
+  })
+
+  it("does NOT follow one that was already there when the room loaded", () => {
+    // `rooms.rematch_code` is permanent and rides on every later snapshot, so
+    // redirecting on its presence bounced any viewer who opened an old room —
+    // through every generation, 900 ms apart, out into the newest one. From the
+    // profile's match list that made every older transcript unreachable.
+    expect(rematchIsNew("BADIRU", "BADIRU")).toBe(false)
+  })
+
+  it("waits for the first snapshot before deciding anything", () => {
+    expect(rematchIsNew(undefined, "BADIRU")).toBe(false)
+  })
+
+  it("is false when there is no رجعة at all", () => {
+    expect(rematchIsNew(null, null)).toBe(false)
+    expect(rematchIsNew("BADIRU", null)).toBe(false)
   })
 })
 
