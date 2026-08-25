@@ -25,7 +25,15 @@ import { routeHash } from "../router.ts"
 import { initialOf, useAuth } from "../store/authStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { trainingSlice, useTraining } from "../store/trainingStore.ts"
-import { BAYT_FORMS, FAWZ_FORMS, MUSAJALA_FORMS, countedUnit, formatNumber } from "../../shared/format.ts"
+import {
+  BAYT_FORMS,
+  FAWZ_FORMS,
+  MUSAJALA_FORMS,
+  countedNoun,
+  countedNounWithAdjective,
+  countedUnit,
+  formatNumber,
+} from "../../shared/format.ts"
 import { HIJAI_LETTERS, LETTER_NAMES } from "../../shared/letters.ts"
 import type { ProfileResponse } from "../../shared/schema.ts"
 
@@ -54,6 +62,15 @@ function dateLabel(ms: number): string {
   if (Number.isNaN(d.getTime())) return "—"
   return `${d.getDate()} ${MONTHS[d.getMonth()] ?? ""} ${d.getFullYear()}`
 }
+
+/**
+ * «بيت واحد محفوظ» · «بيتان محفوظان» · «5 أبيات محفوظة» · «12 بيتًا محفوظًا».
+ *
+ * The نعت has to agree with the معدود, which is exactly the agreement that
+ * breaks when a phrase is assembled by concatenation — «3 محفوظًا» was what the
+ * ترسانة cell's tooltip said (CLAUDE.md, العدد والمعدود live in format.ts).
+ */
+const MAHFUZ = { one: "محفوظ", two: "محفوظان", few: "محفوظة", many: "محفوظًا" } as const
 
 const RESULT_LABEL: Record<"win" | "loss" | "open", string> = {
   win: "فوز",
@@ -290,7 +307,9 @@ export function ProfileView({ username }: { username: string }) {
                   </a>
                 )}
                 <span className="match-row__foe">{m.opponent ?? "بانتظار خصم"}</span>
-                <span className="match-row__turns num">{formatNumber(m.turns)}</span>
+                {/* «3 أبيات», never a bare «3» — a digit standing alone in a
+                    ledger row names nothing (CLAUDE.md, العدد والمعدود). */}
+                <span className="match-row__turns num">{countedNoun(m.turns, BAYT_FORMS)}</span>
                 <span className="match-row__when">{dateLabel(m.endedAt ?? m.createdAt)}</span>
               </li>
             ))}
@@ -314,7 +333,7 @@ export function ProfileView({ username }: { username: string }) {
                     className="arsenal-cell"
                     key={letter}
                     data-level={level}
-                    title={`${LETTER_NAMES[letter]} — ${formatNumber(mastered)} محفوظًا`}
+                    title={`${LETTER_NAMES[letter]} — ${countedNounWithAdjective(mastered, BAYT_FORMS, MAHFUZ)}`}
                   >
                     <span className="arsenal-cell__letter">{letter}</span>
                     {/* a wall of zeros is noise; the dot holds the row's

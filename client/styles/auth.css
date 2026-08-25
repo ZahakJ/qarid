@@ -368,8 +368,14 @@
   justify-content: flex-end;
 }
 
+/* «هذه صفحتك» sits in a row with two real buttons, so it takes the app's chip
+   band (`--meta-band`) instead of its own padding: at 0.25rem it was 26px beside
+   a 34px button and the three items in the hero's action row shared no edge. */
 .profile-hero__you {
-  padding: 0.25rem 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: var(--sp-3);
   border: 1px solid var(--accent-hair);
   border-radius: var(--r-pill);
   background: var(--accent-wash);
@@ -454,15 +460,30 @@
   gap: var(--sp-2);
 }
 
+/* Verdict · whom · how many أبيات — one cluster on the reading edge — and the
+ * DATE alone at the far edge. The slack used to sit inside the opponent column
+ * (`minmax(0, 1fr)` in the second track), which at 58rem left 600px of nothing
+ * between the name and «1 · 24 أغسطس», and the four fragments read as four
+ * floating things rather than one line. The filler track is now its own, so
+ * every row is a phrase followed by a date. */
 .match-row {
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr) 3rem auto;
+  grid-template-columns: 5.5rem minmax(0, auto) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--line-1);
   border-radius: var(--r-2);
   background: var(--panel);
+}
+
+.match-row__turns {
+  grid-column: 3;
+  justify-self: start;
+}
+
+.match-row__when {
+  grid-column: 4;
 }
 
 .match-row__result {
@@ -579,6 +600,10 @@
   /* the count is the least load-bearing column on a phone; the date stays */
   .match-row__turns {
     display: none;
+  }
+
+  .match-row__when {
+    grid-column: auto;
   }
 
   .arsenal-strip {
