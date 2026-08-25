@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">قريض</string>
+    <string name="title_activity_main">قريض</string>
+    <string name="package_name">space.avicenna.qarid</string>
+    <string name="custom_url_scheme">space.avicenna.qarid</string>
+</resources>
