@@ -24,7 +24,13 @@ export type Shortcut = {
 
 export const SHORTCUTS: Shortcut[] = [
   { keys: ["?"], label: "عرض هذه القائمة", scope: "global" },
-  { keys: ["/"], label: "التركيز على حقل البحث", scope: "global" },
+  // The two chords the palette answers to (v2.md §3). Ctrl+F is a deliberate
+  // hijack of the browser's own find — a reader searching 3.4M أبيات means the
+  // ديوان, not the lines the viewport happens to hold — so it is advertised
+  // here beside Ctrl+K rather than left as a surprise.
+  { keys: ["Ctrl", "K"], label: "البحث السريع في الديوان", scope: "global" },
+  { keys: ["Ctrl", "F"], label: "البحث السريع نفسه (بدل بحث المتصفح)", scope: "global" },
+  { keys: ["/"], label: "التركيز على حقل البحث، أو فتح البحث السريع", scope: "global" },
   { keys: ["Esc"], label: "إغلاق النافذة أو إلغاء التركيز", scope: "global" },
   { keys: ["g", "h"], label: "الصفحة الأولى", scope: "global" },
   { keys: ["g", "p"], label: "الشعراء", scope: "global" },

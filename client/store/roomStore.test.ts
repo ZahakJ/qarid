@@ -8,6 +8,9 @@
  * and the mapping from a verify rejection to the card the duel already knows
  * how to draw.
  */
+import { readFileSync } from "node:fs"
+import path from "node:path"
+
 import { describe, expect, it } from "vitest"
 
 import { rejectionOf, roomTimeLeft, socketUrl } from "./roomStore.ts"
@@ -118,5 +121,22 @@ describe("rejectionOf", () => {
     const rejection = rejectionOf(verdict(source))
     expect(rejection).toMatchObject({ kind: "not_found" })
     if (rejection?.kind === "not_found") expect(rejection.suggestions).not.toBe(source.suggestions)
+  })
+})
+
+
+describe("the dev proxy carries the upgrade", () => {
+  /**
+   * `ws: true` is the whole of it, and losing it is the worst-shaped bug this
+   * feature can have: vite owns `upgrade` for its own HMR socket, so without
+   * the flag it answers `/ws/room/<code>` itself, the room silently falls back
+   * to the two-second poller in DEV, and production — where the socket goes
+   * straight to the node server — keeps working perfectly.
+   */
+  it("proxies /ws to the API server with ws: true", () => {
+    const config = readFileSync(path.join(import.meta.dirname, "..", "..", "vite.config.ts"), "utf8")
+    const entry = config.slice(config.indexOf('"/ws"'), config.indexOf('"/ws"') + 120)
+    expect(entry).toContain("ws: true")
+    expect(entry).toContain("target: API")
   })
 })

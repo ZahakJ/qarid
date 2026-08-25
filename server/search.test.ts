@@ -368,6 +368,18 @@ describe("GET /api/search — the شعراء ranking", () => {
       .map((p) => p.fame)
     expect(fames).toEqual([...fames].sort((x, y) => y - x))
   })
+
+  it("keeps that ranking on the COMBINED scope — the palette's own request", async () => {
+    // The global palette (v2.md §3) asks for all three lists in one round trip
+    // and promises fame-first شعراء. `scope=all` runs the same `searchPoets`,
+    // so the promise is the server's, not a client-side re-sort: pinned here
+    // because a "lightweight combined mode" that skipped `rankedPoetRefs`
+    // would break it silently and only on that one surface.
+    const combined = await search({ q: "القيس", scope: "all", limit: 5 })
+    const alone = await search({ q: "القيس", scope: "poets", limit: 5 })
+    expect(combined.poets.map((p) => p.slug)).toEqual(alone.poets.map((p) => p.slug))
+    expect(combined.poets[0]!.name).toBe("امرؤ القيس")
+  })
 })
 
 describe("GET /api/search — pagination", () => {

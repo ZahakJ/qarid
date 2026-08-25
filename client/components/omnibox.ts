@@ -44,14 +44,27 @@ const ORDER: readonly SuggestionKind[] = ["poet", "bait", "poem"]
  *
  * A بيت links to its قصيدة at the right بيت (`?bayt=N`), never to a bare بيت
  * page: the reader asked for a line and wants to land on it inside its قصيدة.
+ *
+ * Both surfaces that show suggestions shape them here: the omnibox takes the
+ * defaults (four rows each, شعراء first), and the global palette passes its own
+ * per-kind caps and its own order (v2.md §3 — 5 أبيات · 4 قصائد · 4 شعراء).
+ * One shaping function is the point: a بيت's route, an untitled قصيدة's heading
+ * and the empty-group rule are decided once for both.
  */
-export function groupSuggestions(res: SearchResponse | null, limit = OMNIBOX_GROUP_LIMIT): SuggestionGroup[] {
+export function groupSuggestions(
+  res: SearchResponse | null,
+  limit: number | Partial<Record<SuggestionKind, number>> = OMNIBOX_GROUP_LIMIT,
+  order: readonly SuggestionKind[] = ORDER,
+): SuggestionGroup[] {
   if (!res) return []
-  const cap = Math.max(0, Math.floor(limit))
+  const capOf = (kind: SuggestionKind) => {
+    const n = typeof limit === "number" ? limit : (limit[kind] ?? OMNIBOX_GROUP_LIMIT)
+    return Math.max(0, Math.floor(n))
+  }
   const groups: SuggestionGroup[] = []
 
-  for (const kind of ORDER) {
-    const items = suggestionsOf(res, kind, cap)
+  for (const kind of order) {
+    const items = suggestionsOf(res, kind, capOf(kind))
     if (items.length > 0) groups.push({ kind, label: GROUP_LABEL[kind], items })
   }
   return groups

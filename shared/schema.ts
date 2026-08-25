@@ -1539,3 +1539,418 @@ export const PERSIST_SCHEMAS = {
   profile: ProfileSliceSchema,
   favorites: FavoritesSliceSchema,
 } as const
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 12. Accounts, profiles, مساجلة rooms (v2.md §4/§5)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * A username is a PATH SEGMENT (`#/u/<username>`) and a display handle, so it
+ * carries the strictest shape in this file: it must start with a letter or a
+ * digit, and may then hold letters, digits, `_`, `.` and `-`. Arabic letters
+ * are allowed — this is an Arabic site and «المتنبي» is a better handle than
+ * `almutanabbi` for the reader who wants it — but tashkeel marks are not
+ * (they are `\p{M}`, not `\p{L}`), because two names that differ only by a
+ * fatha are the same name to every eye that reads them.
+ *
+ * Case-insensitive uniqueness is the database's job (`UNIQUE COLLATE NOCASE`).
+ */
+export const UsernameSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(24)
+  .regex(/^[\p{L}\p{N}][\p{L}\p{N}._-]*$/u, "username must start with a letter or digit")
+
+/** The name a reader actually sees. Any script, no line breaks. */
+export const DisplayNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(40)
+  .regex(/^[^\r\n\t]+$/, "display name must be one line")
+
+/** v2.md §4: eight characters, and an upper bound so scrypt cannot be a DoS. */
+export const PasswordSchema = z.string().min(8).max(200)
+
+export const InviteCodeSchema = z.string().trim().min(1).max(64)
+
+/** The public shape of an account. No email exists to leak; no id is exposed. */
+export const AuthUserSchema = z.object({
+  username: z.string(),
+  displayName: z.string(),
+  joinedAt: z.number().int().nonnegative(),
+  lastSeenAt: z.number().int().nonnegative(),
+})
+export type AuthUser = z.infer<typeof AuthUserSchema>
+
+export const RegisterRequestSchema = z.object({
+  username: UsernameSchema,
+  /** absent → the username stands in as the display name */
+  displayName: DisplayNameSchema.optional(),
+  password: PasswordSchema,
+  /** only read when the server runs with REQUIRE_INVITE=1 */
+  invite: InviteCodeSchema.optional(),
+})
+export type RegisterRequest = z.infer<typeof RegisterRequestSchema>
+
+/**
+ * Login is deliberately LAX where registration is strict: an account created
+ * before a rule tightened must still be able to log in, and the answer to a
+ * malformed username is «الاسم أو كلمة السر غير صحيحة», not a 400 that tells
+ * an attacker which half of the form was wrong.
+ */
+export const LoginRequestSchema = z.object({
+  username: z.string().trim().min(1).max(64),
+  password: z.string().min(1).max(200),
+})
+export type LoginRequest = z.infer<typeof LoginRequestSchema>
+
+export const AuthSessionResponseSchema = z.object({ user: AuthUserSchema })
+export type AuthSessionResponse = z.infer<typeof AuthSessionResponseSchema>
+
+/**
+ * `GET /api/auth/me` — always 200, `user: null` when nobody is signed in.
+ *
+ * A 401 here would be a lie: "who am I" was answered. It also keeps the
+ * masthead's boot request out of the smoke run's failure list. `requiresInvite`
+ * is what the dialog reads to decide whether to show the رمز الدعوة field, and
+ * `available` is false when this deployment has no writable users database at
+ * all (v2.md §4: log + 503, never crash).
+ */
+export const AuthMeResponseSchema = z.object({
+  user: AuthUserSchema.nullable(),
+  requiresInvite: z.boolean().default(false),
+  available: z.boolean().default(true),
+})
+export type AuthMeResponse = z.infer<typeof AuthMeResponseSchema>
+
+export const AuthLogoutResponseSchema = z.object({ ok: z.literal(true) })
+export type AuthLogoutResponse = z.infer<typeof AuthLogoutResponseSchema>
+
+/** Duel record, read off `rooms`/`match_turns` — zeros until §5 lands. */
+export const DuelStatsSchema = z.object({
+  matches: z.number().int().nonnegative(),
+  wins: z.number().int().nonnegative(),
+  losses: z.number().int().nonnegative(),
+  /** accepted أبيات recited across every مساجلة */
+  turns: z.number().int().nonnegative(),
+  /** longest run of accepted turns inside one room */
+  bestChain: z.number().int().nonnegative(),
+})
+export type DuelStats = z.infer<typeof DuelStatsSchema>
+
+export const MatchResultSchema = z.enum(["win", "loss", "open"])
+export const RoomStatusSchema = z.enum(["waiting", "active", "done"])
+export const RoomModeSchema = z.enum(["rhyme", "literal"])
+
+export const ProfileMatchSchema = z.object({
+  code: z.string(),
+  status: RoomStatusSchema,
+  /** the other player's display name, null while a room is still waiting */
+  opponent: z.string().nullable(),
+  result: MatchResultSchema,
+  turns: z.number().int().nonnegative(),
+  createdAt: z.number().int().nonnegative(),
+  endedAt: z.number().int().nonnegative().nullable(),
+})
+export type ProfileMatch = z.infer<typeof ProfileMatchSchema>
+
+/** The opt-in ترسانة snapshot, exactly the local slice's shape. */
+export const ArsenalSnapshotSchema = z.object({
+  letters: ArsenalSchema,
+  updatedAt: z.number().int().nonnegative(),
+})
+export type ArsenalSnapshot = z.infer<typeof ArsenalSnapshotSchema>
+
+export const ProfileResponseSchema = z.object({
+  user: AuthUserSchema,
+  /** true when the signed-in reader is looking at their own page */
+  isSelf: z.boolean(),
+  stats: DuelStatsSchema,
+  recent: z.array(ProfileMatchSchema),
+  arsenal: ArsenalSnapshotSchema.nullable(),
+})
+export type ProfileResponse = z.infer<typeof ProfileResponseSchema>
+
+export const ProfileUpdateRequestSchema = z.object({ displayName: DisplayNameSchema })
+export type ProfileUpdateRequest = z.infer<typeof ProfileUpdateRequestSchema>
+
+export const ArsenalSyncRequestSchema = z.object({ arsenal: ArsenalSchema })
+export type ArsenalSyncRequest = z.infer<typeof ArsenalSyncRequestSchema>
+
+export const ArsenalSyncResponseSchema = z.object({
+  ok: z.literal(true),
+  arsenal: ArsenalSnapshotSchema.nullable(),
+})
+export type ArsenalSyncResponse = z.infer<typeof ArsenalSyncResponseSchema>
+
+/** v2.md §4: the stored snapshot is capped at 8 KB of JSON. */
+export const MAX_ARSENAL_BYTES = 8 * 1024
+
+/** How many recent مساجلات a profile page lists (every new list is paginated). */
+export const PROFILE_MATCHES_LIMIT = 10
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. مساجلة rooms — 1v1 over the wire (v2.md §5)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * The room code is SPEAKABLE, because the first thing that happens to it is
+ * that someone reads it down a phone or types it from a photograph of a
+ * screen: three consonant+vowel pairs, six letters, one syllable each
+ * («BADIRU», «KOSEMA»). No digits at all — «0/O» and «1/I» are the two
+ * mistakes a shared code actually collects — and it is matched
+ * case-insensitively both here and in SQLite (`UNIQUE COLLATE NOCASE`).
+ */
+export const ROOM_CODE_LENGTH = 6
+export const RoomCodeSchema = z
+  .string()
+  .trim()
+  .length(ROOM_CODE_LENGTH)
+  .regex(/^[A-Za-z]{6}$/, "room code is six letters")
+  .transform((s) => s.toUpperCase())
+
+/** Where you stand in a room. A spectator is anyone else who opened the link. */
+export const RoomRoleSchema = z.enum(["host", "guest", "spectator"])
+export type RoomRole = z.infer<typeof RoomRoleSchema>
+
+/** The two seats. A turn belongs to one of them; a spectator has none. */
+export const RoomSeatSchema = z.enum(["host", "guest"])
+export type RoomSeat = z.infer<typeof RoomSeatSchema>
+
+/**
+ * How a مساجلة stopped. `strikes` and `timeout` are the two v2.md §5 names;
+ * `resign` is «انسحب», and `abandoned` is reserved for a room the server
+ * closes without a winner.
+ */
+export const RoomEndReasonSchema = z.enum(["strikes", "timeout", "resign", "abandoned"])
+export type RoomEndReason = z.infer<typeof RoomEndReasonSchema>
+
+/**
+ * What the transcript stores per row. `opening` is the host's starting بيت —
+ * it is a بيت in the room but not a بيت he ANSWERED with, which is why it is
+ * its own tag and not `ok` (`duelStats` counts only `ok`, server/users.ts).
+ *
+ * The only two rejections that become rows are the two v2.md §5 calls a
+ * strike. Everything else the verifier can say — «وجدتُ أكثر من بيت», «البيت
+ * شطران», «أهذا ما أردت؟», «قيل هذا البيت» — is feedback to the player who
+ * typed it, changes nothing about the room, and is never written down.
+ */
+export const RoomTurnVerdictSchema = z.enum(["opening", "ok", "wrong_letter", "not_found"])
+export type RoomTurnVerdict = z.infer<typeof RoomTurnVerdictSchema>
+
+/** v2.md §5: «wrong-letter/not-found = strike». Everything else is soft. */
+export const ROOM_STRIKE_REASONS = ["wrong_letter", "not_found"] as const
+
+/** v2.md §5: the server-clocked turn, or no clock at all. */
+export const ROOM_TIMERS = [30, 60, 90] as const
+export const RoomTimerSchema = z.union([z.literal(30), z.literal(60), z.literal(90)])
+
+/** v2.md §5: «configurable strikes 1–3 at creation». */
+export const ROOM_STRIKES_MIN = 1
+export const ROOM_STRIKES_MAX = 3
+export const ROOM_STRIKES_DEFAULT = 3
+
+/** The longest a room's transcript may grow before the server calls it a draw. */
+export const MAX_ROOM_TURNS = 400
+
+/** A seat, as the other side sees it. `strikes` is derived from the turns. */
+export const RoomPlayerSchema = z.object({
+  username: z.string(),
+  displayName: z.string(),
+  seat: RoomSeatSchema,
+  /** strikes SPENT (0..room.strikes) */
+  strikes: z.number().int().nonnegative(),
+  /** أبيات accepted from this player in this room */
+  turns: z.number().int().nonnegative(),
+  /** a live socket is open for this player right now */
+  connected: z.boolean(),
+})
+export type RoomPlayer = z.infer<typeof RoomPlayerSchema>
+
+/** One line of the transcript. `bait` is null only for a strike. */
+export const RoomTurnSchema = z.object({
+  turnNo: z.number().int().nonnegative(),
+  seat: RoomSeatSchema,
+  username: z.string().nullable(),
+  verdict: RoomTurnVerdictSchema,
+  bait: BaitDtoSchema.nullable(),
+  /** what the player actually typed — kept for a strike, which has no بيت */
+  text: z.string().nullable(),
+  playedAt: z.number().int().nonnegative(),
+  msTaken: z.number().int().nonnegative().nullable(),
+})
+export type RoomTurn = z.infer<typeof RoomTurnSchema>
+
+/**
+ * THE snapshot. Every event carries one, so a client that has just
+ * reconnected, a client that has been watching all along and a client polling
+ * `GET /api/room/:code/state` are all looking at exactly the same thing —
+ * which is what makes reconnection free rather than a merge.
+ *
+ * `serverNow` is the clock the countdown is drawn from: `deadlineAt` is a
+ * server timestamp, and a browser whose clock is four minutes fast would
+ * otherwise render a turn as already lost. The client keeps the offset.
+ */
+export const RoomStateSchema = z.object({
+  code: z.string(),
+  status: RoomStatusSchema,
+  mode: RoomModeSchema,
+  timerS: z.number().int().positive().nullable(),
+  strikes: z.number().int().positive(),
+  createdAt: z.number().int().nonnegative(),
+  startedAt: z.number().int().nonnegative().nullable(),
+  endedAt: z.number().int().nonnegative().nullable(),
+  host: RoomPlayerSchema.nullable(),
+  guest: RoomPlayerSchema.nullable(),
+  /** who YOU are in this room, and what you may do in it */
+  you: z.object({
+    username: z.string().nullable(),
+    role: RoomRoleSchema,
+    seat: RoomSeatSchema.nullable(),
+    /** the room is waiting and this seat is open to you */
+    canJoin: z.boolean(),
+    /** it is your turn AND the room is active */
+    canPlay: z.boolean(),
+  }),
+  turns: z.array(RoomTurnSchema),
+  /** the seat that owes a بيت, null when the room is not active */
+  turnSeat: RoomSeatSchema.nullable(),
+  /** the chain state the next answer must satisfy */
+  required: ChainStateSchema.nullable(),
+  deadlineAt: z.number().int().nonnegative().nullable(),
+  serverNow: z.number().int().nonnegative(),
+  winner: z.string().nullable(),
+  endReason: RoomEndReasonSchema.nullable(),
+  /** the room «رجعة» opened, once someone pressed it */
+  rematchCode: z.string().nullable(),
+  spectators: z.number().int().nonnegative(),
+  /** the absolute link to hand a friend (PUBLIC_ORIGIN + `#/room/<code>`) */
+  shareUrl: z.string(),
+})
+export type RoomState = z.infer<typeof RoomStateSchema>
+
+/**
+ * POST /api/room — the host's five decisions.
+ *
+ * `baitId` absent means «عشوائي»: the server picks from the شاعر tier, which
+ * is `fame >= 2 AND position <= 12` (v2.md §5's «fame≥2 default», with the
+ * position cap that keeps it out of بيت ٣٠٠ of a 500-بيت ديوان).
+ */
+export const CreateRoomRequestSchema = z.object({
+  baitId: z.number().int().positive().nullish().transform((v) => v ?? undefined),
+  mode: RoomModeSchema.default("rhyme"),
+  timerS: RoomTimerSchema.nullish().transform((v) => v ?? undefined),
+  strikes: z.number().int().min(ROOM_STRIKES_MIN).max(ROOM_STRIKES_MAX).default(ROOM_STRIKES_DEFAULT),
+})
+export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>
+
+/**
+ * GET /api/room/opening — «عشوائي» on the create dialog.
+ *
+ * A room's opening بيت must be PLAYABLE (`game_baits`: it has a عجز and a روي
+ * to chain on), and `/api/baits/random` promises no such thing — so the host's
+ * dice are thrown by the same picker that would have thrown them server-side
+ * had he not asked to see it first.
+ */
+export const RoomOpeningResponseSchema = z.object({ bait: BaitDtoSchema })
+export type RoomOpeningResponse = z.infer<typeof RoomOpeningResponseSchema>
+
+/**
+ * GET /api/room/playable?ids=… — which of these أبيات may OPEN a مساجلة.
+ *
+ * The host picks his مطلع out of `/api/search`, which searches the whole
+ * ديوان — including the 1.66M أبيات the game pool excludes (no عجز, or a قصيدة
+ * the pool drops). Offering one of those and then refusing it at creation is
+ * the shape of bug where the interface knew and did not say, so the picker asks
+ * first and simply does not offer what it cannot use.
+ */
+export const RoomPlayableQuerySchema = z.object({
+  ids: z
+    .string()
+    .max(400)
+    .transform((raw) =>
+      raw
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .slice(0, 20),
+    ),
+})
+export const RoomPlayableResponseSchema = z.object({ ids: z.array(z.number().int().positive()) })
+export type RoomPlayableResponse = z.infer<typeof RoomPlayableResponseSchema>
+
+/** POST /api/room/:code/turn — the same 600 characters `/api/game/verify` takes. */
+export const RoomTurnRequestSchema = z.object({ text: z.string().min(1).max(600) })
+export type RoomTurnRequest = z.infer<typeof RoomTurnRequestSchema>
+
+/** Every room route answers with the whole snapshot; there is no partial reply. */
+export const RoomStateResponseSchema = z.object({ state: RoomStateSchema })
+export type RoomStateResponse = z.infer<typeof RoomStateResponseSchema>
+
+/**
+ * What the verifier said about ONE submitted بيت, for the player who typed it.
+ *
+ * `result` is the SAME `GameVerifyResponse` the solo duel renders — one verify
+ * pipeline, one set of rejection tags, one `RejectionCard` (v2.md §5:
+ * «through THE SAME verify pipeline»). `strike` and `strikesLeft` are the room's
+ * own accounting on top of it.
+ */
+export const RoomVerdictSchema = z.object({
+  result: GameVerifyResponseSchema,
+  strike: z.boolean(),
+  strikesLeft: z.number().int().nonnegative(),
+})
+export type RoomVerdict = z.infer<typeof RoomVerdictSchema>
+
+/** POST /api/room/:code/turn → the verdict AND the room it produced. */
+export const RoomTurnResponseSchema = z.object({ verdict: RoomVerdictSchema, state: RoomStateSchema })
+export type RoomTurnResponse = z.infer<typeof RoomTurnResponseSchema>
+
+/**
+ * The WebSocket vocabulary (v2.md §5: join/state/turn/verdict/timeout/end/
+ * rematch). Every server event carries the full `state`, so no client ever has
+ * to apply a delta — the transport is a notification that the snapshot moved,
+ * not a stream the client has to fold.
+ */
+export const RoomEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("state"), state: RoomStateSchema }),
+  z.object({ type: z.literal("join"), state: RoomStateSchema, username: z.string() }),
+  z.object({
+    type: z.literal("turn"),
+    state: RoomStateSchema,
+    username: z.string().nullable(),
+    verdict: RoomTurnVerdictSchema,
+  }),
+  /** private: only the socket that submitted sees why its بيت was refused */
+  z.object({ type: z.literal("verdict"), state: RoomStateSchema, verdict: RoomVerdictSchema }),
+  z.object({ type: z.literal("timeout"), state: RoomStateSchema, username: z.string().nullable() }),
+  z.object({ type: z.literal("end"), state: RoomStateSchema }),
+  z.object({ type: z.literal("rematch"), state: RoomStateSchema, code: z.string() }),
+  z.object({ type: z.literal("error"), code: z.string(), message: z.string() }),
+])
+export type RoomEvent = z.infer<typeof RoomEventSchema>
+
+/** client → server. Everything else the room does is an ordinary POST. */
+export const RoomCommandSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("turn"), text: z.string().min(1).max(600) }),
+  z.object({ type: z.literal("state") }),
+  z.object({ type: z.literal("ping") }),
+])
+export type RoomCommand = z.infer<typeof RoomCommandSchema>
+
+/** The machine codes a room route can answer with, and their Arabic. */
+export const ROOM_ERRORS: Record<string, string> = {
+  room_not_found: "لا غرفة بهذا الرمز",
+  room_full: "الغرفة مكتملة",
+  room_not_active: "لم تبدأ المساجلة بعد، أو قد انتهت",
+  not_your_turn: "ليس دورك",
+  spectator: "أنت مشاهد في هذه الغرفة",
+  not_a_player: "لستَ من لاعبي هذه الغرفة",
+  unauthenticated: "ادخل بحسابك أوّلًا",
+  bad_bait: "هذا البيت لا يصلح مطلعًا للمساجلة",
+  no_bait: "لم أجد بيتًا صالحًا للبدء",
+  rooms_unavailable: "المساجلة مع الأصدقاء غير متاحة على هذا الخادم",
+  too_fast: "على رِسْلك",
+}

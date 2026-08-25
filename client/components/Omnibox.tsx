@@ -53,9 +53,16 @@ export const OMNIBOX_PLACEHOLDER_NARROW = "ابحث: بيتٍ، أو شاعرٍ�
 /** The mounted omnibox's input, so `/` can reach it from the shell. */
 let mounted: HTMLInputElement | null = null
 
-/** Focus + select the omnibox if one is on screen. Returns whether it was. */
+/**
+ * Focus + select the omnibox if one is on screen. Returns whether it was.
+ *
+ * `isConnected` is the load-bearing half: the shell's `/` key asks this first
+ * and opens the global palette when the answer is no, so a pointer left over
+ * from an unmounted view would silently swallow the key — focusing a detached
+ * input does nothing at all, quietly, and reports success.
+ */
 export function focusOmnibox(): boolean {
-  if (!mounted) return false
+  if (!mounted || !mounted.isConnected) return false
   mounted.focus()
   mounted.select()
   return true
@@ -89,10 +96,17 @@ export function Omnibox({
 
   const debounced = useDebounced(text.trim(), 200)
 
+  // The NODE is captured, not re-read from the ref on the way out: React
+  // detaches a ref before it runs the cleanup that follows it, so
+  // `mounted === inputRef.current` was comparing against null and the pointer
+  // outlived the component. It matters on every route: the router's first
+  // render is always HOME (the hash is parsed in an effect), so an omnibox is
+  // mounted and unmounted before #/poets ever paints.
   useEffect(() => {
-    mounted = inputRef.current
+    const el = inputRef.current
+    mounted = el
     return () => {
-      if (mounted === inputRef.current) mounted = null
+      if (mounted === el) mounted = null
     }
   }, [])
 

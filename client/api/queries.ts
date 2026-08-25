@@ -14,6 +14,10 @@
  *    URLSearchParams, which does that for us.
  */
 import {
+  ArsenalSyncResponseSchema,
+  AuthLogoutResponseSchema,
+  AuthMeResponseSchema,
+  AuthSessionResponseSchema,
   BaitDtoSchema,
   BaitsResponseSchema,
   BaitDetailResponseSchema,
@@ -28,6 +32,10 @@ import {
   PoetPageResponseSchema,
   PoetsResponseSchema,
   ProfileResponseSchema,
+  RoomOpeningResponseSchema,
+  RoomPlayableResponseSchema,
+  RoomStateResponseSchema,
+  RoomTurnResponseSchema,
   GameHintResponseSchema,
   GameAssistResponseSchema,
   GamePoolResponseSchema,
@@ -38,6 +46,11 @@ import {
   SimilarPoemsResponseSchema,
   StatsResponseSchema,
   TrainCandidatesResponseSchema,
+  type Arsenal,
+  type ArsenalSyncResponse,
+  type AuthLogoutResponse,
+  type AuthMeResponse,
+  type AuthSessionResponse,
   type BaitDetailResponse,
   type BaitDto,
   type BaitsResponse,
@@ -50,6 +63,11 @@ import {
   type PoetPageResponse,
   type PoetsResponse,
   type ProfileResponse,
+  type CreateRoomRequest,
+  type RoomOpeningResponse,
+  type RoomPlayableResponse,
+  type RoomStateResponse,
+  type RoomTurnResponse,
   type RegisterRequest,
   type LoginRequest,
   type GameHintRequest,
@@ -192,6 +210,24 @@ export function search(params: Params, o?: Opts): Promise<SearchResponse> {
   return request(qs("/api/search", params), SearchResponseSchema, init(o))
 }
 
+/**
+ * The global palette's one round trip (v2.md §3).
+ *
+ * `scope=all` already answers all three lists, and its شعراء half is ranked
+ * name-hit → fame → bm25 (`rankedPoetRefs` in server/search.ts), which is
+ * exactly the "fame-first" order the palette promises — so the palette needs no
+ * combined mode of its own. `limit` is the BIGGEST group it renders; the other
+ * two are trimmed client-side by `paletteGroups`, because `/api/search` pages
+ * the three lists with one limit and three requests to save four rows would be
+ * three ranked scans.
+ *
+ * `mode` is deliberately unset: that is what arms the server's AND-then-OR
+ * fallback, so a half-remembered بيت still answers something.
+ */
+export function searchPalette(q: string, limit: number, o?: Opts): Promise<SearchResponse> {
+  return request(qs("/api/search", { q, scope: "all", limit }), SearchResponseSchema, init(o))
+}
+
 export function getTrainCandidates(params: Params = {}, o?: Opts): Promise<TrainCandidatesResponse> {
   return request(qs("/api/train/candidates", params), TrainCandidatesResponseSchema, init(o))
 }
@@ -237,4 +273,92 @@ export function gameReply(body: GameReplyRequest | Record<string, unknown>, o?: 
 /** «من قائله؟» «أول كلمة» «البحر» «بدّل الحرف» (amendments.md §8). */
 export function gameHint(body: GameHintRequest | Record<string, unknown>, o?: Opts): Promise<GameHintResponse> {
   return post("/api/game/hint", GameHintResponseSchema, body, init(o))
+}
+
+// ── الحسابات (v2.md §4) ─────────────────────────────────────────────────────
+//
+// The session lives in an HttpOnly cookie, which `fetch` sends on its own for a
+// same-origin request (credentials default to "same-origin"): there is no token
+// for this file to carry and nothing for the client to store. `getMe` is the
+// one call the shell makes on boot, and it answers 200 with `user: null` when
+// nobody is signed in — never a 401 the console would log.
+
+export function getMe(o?: Opts): Promise<AuthMeResponse> {
+  return request("/api/auth/me", AuthMeResponseSchema, init(o))
+}
+
+export function register(body: RegisterRequest, o?: Opts): Promise<AuthSessionResponse> {
+  return post("/api/auth/register", AuthSessionResponseSchema, body, init(o))
+}
+
+export function login(body: LoginRequest, o?: Opts): Promise<AuthSessionResponse> {
+  return post("/api/auth/login", AuthSessionResponseSchema, body, init(o))
+}
+
+export function logout(o?: Opts): Promise<AuthLogoutResponse> {
+  return post("/api/auth/logout", AuthLogoutResponseSchema, {}, init(o))
+}
+
+/** `#/u/<username>` — the public page. Usernames may be Arabic; encode them. */
+export function getProfile(username: string, o?: Opts): Promise<ProfileResponse> {
+  return request(`/api/profile/${encodeURIComponent(username)}`, ProfileResponseSchema, init(o))
+}
+
+export function updateProfile(displayName: string, o?: Opts): Promise<ProfileResponse> {
+  return post("/api/profile/update", ProfileResponseSchema, { displayName }, init(o))
+}
+
+/** Opt-in ترسانة sync — the snapshot the profile page shows a visitor. */
+export function syncArsenal(arsenal: Arsenal, o?: Opts): Promise<ArsenalSyncResponse> {
+  return post("/api/profile/arsenal", ArsenalSyncResponseSchema, { arsenal }, init(o))
+}
+
+// ── مساجلة rooms (v2.md §5) ────────────────────────────────────────────────
+//
+// Every one of these answers with the WHOLE room state, which is the same
+// payload `/ws/room/<code>` pushes — so a client that has no socket (a proxy
+// that strips upgrades, a tab that lost the connection) plays the same game
+// through `getRoomState` on a timer. There is one shape to render, not two.
+
+/** «عشوائي» — one بيت the game pool guarantees is answerable (v2.md §5). */
+export function getRoomOpening(o?: Opts): Promise<RoomOpeningResponse> {
+  return request("/api/room/opening", RoomOpeningResponseSchema, init(o))
+}
+
+/**
+ * Which of these أبيات may open a مساجلة — the picker's filter.
+ *
+ * `/api/search` searches the whole ديوان; `game_baits` is the half of it that
+ * can be answered (it has a عجز and a روي to chain on). The dialog asks before
+ * it offers, so the host is never handed a بيت the create route will refuse.
+ */
+export function getRoomPlayable(ids: readonly number[], o?: Opts): Promise<RoomPlayableResponse> {
+  return request(qs("/api/room/playable", { ids: ids.join(",") }), RoomPlayableResponseSchema, init(o))
+}
+
+export function createRoom(body: Partial<CreateRoomRequest>, o?: Opts): Promise<RoomStateResponse> {
+  return post("/api/room", RoomStateResponseSchema, body, init(o))
+}
+
+/** The polling fallback, and the first read `#/room/<code>` makes. */
+export function getRoomState(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return request(`/api/room/${encodeURIComponent(code)}/state`, RoomStateResponseSchema, init(o))
+}
+
+export function joinRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/join`, RoomStateResponseSchema, {}, init(o))
+}
+
+/** One بيت. The verdict is the SAME `GameVerifyResponse` the solo duel gets. */
+export function playRoomTurn(code: string, text: string, o?: Opts): Promise<RoomTurnResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/turn`, RoomTurnResponseSchema, { text }, init(o))
+}
+
+export function resignRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/resign`, RoomStateResponseSchema, {}, init(o))
+}
+
+/** «رجعة» — a second room with the seats swapped; answers with the NEW one. */
+export function rematchRoom(code: string, o?: Opts): Promise<RoomStateResponse> {
+  return post(`/api/room/${encodeURIComponent(code)}/rematch`, RoomStateResponseSchema, {}, init(o))
 }
