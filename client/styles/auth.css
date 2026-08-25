@@ -95,6 +95,78 @@
   color: var(--text-1);
 }
 
+/* ══ install affordance (docs/roadmap-mobile.md §M0) ═══════════════════ */
+
+/* The «ثبِّت التطبيق» pill — on-brand, matching the signin pill's rhythm, gold
+   rather than neutral because it is an invitation, not a fallback. */
+.masthead__install {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0.35rem 0.7rem 0.35rem 0.85rem;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-2);
+  color: var(--accent);
+  background: var(--accent-wash);
+  white-space: nowrap;
+  transition:
+    color var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.masthead__install:hover {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+.masthead__install svg {
+  flex: none;
+}
+
+.masthead__install-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* The iOS Share → Add-to-Home hint, anchored under the button. */
+.install-hint {
+  position: absolute;
+  inset-block-start: calc(100% + var(--sp-2));
+  inset-inline-end: 0;
+  z-index: var(--z-overlay);
+  inline-size: min(20rem, 78vw);
+  padding: var(--sp-4);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-2, 0 12px 32px rgba(0, 0, 0, 0.5));
+  text-align: start;
+}
+
+.install-hint__title {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-ui-2);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.install-hint__body {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+/* The share glyph sits inline in the sentence, on its own baseline run. */
+.install-hint__glyph {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline: 0.15em;
+  color: var(--accent);
+}
+
 /* On a phone the shell is a column (app.css), which would give the wordmark,
    the nav and these two tools three separate rows and eat a third of the
    viewport. One grid instead: wordmark and tools share the first line, the
@@ -125,6 +197,16 @@
 
   .masthead__account-name {
     display: none;
+  }
+
+  /* Phone masthead is tight: the install pill becomes icon-only (its
+     aria-label carries the meaning), like the account door beside it. */
+  .masthead__install-label {
+    display: none;
+  }
+
+  .masthead__install {
+    padding: 0.35rem;
   }
 }
 

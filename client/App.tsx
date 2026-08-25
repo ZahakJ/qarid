@@ -24,6 +24,7 @@ import { Nib, Rule } from "./components/Ornaments.tsx"
 import { focusOmnibox } from "./components/Omnibox.tsx"
 import { PaletteHost, openPalette } from "./components/Palette.tsx"
 import { AuthDialog } from "./components/AuthDialog.tsx"
+import { InstallControl } from "./components/InstallControl.tsx"
 import { initialOf, useAuth } from "./store/authStore.ts"
 import { useKeyboard } from "./hooks/useKeyboard.ts"
 import { DuelPlayView } from "./duel/DuelPlayView.tsx"
@@ -201,6 +202,7 @@ function Masthead({ route }: { route: Route }) {
             <span className="masthead__search-label">ابحث</span>
             <kbd className="keys-only">⌃K</kbd>
           </button>
+          <InstallControl />
           <AccountControl />
         </div>
       </div>
