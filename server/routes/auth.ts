@@ -74,6 +74,15 @@ export const LOGIN_LIMIT = { tokens: 10, windowMs: 60 * 60 * 1000 } as const
  * `Content-Length` is a claim (a chunked request carries none), so the stream
  * is counted as it arrives too. An absent body parses as `{}` and the schema
  * then produces the honest field-level 400.
+ *
+ * A BODY MUST DECLARE ITSELF `application/json`, and that is a security check,
+ * not tidiness. `text/plain`, `application/x-www-form-urlencoded` and
+ * `multipart/form-data` are the three types a cross-origin request may send
+ * with NO preflight — so a page that only wanted the side effect could reach
+ * this parser through a bare `<form>` or a `fetch(..., {mode:'no-cors'})`
+ * carrying JSON as text. Requiring the one content type a browser will not send
+ * across origins without asking permission first removes that shape entirely,
+ * and it is the second lock on the same door as `server/origin.ts`.
  */
 export async function readJsonBody(c: Context, max = MAX_AUTH_BODY): Promise<{ ok: true; raw: unknown } | { ok: false; res: Response }> {
   const tooLarge = { ok: false as const, res: c.json({ error: "payload_too_large", limit: max }, 413) }
@@ -82,6 +91,14 @@ export async function readJsonBody(c: Context, max = MAX_AUTH_BODY): Promise<{ o
 
   const stream = c.req.raw.body
   if (stream === null) return { ok: true, raw: {} }
+
+  const type = (c.req.header("content-type") ?? "").split(";")[0]!.trim().toLowerCase()
+  if (type !== "application/json") {
+    return {
+      ok: false,
+      res: c.json({ error: "unsupported_media_type", message: "الطلب يجب أن يكون application/json" }, 415),
+    }
+  }
 
   const chunks: Uint8Array[] = []
   let size = 0

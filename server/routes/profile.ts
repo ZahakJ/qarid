@@ -65,11 +65,20 @@ export function profileRoutes(users: UsersDb | null, config: Config): Hono {
       const parsed = ArsenalSchema.safeParse(safeJson(stored.snapshot))
       if (parsed.success) arsenal = { letters: parsed.data, updatedAt: stored.updatedAt }
     }
+    const isSelf = viewer !== null && viewer.id === row.id
     return ProfileResponseSchema.parse({
       user: authUser(row),
-      isSelf: viewer !== null && viewer.id === row.id,
+      isSelf,
       stats: duelStats(db, row.id),
-      recent: recentMatches(db, row.id, PROFILE_MATCHES_LIMIT),
+      // The CODE is a credential, not a fact about the match (see
+      // ProfileMatchSchema). `GET /api/profile/:username` needs no cookie, so
+      // handing every reader the codes of this account's rooms — the `waiting`
+      // ones above all — published the invite to every مساجلة on the site.
+      // The record stays public; the door does not.
+      recent: recentMatches(db, row.id, PROFILE_MATCHES_LIMIT).map((m) => ({
+        ...m,
+        code: isSelf ? m.code : null,
+      })),
       arsenal,
     })
   }

@@ -7,6 +7,7 @@ import path from "node:path"
 import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
 import type { UsersDb } from "./users.ts"
+import { originGuard } from "./origin.ts"
 import { authRoutes } from "./routes/auth.ts"
 import { baitsRoutes } from "./routes/baits.ts"
 import { facetsRoutes } from "./routes/facets.ts"
@@ -92,6 +93,16 @@ export function createApp(
       )
     }
   })
+
+  /**
+   * Cross-origin request forgery, closed at the door (server/origin.ts).
+   *
+   * It sits ABOVE every route and below the header middleware: a POST from a
+   * sibling `*.avicenna.space` page is *same-site*, so `SameSite=Lax` sends the
+   * session cookie with it, and nothing else in this server asked where the
+   * request came from. `/healthz` is a GET and unaffected.
+   */
+  app.use("*", originGuard(config))
 
   app.get("/healthz", (c) => c.text("ok"))
 

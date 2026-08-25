@@ -275,14 +275,20 @@ export function ProfileView({ username }: { username: string }) {
           </Panel>
         ) : (
           <ul className="match-list">
-            {recent.map((m) => (
-              <li className="match-row" key={m.code} data-result={m.result}>
+            {recent.map((m, i) => (
+              <li className="match-row" key={m.code ?? `${m.createdAt}:${i}`} data-result={m.result}>
                 {/* The room is still THERE — a finished one shows its whole
                     transcript, an open one is waiting for somebody. So the
-                    verdict word is the way back into it (v2.md §5). */}
-                <a className="match-row__result" href={routeHash({ view: "room", code: m.code })}>
-                  {RESULT_LABEL[m.result]}
-                </a>
+                    verdict word is the way back into it (v2.md §5) — but only
+                    on your OWN page: the code is the room's credential and the
+                    server sends it to nobody else (ProfileMatchSchema). */}
+                {m.code === null ? (
+                  <span className="match-row__result">{RESULT_LABEL[m.result]}</span>
+                ) : (
+                  <a className="match-row__result" href={routeHash({ view: "room", code: m.code })}>
+                    {RESULT_LABEL[m.result]}
+                  </a>
+                )}
                 <span className="match-row__foe">{m.opponent ?? "بانتظار خصم"}</span>
                 <span className="match-row__turns num">{formatNumber(m.turns)}</span>
                 <span className="match-row__when">{dateLabel(m.endedAt ?? m.createdAt)}</span>

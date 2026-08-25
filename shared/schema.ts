@@ -1645,7 +1645,16 @@ export const RoomStatusSchema = z.enum(["waiting", "active", "done"])
 export const RoomModeSchema = z.enum(["rhyme", "literal"])
 
 export const ProfileMatchSchema = z.object({
-  code: z.string(),
+  /**
+   * The room code — and NULL to anyone but the account's owner.
+   *
+   * A profile page needs no cookie, and a room code is the credential that
+   * names a room: publishing every code a user hosts, `waiting` ones included,
+   * handed an unauthenticated scraper the live invite of every مساجلة the site
+   * opened. Usernames are enumerable, so the whole table was scrapable. The
+   * record — who, when, won or lost — is public; the way IN is not.
+   */
+  code: z.string().nullable(),
   status: RoomStatusSchema,
   /** the other player's display name, null while a room is still waiting */
   opponent: z.string().nullable(),
