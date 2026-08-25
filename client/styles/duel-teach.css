@@ -325,16 +325,23 @@
  * from pushing «هَمْس» off the fold. */
 .assist__list {
   display: grid;
-  gap: 2px;
+  gap: var(--sp-1);
   list-style: none;
   max-block-size: 21rem;
   overflow-y: auto;
 }
 
+/* ONE INDEX LINE per suggestion, the way the palette sets one: the بيت on the
+ * reading edge, who said it and in which بحر at the far edge. Stacked, the two
+ * lines huddled in the right third of a 900px rail and left a dead field beside
+ * them; side by side they use the measure and the eye can scan either column. */
 .assist__item {
   inline-size: 100%;
   display: grid;
-  gap: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
   text-align: start;
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid transparent;
@@ -368,9 +375,19 @@
 
 .assist__by {
   display: flex;
+  align-items: baseline;
   gap: var(--sp-2);
+  white-space: nowrap;
   font-size: var(--fs-ui-0);
   color: var(--text-3);
+}
+
+/* Below the width where a بيت and its attribution can share a line, the
+   attribution goes back under it — the same fold the head takes. */
+@media (max-width: 620px) {
+  .assist__item {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .assist__poet {
