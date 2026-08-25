@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07080c" />
+    <title>لا اتصال — قريض</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #07080c;
+        --gold: #d6ad60;
+        --text-1: #ece6da;
+        --text-2: #9d9689;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        block-size: 100%;
+      }
+      body {
+        min-block-size: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background:
+          radial-gradient(120% 80% at 50% -10%, rgba(214, 173, 96, 0.08), transparent 60%),
+          var(--ink);
+        color: var(--text-1);
+        font-family: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
+        text-align: center;
+      }
+      .wrap {
+        display: grid;
+        justify-items: center;
+        gap: 1.5rem;
+        max-inline-size: 30rem;
+      }
+      .nib {
+        inline-size: 4.5rem;
+        block-size: 4.5rem;
+        color: var(--gold);
+        filter: drop-shadow(0 0 22px rgba(214, 173, 96, 0.28));
+      }
+      .rule {
+        inline-size: 8rem;
+        block-size: 1px;
+        border: 0;
+        background: linear-gradient(90deg, transparent, rgba(214, 173, 96, 0.6), transparent);
+      }
+      h1 {
+        font-family: "Aref Ruqaa", "Amiri", serif;
+        font-size: clamp(1.5rem, 1.1rem + 2vw, 2.1rem);
+        font-weight: 400;
+        color: var(--gold);
+        line-height: 1.5;
+      }
+      p {
+        font-size: 1.0625rem;
+        line-height: 1.9;
+        color: var(--text-2);
+      }
+      /* An anchor, not a <button> with inline onclick — the app's CSP is
+         `script-src 'self'`, which blocks inline handlers. Navigating to "/"
+         reloads the SPA (the service worker serves the cached shell), which IS
+         the retry. */
+      .retry {
+        display: inline-block;
+        margin-block-start: 0.5rem;
+        padding: 0.55rem 1.4rem;
+        border: 1px solid rgba(214, 173, 96, 0.4);
+        border-radius: 999px;
+        background: rgba(214, 173, 96, 0.08);
+        color: var(--gold);
+        font-family: inherit;
+        font-size: 0.9375rem;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          background-color 0.2s,
+          border-color 0.2s;
+      }
+      .retry:hover {
+        background: rgba(214, 173, 96, 0.16);
+        border-color: rgba(214, 173, 96, 0.7);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <svg class="nib" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 21c5.4-1.8 9.4-6.4 11.4-13.2L21 11c-2 7.4-6.8 10.9-15 12Z" fill="currentColor" />
+        <path d="M6 21 12.2 14.8" stroke="#07080c" stroke-width="1.1" stroke-linecap="round" opacity=".55" />
+      </svg>
+      <hr class="rule" />
+      <h1>لا اتصال — والديوان لا يُقرأ إلا موصولًا</h1>
+      <p>انقطع الاتصال بالشبكة. ما اخترتَه من الأبيات محفوظٌ عندك ويظهر متى عدتَ، وسائرُ الديوان ينتظر عودة الوصل.</p>
+      <a class="retry" href="/">أعد المحاولة</a>
+    </div>
+  </body>
+</html>

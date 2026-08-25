@@ -4,12 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07080c" />
     <title>قريض</title>
     <meta name="description" content="ديوان الشعر العربي ومساجلته" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M8 24c6-2 10-7 12-14l3 3c-2 8-7 12-15 14z' fill='%23d6ad60'/%3E%3C/svg%3E"
     />
+    <!-- PWA (docs/roadmap-mobile.md §M0). The manifest, icons and service worker
+         are served from the scope root by server/app.ts. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="قريض" />
   </head>
   <body data-app="qarid">
     <div id="root"></div>
