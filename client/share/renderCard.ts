@@ -16,6 +16,8 @@
  *    the fit loop shrinks the FONT SIZE, it does not squeeze the text.
  */
 
+import { nativeShareFile } from "../platform/share.ts"
+
 const GOLD = "#d6ad60"
 const LAPIS = "#5c7cc8"
 const INK = "#07080c"
@@ -245,6 +247,10 @@ export async function shareCard(bayt: CardBayt, shape: CardShape = "wide"): Prom
   const blob = await toBlob(canvas)
   if (!blob) return "failed"
   const name = `${fileStem(bayt)}.png`
+
+  // Native shell: the OS sheet takes a file, not a blob, and the WebView does
+  // not expose Web-Share file support — so route through @capacitor/share.
+  if (await nativeShareFile(blob, name)) return "shared"
 
   const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean }
   if (typeof File !== "undefined" && nav.share && nav.canShare) {

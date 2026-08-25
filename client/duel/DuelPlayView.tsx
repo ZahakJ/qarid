@@ -29,6 +29,8 @@ import { formatClock, formatNumber } from "../../shared/format.ts"
 import type { BaitDto, HintKind } from "../../shared/schema.ts"
 import { navigate } from "../router.ts"
 import { motionReduced, useSettings } from "../store/settingsStore.ts"
+import { hapticAccept, hapticReject, hapticTimeout } from "../platform/haptics.ts"
+import { allowSleep, keepAwake } from "../platform/keepAwake.ts"
 import {
   abandonDuel,
   buyHint,
@@ -108,6 +110,25 @@ export function DuelPlayView() {
       if (flashTimer.current) clearTimeout(flashTimer.current)
     }
   }, [])
+
+  // Native touches (docs/roadmap-mobile.md §M1), all no-ops on the web: keep the
+  // screen awake while it is the player's turn, and buzz on the turn's outcome —
+  // a satisfied success on an accepted بيت, a warning on a refusal, the heaviest
+  // buzz when the clock runs out.
+  const prevPhase = useRef(phase)
+  useEffect(() => {
+    const from = prevPhase.current
+    prevPhase.current = phase
+    if (phase === "awaiting") void keepAwake()
+    else void allowSleep()
+    if (phase === from) return
+    if (phase === "accepted") hapticAccept()
+    else if (phase === "rejected" || phase === "penalising") {
+      if (session?.rejection?.kind === "timeout") hapticTimeout()
+      else hapticReject()
+    }
+  }, [phase, session])
+  useEffect(() => () => void allowSleep(), [])
 
   const revealIndex = useMemo(
     () => (session && phase === "reciting" ? session.exchanges.length - 1 : null),

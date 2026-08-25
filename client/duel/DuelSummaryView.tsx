@@ -43,6 +43,7 @@ import {
 } from "../store/duelStore.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { writeClipboard } from "../bayt/copy.ts"
+import { nativeShareText } from "../platform/share.ts"
 import { ExchangeLog, pulseExchange } from "./ExchangeLog.tsx"
 import { playerTurns, type DuelOutcome, type DuelState } from "./machine.ts"
 import { shareText } from "./share.ts"
@@ -188,7 +189,10 @@ export function DuelSummaryView() {
       score: session.score,
       stumped: session.outcome === "stumped",
     })
-    void writeClipboard(text).then((ok) => toast(ok ? "نُسخت الخلاصة" : "تعذّر النسخ", ok ? "ok" : "warn"))
+    void nativeShareText(text).then((shared) => {
+      if (shared) return
+      void writeClipboard(text).then((ok) => toast(ok ? "نُسخت الخلاصة" : "تعذّر النسخ", ok ? "ok" : "warn"))
+    })
   }
 
   const keep = () => {

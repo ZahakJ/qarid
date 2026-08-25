@@ -14,6 +14,7 @@ import { useMemo, useState } from "react"
 import { NUQTA_FORMS, countedUnit, formatBaits, formatCount } from "../../shared/format.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
 import { writeClipboard } from "../bayt/copy.ts"
+import { nativeShareText } from "../platform/share.ts"
 import { FLAVOR } from "../data/flavor.ts"
 import { Rule } from "../components/Ornaments.tsx"
 import { Panel } from "../components/Panel.tsx"
@@ -50,7 +51,11 @@ export function DailyView() {
       chainLength: result.chainLength,
       score: result.score,
     })
-    void writeClipboard(text).then((ok) => toast(ok ? "نُسخ التحدّي" : "تعذّر النسخ", ok ? "ok" : "warn"))
+    // The native shell opens the OS share sheet; the web copies to the clipboard.
+    void nativeShareText(text).then((shared) => {
+      if (shared) return
+      void writeClipboard(text).then((ok) => toast(ok ? "نُسخ التحدّي" : "تعذّر النسخ", ok ? "ok" : "warn"))
+    })
   }
 
   return (
