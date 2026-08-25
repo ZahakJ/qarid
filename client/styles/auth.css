@@ -201,9 +201,12 @@
   color: var(--text-3);
 }
 
+/* The one text field the app asks a reader to fill. It measures itself in the
+   same steps as its sibling in «ضدّ صديق» (`.friend-search__input`) rather than
+   in a pair of magic rems (v2 §8: no magic numbers in view CSS). */
 .auth-field__input {
   inline-size: 100%;
-  padding: 0.55rem 0.75rem;
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
   background: var(--bg-0);
