@@ -1,0 +1,638 @@
+/* قريض — مساجلة الأصدقاء: the room screen and the «ضدّ صديق» dialog (v2.md §5).
+ *
+ * Loaded AFTER duel.css, because the room reuses the duel's own furniture — the
+ * `.duel-desk` block, `.exchange-log` and its `.exchange` plates, `.letter-ind`,
+ * `.duel-clock` — and only adds what a second PERSON needs: two seats instead
+ * of a lives strip, a code to hand over, and a line saying whose turn it is.
+ *
+ * Every bare class here is new (`.room-*`, `.seat*`, `.friend-*`): nothing in
+ * this file re-declares a class views.css already owns (CLAUDE.md's stylesheet
+ * -order invariant). Spacing is the one 4/8 scale and the radii are --r-1/--r-2
+ * (--r-3 only where an overlay card already uses it); the only intrinsic sizes
+ * are the two circles, which carry `aspect-ratio` rather than a padding guess.
+ */
+
+.view.room-view {
+  inline-size: min(var(--col-home), 100%);
+  margin-inline: auto;
+}
+
+/* ══ head: what this room is, and the code that opens it ═══════════════ */
+
+.view__head.room-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-5);
+}
+
+.room-head__id {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.room-head__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.room-chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+/* The transport tell. It is a chip and not an icon because "this page is a
+   little slower right now" is a sentence, and a grey dot is a riddle. */
+.room-chip--live {
+  color: var(--text-3);
+}
+
+.room-chip--live[data-transport="socket"] {
+  color: var(--ok);
+  border-color: rgba(var(--ok-rgb), 0.3);
+  background: var(--ok-dim);
+}
+
+.room-head__code {
+  display: grid;
+  justify-items: end;
+  gap: var(--sp-2);
+}
+
+.room-head__code-label {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* One cell per letter: a code that is read down a phone is read letter by
+   letter, and «BADIRU» set as a word invites «badiru» to be heard as one. */
+.room-code {
+  display: flex;
+  gap: var(--sp-1);
+  margin: 0;
+}
+
+.room-code__ch {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+  background: var(--accent-wash);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-4);
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* ══ the two seats ═════════════════════════════════════════════════════ */
+
+.room-seats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--sp-3);
+}
+
+.room-seats__vs {
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-3);
+  color: var(--text-3);
+}
+
+.seat {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "disc name live"
+    "disc role role"
+    "nibs nibs turns";
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+/* Whose turn it is, said with the accent — the one place on this screen where
+   gold means "now" rather than "important". */
+.seat[data-active="1"] {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+  box-shadow: var(--accent-glow);
+}
+
+.seat__disc {
+  grid-area: disc;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--accent-line);
+  border-radius: 50%;
+  background: var(--accent-dim);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.seat__disc--empty {
+  border-style: dashed;
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.seat__name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+}
+
+a.seat__name:hover {
+  color: var(--accent);
+}
+
+.seat__role {
+  grid-area: role;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.seat__strikes {
+  grid-area: nibs;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* A spent strike DIMS; it never leaves, or the row would reflow mid-turn. */
+.seat__nib {
+  display: inline-flex;
+  color: var(--accent);
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+
+.seat__nib[data-spent="1"] {
+  opacity: 0.18;
+}
+
+.seat__turns {
+  grid-area: turns;
+  justify-self: end;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The socket lamp. Small, quiet, and never the only thing that says anything. */
+.seat__live {
+  grid-area: live;
+  inline-size: 0.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.seat__live[data-on="1"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(var(--ok-rgb), 0.14);
+}
+
+.seat--empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* ══ في الانتظار ═══════════════════════════════════════════════════════ */
+
+.room-wait {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.room-wait__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-wait__note {
+  margin: 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+.room-wait__hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.room-share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+  inline-size: min(30rem, 100%);
+}
+
+.room-share__input {
+  min-inline-size: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+/* ══ the transcript ════════════════════════════════════════════════════ */
+
+.room-log {
+  margin-block: var(--sp-2);
+}
+
+.room-opening {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: var(--sp-2);
+  border-radius: var(--r-1);
+  background: var(--accent-dim);
+  font-size: var(--fs-ui-0);
+  color: var(--accent);
+}
+
+/* A miss is part of the record. It is set quietly — one line, the danger ink
+   only on the mark — because the بيت that WAS said is the thing to read. */
+.room-miss {
+  padding-inline-start: var(--sp-4);
+  border-inline-start: 2px solid rgba(var(--danger-rgb), 0.4);
+}
+
+.room-miss__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.room-miss__who {
+  color: var(--text-2);
+}
+
+.room-miss__mark {
+  color: var(--danger);
+}
+
+.room-miss__text {
+  margin: var(--sp-1) 0 0;
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  color: var(--text-3);
+  opacity: 0.72;
+}
+
+/* ══ the desk ══════════════════════════════════════════════════════════ */
+
+.room-turnline {
+  margin: 0;
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-2);
+  text-align: center;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.room-notice {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
+}
+
+.duel-acts.room-acts {
+  justify-content: space-between;
+}
+
+/* ══ انتهت ═════════════════════════════════════════════════════════════ */
+
+/* The ending is a MOMENT, not a row of facts: centred, like the waiting card,
+   so the headline sits over its own two lines instead of hugging one edge of a
+   900px panel with the rest of it empty. */
+.room-end {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding-block: var(--sp-6);
+  text-align: center;
+}
+
+.room-end .panel__head {
+  justify-content: center;
+  margin-block-end: var(--sp-2);
+  text-align: center;
+}
+
+.room-end .panel__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.room-end__why,
+.room-end__count {
+  margin: 0;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.room-end__count {
+  color: var(--text-3);
+}
+
+.room-end__acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-4);
+}
+
+/* ══ the gate ══════════════════════════════════════════════════════════ */
+
+.room-gate {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  text-align: center;
+}
+
+.room-gate__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-gate__note {
+  margin: var(--sp-2) 0 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+/* ══ «ضدّ صديق» on the setup screen ════════════════════════════════════ */
+
+.friend-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.friend-cta__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ══ the create dialog ═════════════════════════════════════════════════ */
+
+.friend-dialog {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+}
+
+.friend-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.friend-dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.friend-dialog__body {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.friend-sect {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.friend-sect__title {
+  margin: 0;
+  font-size: var(--fs-ui-3);
+  color: var(--accent);
+}
+
+.friend-sect__lede,
+.friend-row__note {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+}
+
+.friend-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+}
+
+.friend-search__input {
+  min-inline-size: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+}
+
+.friend-search__input:focus-visible {
+  border-color: var(--accent-line);
+  outline: none;
+  box-shadow: var(--accent-glow);
+}
+
+.friend-search__state {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-hits {
+  display: grid;
+  gap: var(--sp-2);
+  max-block-size: 18rem;
+  overflow-y: auto;
+}
+
+.friend-hit {
+  display: grid;
+  gap: var(--sp-1);
+  inline-size: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  text-align: start;
+  background: var(--panel);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+.friend-hit:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+.friend-hit__poet,
+.friend-pick__poet {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-pick {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-2);
+  background: var(--accent-wash);
+}
+
+.friend-pick__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.friend-row__label {
+  min-inline-size: 6.5rem;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.friend-dialog__error {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid rgba(var(--danger-rgb), 0.4);
+  border-radius: var(--r-2);
+  background: var(--danger-dim);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+}
+
+.friend-dialog__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line-1);
+}
+
+/* The شاعر, distinguished from the PLAYER standing next to him.
+   Both are names, and set identically they read as one confused pair — so the
+   شاعر keeps the لام of attribution and a quieter ink, and the player's own
+   name stays in `.exchange__who`. */
+.exchange__poet {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  transition: color var(--dur-2) var(--ease-out);
+}
+
+.exchange__poet:hover {
+  color: var(--accent);
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  .view__head.room-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-head__code {
+    justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Two seats side by side stop being readable long before they stop fitting:
+     the name ellipsises to three letters and the نِيب row wraps. Stacked, with
+     the «×» turned into a divider, both seats keep their whole width. */
+  .room-seats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-seats__vs {
+    justify-self: center;
+  }
+
+  .room-code__ch {
+    inline-size: 2rem;
+    font-size: var(--fs-ui-3);
+  }
+
+  .friend-row__label {
+    min-inline-size: 100%;
+  }
+
+  .friend-dialog {
+    padding: var(--sp-4);
+  }
+}

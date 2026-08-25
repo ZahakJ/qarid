@@ -1,6 +1,7 @@
 import { Hono } from "hono"
 import { compress } from "hono/compress"
 import { serveStatic } from "@hono/node-server/serve-static"
+import { createNodeWebSocket } from "@hono/node-ws"
 import fs from "node:fs"
 import path from "node:path"
 import type { Config } from "./config.ts"
@@ -14,15 +15,30 @@ import { metaRoutes } from "./routes/meta.ts"
 import { poemsRoutes } from "./routes/poems.ts"
 import { poetsRoutes } from "./routes/poets.ts"
 import { profileRoutes } from "./routes/profile.ts"
+import { mountRoomSocket, roomDeps, roomRoutes } from "./routes/rooms.ts"
 import { searchRoutes } from "./routes/search.ts"
 import { statsRoutes } from "./routes/stats.ts"
 import { trainRoutes } from "./routes/train.ts"
 
+/** What `serve()` hands back — the two node servers `index.ts` opens. */
+type UpgradableServer = Parameters<ReturnType<typeof createNodeWebSocket>["injectWebSocket"]>[0]
+
 // createApp is listen-free so tests can drive app.request() directly.
 // `db` is null when the corpus has not been built — /healthz and the static
 // client still work, every /api route answers 503.
-export function createApp(config: Config, db: Db | null, users: UsersDb | null = null): { app: Hono } {
+//
+// `injectWebSocket` is the second half of v2.md §5: the WebSocket lives on the
+// node http server, not on the fetch handler, so a caller that binds a socket
+// (server/index.ts) must hand each server it opens to this. A caller that does
+// NOT — every test that drives `app.request()` — simply never calls it, and
+// `/ws/room/:code` then answers like any un-upgraded GET.
+export function createApp(
+  config: Config,
+  db: Db | null,
+  users: UsersDb | null = null,
+): { app: Hono; injectWebSocket: (server: UpgradableServer) => void } {
   const app = new Hono()
+  const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app })
 
   // security headers on every response
   app.use("*", async (c, next) => {
@@ -156,6 +172,18 @@ export function createApp(config: Config, db: Db | null, users: UsersDb | null =
     app.route("/api/game", gameRoutes(db, config))
     app.route("/api/stats", statsRoutes(db, config))
     app.route("/api/train", trainRoutes(db, config))
+
+    // مساجلة rooms (v2.md §5). They need BOTH databases — the corpus for the
+    // verify pipeline, the writable one for the room itself — so they are the
+    // one feature that is mounted only when both are open. The socket is
+    // registered on the root app because `/ws/room/:code` is not an `/api`
+    // path: it is an upgrade, and the corpus gate above would answer it with
+    // JSON no browser would read.
+    if (users) {
+      const rooms = roomDeps(db, users, config)
+      app.route("/api/room", roomRoutes(rooms))
+      mountRoomSocket(app, rooms, upgradeWebSocket)
+    }
   }
 
   // client bundle — hashed assets immutable, index no-cache (hash-routed SPA)
@@ -189,7 +217,7 @@ export function createApp(config: Config, db: Db | null, users: UsersDb | null =
     app.get("/", (c) => c.text("qarid server up — client dist not built (dev mode uses vite)", 200))
   }
 
-  return { app }
+  return { app, injectWebSocket }
 }
 
 /** The `/api` prefixes that answer without the corpus artefact (v2.md §4). */
@@ -201,6 +229,11 @@ function cachePolicy(path: string, method: string): string {
   // Who is signed in is per-reader and per-cookie: a shared cache holding
   // /api/auth/me for a minute would hand one player another player's masthead.
   if (path.startsWith("/api/auth/") || path.startsWith("/api/profile/")) return "private, no-store"
+  // A مساجلة room (v2.md §5) is the most per-reader, most live thing this
+  // server has: `you.canPlay` is in the payload and the deadline moves every
+  // turn. Sixty seconds of shared cache on `GET /api/room/:code/state` would
+  // hand one player the other player's screen, a minute late.
+  if (path.startsWith("/api/room")) return "private, no-store"
   if (path.startsWith("/api/game/")) return path === "/api/game/pool" ? "public, max-age=3600" : "no-store"
   if (path === "/api/baits/random") return "no-store"
   if (path === "/api/meta" || path === "/api/stats" || path === "/api/facets") {

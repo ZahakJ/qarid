@@ -8,7 +8,7 @@
  */
 import { create } from "zustand"
 import { isHijaiLetter } from "../shared/letters.ts"
-import { PoetSlugSchema, PublicPoemIdSchema, SlugSchema, UsernameSchema } from "../shared/schema.ts"
+import { PoetSlugSchema, PublicPoemIdSchema, RoomCodeSchema, SlugSchema, UsernameSchema } from "../shared/schema.ts"
 
 export type BrowseSort = "fame" | "recent" | "length" | "random"
 const SORTS: readonly BrowseSort[] = ["fame", "recent", "length", "random"]
@@ -47,6 +47,8 @@ export type Route =
   | { view: "rules" }
   /** `#/u/<username>` — an account's page (v2.md §4) */
   | { view: "profile"; username: string }
+  /** `#/room/<code>` — a 1v1 مساجلة room (v2.md §5) */
+  | { view: "room"; code: string }
 
 export const HOME: Route = { view: "home" }
 
@@ -73,6 +75,17 @@ function isPoemId(v: string | undefined): v is string {
 /** A username is a path segment, so the hash is validated like every other. */
 function isUsername(v: string | undefined): v is string {
   return v !== undefined && UsernameSchema.safeParse(v).success
+}
+
+/**
+ * A room code is SPOKEN before it is typed («badiru»), so the hash accepts any
+ * case and canonicalises to upper — `routeHash` writes the uppercase form and
+ * `initRouter` rewrites the address bar to it. SQLite matches NOCASE anyway;
+ * this is so one room has one URL.
+ */
+function roomCodeOf(v: string | undefined): string | null {
+  const parsed = RoomCodeSchema.safeParse(v)
+  return parsed.success ? parsed.data : null
 }
 
 function isSort(v: string | undefined): v is BrowseSort {
@@ -176,6 +189,11 @@ export function parseHash(raw: string): Route {
 
     case "rules":
       return { view: "rules" }
+
+    case "room": {
+      const code = roomCodeOf(seg[1])
+      return code ? { view: "room", code } : HOME
+    }
 
     case "u": {
       // `#/u/<username>` — one letter, because it is typed and shared by hand.
@@ -286,6 +304,8 @@ export function routeHash(r: Route): string {
       return "#/rules"
     case "profile":
       return `#/u/${encodeURIComponent(r.username)}`
+    case "room":
+      return `#/room/${r.code}`
   }
 }
 
@@ -328,6 +348,8 @@ export function routeTitle(r: Route): string {
       return "قواعد المساجلة"
     case "profile":
       return "الحساب"
+    case "room":
+      return "مساجلة الأصدقاء"
   }
 }
 
@@ -358,6 +380,8 @@ export function pageKey(r: Route): string {
       return `favorites:${r.collection ?? ""}`
     case "profile":
       return `profile:${r.username}`
+    case "room":
+      return `room:${r.code}`
     default:
       return r.view
   }

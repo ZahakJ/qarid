@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   BAYT_FORMS,
+  DARBA_FORMS,
   FAWZ_FORMS,
   MUSAJALA_FORMS,
   BITAQA_FORMS,
@@ -182,5 +183,19 @@ describe("the profile page's counted nouns (v2.md §4)", () => {
     expect(countedUnit(4, MUSAJALA_FORMS)).toBe("مساجلات")
     expect(countedUnit(12, FAWZ_FORMS)).toBe("فوزًا")
     expect(countedUnit(3, FAWZ_FORMS)).toBe("انتصارات")
+  })
+})
+
+describe("the room's ضربات (v2.md §5)", () => {
+  /**
+   * The room offers exactly 1, 2 or 3 — which is the whole of the dual and the
+   * whole of جمع القلة, i.e. precisely the range where «3 ضربات» glued to a
+   * digit goes wrong. «1 ضربات» and «2 ضربات» both shipped in the first pass.
+   */
+  it("says ضربة واحدة, ضربتان and 3 ضربات — never «1 ضربات»", () => {
+    expect(countedNoun(1, DARBA_FORMS)).toBe("ضربة واحدة")
+    expect(countedNoun(2, DARBA_FORMS)).toBe("ضربتان")
+    expect(countedNoun(3, DARBA_FORMS)).toBe("3 ضربات")
+    expect(countedNoun(0, DARBA_FORMS)).toBe("لا ضربات")
   })
 })

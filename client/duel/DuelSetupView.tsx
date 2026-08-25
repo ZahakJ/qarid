@@ -50,6 +50,7 @@ import { loadProfile, startDuel } from "../store/duelStore.ts"
 import { useProfile } from "../store/profileStore.ts"
 import { FALLBACK_EXAMPLE, exampleFrom, type ChainExample } from "./chainExample.ts"
 import { clampTier, configFor, presetOf, tierAllowed, TIER_PRESETS } from "./tiers.ts"
+import { FriendMatch } from "./FriendMatch.tsx"
 import { Walkthrough } from "./Walkthrough.tsx"
 
 /**
@@ -405,6 +406,9 @@ export function DuelSetupView() {
           </div>
         </div>
       </section>
+
+      {/* ── 6. ضدّ صديق (v2.md §5) ────────────────────────────────────── */}
+      <FriendMatch />
 
       <Panel quiet className="setup-go">
         <div className="setup-go__inner">

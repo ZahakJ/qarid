@@ -2,7 +2,8 @@
  * Entry point. Fonts first (per-subset @fontsource imports — design-ux.md §7:
  * Arabic subsets only for the Arabic faces, Latin only for the mono numerals,
  * ~510 KB total), then tokens → base → components → bayt → views → poets →
- * app → duel → duel-teach → training → palette → motion, in that cascade order.
+ * app → duel → duel-teach → training → palette → auth → room → motion, in that
+ * cascade order.
  *
  * `motion.css` is LAST on purpose: it carries the app-wide micro-interactions
  * (v2.md §6), and a transition declared there has to win over the same property
@@ -39,6 +40,7 @@ import "./styles/duel-teach.css"
 import "./styles/training.css"
 import "./styles/palette.css"
 import "./styles/auth.css"
+import "./styles/room.css"
 import "./styles/motion.css"
 
 import { StrictMode } from "react"

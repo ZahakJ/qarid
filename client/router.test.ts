@@ -45,6 +45,7 @@ const CANONICAL: Route[] = [
   { view: "rules" },
   { view: "profile", username: "labid" },
   { view: "profile", username: "المتنبي" },
+  { view: "room", code: "BADIRU" },
 ]
 
 describe("parseHash / routeHash", () => {
@@ -209,6 +210,8 @@ describe("pageKey — what counts as arriving somewhere new (App.tsx scroll rese
       pageKey({ view: "duel-summary" }),
       pageKey({ view: "profile", username: "labid" }),
       pageKey({ view: "profile", username: "khansa" }),
+      pageKey({ view: "room", code: "BADIRU" }),
+      pageKey({ view: "room", code: "KOSEMA" }),
     ]
     expect(new Set(keys).size).toBe(keys.length)
   })
@@ -233,5 +236,25 @@ describe("#/u/<username> (v2.md §4)", () => {
 
   it("is titled الحساب", () => {
     expect(routeTitle({ view: "profile", username: "labid" })).toBe("الحساب")
+  })
+})
+
+describe("#/room/<code> (v2.md §5)", () => {
+  it("accepts a code however it was typed and canonicalizes it to upper", () => {
+    // The code is SPOKEN before it is typed, so «badiru» off a phone call and
+    // «BADIRU» off the share link have to be the same room — one URL, though.
+    expect(parseHash("#/room/badiru")).toEqual({ view: "room", code: "BADIRU" })
+    expect(parseHash("#/room/BaDiRu")).toEqual({ view: "room", code: "BADIRU" })
+    expect(routeHash({ view: "room", code: "BADIRU" })).toBe("#/room/BADIRU")
+  })
+
+  it("falls back to home for anything that is not six letters", () => {
+    for (const bad of ["#/room/", "#/room/ABC", "#/room/ABCDEFG", "#/room/BAD1RU", "#/room/بديرو"]) {
+      expect(parseHash(bad)).toEqual({ view: "home" })
+    }
+  })
+
+  it("is titled مساجلة الأصدقاء", () => {
+    expect(routeTitle({ view: "room", code: "BADIRU" })).toBe("مساجلة الأصدقاء")
   })
 })

@@ -83,16 +83,24 @@ export type RejectionCardProps = {
   /** the network card's «أعد المحاولة» */
   onRetry?: () => void
   livesLeft: number
+  /**
+   * v2.md §5 — a مساجلة room spends STRIKES, not أرواح, and the two do not
+   * agree on which refusals cost: a wrong letter is free against the machine
+   * and is a strike against a person. So a room passes its own verdict in, and
+   * its own wording with it. Absent, the solo duel's `COSTS_LIFE` decides.
+   */
+  strike?: boolean
+  costLabel?: string
 }
 
-export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRetry, livesLeft }: RejectionCardProps) {
-  const costsLife = COSTS_LIFE.has(r.kind)
+export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRetry, livesLeft, strike, costLabel }: RejectionCardProps) {
+  const costsLife = strike ?? COSTS_LIFE.has(r.kind)
   return (
     <div className="reject" data-kind={r.kind} data-cost={costsLife ? "life" : "none"} role="alert">
       <header className="reject__head">
         <h3 className="reject__title">{titleOf(r)}</h3>
         {costsLife ? (
-          <span className="reject__cost">‎−روح · بقي {livesLeft}</span>
+          <span className="reject__cost">{costLabel ?? `‎−روح · بقي ${livesLeft}`}</span>
         ) : (
           <span className="reject__cost reject__cost--free">لا تُحتسب</span>
         )}

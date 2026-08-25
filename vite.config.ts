@@ -16,6 +16,12 @@ export default defineConfig({
     proxy: {
       "/api": API,
       "/healthz": API,
+      // v2.md §5's مساجلة socket. `ws: true` is the whole of it — without it
+      // vite answers the upgrade itself (its own HMR socket owns `upgrade`)
+      // and `#/room/<code>` silently falls back to the 2-second poller in dev
+      // while working perfectly in production, which is the worst shape a bug
+      // of this kind can have.
+      "/ws": { target: API, ws: true },
     },
   },
   preview: { port: 6750, strictPort: true },

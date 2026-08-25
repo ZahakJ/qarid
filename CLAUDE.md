@@ -9,7 +9,8 @@ SQLite artefact, browsed by era/بحر/غرض/روي, searched with FTS5, and pl
 the machine recites a بيت, you must answer with one that starts on its روي.
 Single npm package (mimema/leyline shape): Vite 7 + React 19 client, Hono 4
 server run directly by Node 26 (TS type-stripping, **no server build**),
-`node:sqlite` over a gitignored `data/qarid.db`.
+`node:sqlite` over a gitignored `data/qarid.db`. The only runtime dependency
+past that list is `@hono/node-ws`, which carries v2 §5's مساجلة socket.
 
 Ports: dev API **5750**, dev Vite **5751**, smoke/preview **6750**, prod
 **8010** (Cloudflare tunnel `cf-qarid` ingress points at 8010, managed in the
@@ -79,8 +80,12 @@ was assembled rather than written. See the invariant below.
   `/facets` · **train** `/train/candidates` · **auth** `/auth/register`,
   `/auth/login`, `/auth/logout`, `/auth/me` (the only routes that take a cookie;
   `/auth/me` is ALWAYS 200, `user: null` means nobody) · **profile**
-  `/profile/:username`, `/profile/update`, `/profile/arsenal` · plus the
-  `search` and `game` sub-apps other agents own.
+  `/profile/:username`, `/profile/update`, `/profile/arsenal` · **room**
+  `/room` (create), `/room/opening`, `/room/playable`, `/room/:code/state`,
+  `/room/:code/join`, `/room/:code/turn`, `/room/:code/resign`,
+  `/room/:code/rematch` — plus the WebSocket `/ws/room/:code`, which is NOT an
+  `/api` path (it is an upgrade, and the corpus gate would answer it with JSON
+  no browser reads) · plus the `search` and `game` sub-apps other agents own.
   Shared plumbing: `server/dto.ts` is the only place a column name is spelled
   (SQL fragments + row→DTO shaping), `server/query.ts` owns query parsing (zod →
   `400 {error, issues}`), memoised slug→id maps, the poem filter and
@@ -99,8 +104,10 @@ was assembled rather than written. See the invariant below.
   preview IS the canvas the download reads — and `<ShareCardHost/>` is mounted
   once, in App.tsx. Layout in design-ux.md.
 - **Stylesheets, in cascade order** (`client/main.tsx`): tokens · base ·
-  components · bayt · views · **poets** · app · duel · training · palette ·
-  **motion**. `poets.css` owns #/poets and #/poet whole — `.poets-*`,
+  components · bayt · views · **poets** · app · duel · duel-teach · training ·
+  palette · auth · **room** · **motion**. `room.css` owns `#/room/<code>` and
+  the «ضدّ صديق» dialog — `.room-*`, `.seat*`, `.friend-*` — and every class in
+  it is new, because it loads after views.css (see the `.letter-well` invariant). `poets.css` owns #/poets and #/poet whole — `.poets-*`,
   `.pcard*`, `.letter-rail*`, `.letter-head*`, `.medallion*`, `.era-*`,
   `.poet-*` — and the `--row-poet` half of the row-height contract.
   `motion.css` is LAST and owns the app's motion vocabulary: `--dur-micro`
@@ -125,7 +132,9 @@ was assembled rather than written. See the invariant below.
   `#/poem/<publicId>?bayt=N` · `#/browse?era&meter&theme&rawiyy&letter&sort&p` ·
   `#/search?q&p` · `#/duel` `#/duel/play` `#/duel/summary` · `#/daily` ·
   `#/favorites?collection` · `#/rules` · `#/stats` · `#/wander` ·
-  `#/train` `#/train/drill?letter=<L>` `#/train/arsenal` · `#/u/<username>`.
+  `#/train` `#/train/drill?letter=<L>` `#/train/arsenal` · `#/u/<username>` ·
+  `#/room/<CODE>` (six letters, upper-cased by the router — the code is spoken
+  before it is typed, so «badiru» and «BADIRU» are one room and one URL).
   All of them render a
   real view now; «التحفيظ» is in the masthead nav and `#/wander` is reached by
   `g w` (the arsenal's «تدرّب» is what carries the `?letter`).
@@ -196,6 +205,40 @@ was assembled rather than written. See the invariant below.
   (the default), and a browser silently drops a `Secure` cookie from
   `http://127.0.0.1` — so a screenshot run that has to log in must pass
   `PUBLIC_ORIGIN=http://127.0.0.1:<port>` alongside `USERS_DB_PATH`.
+- **A مساجلة room is decided ENTIRELY server-side, and every message is the
+  whole room** (v2.md §5, `server/rooms.ts`). The clock is a column
+  (`rooms.turn_deadline_at`), the turn order is derived from the rows in
+  `match_turns` and never from a counter, the exclusions are read back off
+  those rows on every turn, and an answer goes through the same `verifyAnswer`
+  the solo duel calls. Three things fall out of that and are not features:
+  a reconnect is just another `state` event (nothing to merge); the polling
+  fallback `GET /api/room/:code/state` is the same snapshot the socket pushes,
+  so there is ONE code path; and a dropped socket forfeits nothing, because the
+  only thing that can end a turn unanswered is a timestamp in the database.
+  Two rules inside that: `match_turns` holds the host's `opening` بيت, accepted
+  `ok` أبيات and the two strike tags (`wrong_letter`/`not_found`), and only the
+  first two are part of the CHAIN — so a strike does not pass the turn — while
+  every other rejection the verifier can produce is feedback to the player who
+  typed it, never persisted and never broadcast (a near-miss is a hint about
+  what the other side almost knows). The room's `Cache-Control` lives in
+  `cachePolicy` with the rest, `private, no-store`: `you.canPlay` is in the
+  payload.
+- **`/ws/room/:code` is cookie-authenticated on the UPGRADE**, which is the
+  only authentication a WebSocket can have — a browser cannot set a header on
+  one, but it sends `qarid_sess` with a same-origin upgrade like any other GET.
+  So the socket URL is always same-origin (`client/store/roomStore.ts`
+  `socketUrl`), `createApp` returns an `injectWebSocket` that `server/index.ts`
+  must hand EVERY server it opens (127.0.0.1 *and* ::1), and `vite.config.ts`
+  proxies `/ws` with `ws: true` — without that flag vite answers the upgrade
+  itself and dev silently falls back to the poller while production works.
+- **`fullPage: true` breaks mobile emulation in a screenshot.** Playwright
+  re-emulates the device metrics to capture past the viewport and drops
+  `hasTouch` while it does, so `(pointer: coarse)` stops matching and every
+  `.keys-only` affordance a phone cannot use reappears in the shot (measured:
+  the same element is `display:none` before the call and `display:block`
+  during it). A phone pass takes VIEWPORT shots off a tall viewport;
+  `tools/screenshot.mjs` already does. The same call is also why a sticky
+  masthead appears again halfway down a long desktop shot.
 - Derived accent vars live on `body`, NOT `:root` — the `[data-app]` override
   must compute first (family pitfall).
 - Never `ORDER BY RANDOM()` on 2M+ rows; sample by the precomputed `bucket`

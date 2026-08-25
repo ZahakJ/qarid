@@ -277,7 +277,12 @@ export function ProfileView({ username }: { username: string }) {
           <ul className="match-list">
             {recent.map((m) => (
               <li className="match-row" key={m.code} data-result={m.result}>
-                <span className="match-row__result">{RESULT_LABEL[m.result]}</span>
+                {/* The room is still THERE — a finished one shows its whole
+                    transcript, an open one is waiting for somebody. So the
+                    verdict word is the way back into it (v2.md §5). */}
+                <a className="match-row__result" href={routeHash({ view: "room", code: m.code })}>
+                  {RESULT_LABEL[m.result]}
+                </a>
                 <span className="match-row__foe">{m.opponent ?? "بانتظار خصم"}</span>
                 <span className="match-row__turns num">{formatNumber(m.turns)}</span>
                 <span className="match-row__when">{dateLabel(m.endedAt ?? m.createdAt)}</span>

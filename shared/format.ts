@@ -192,6 +192,16 @@ export const FAWZ_FORMS: CountedNounForms = {
   many: "فوزًا",
 }
 
+/** ضربات غرفة المساجلة — «ضربة واحدة», «ضربتان», «3 ضربات» (v2.md §5). */
+export const DARBA_FORMS: CountedNounForms = {
+  zero: "لا ضربات",
+  one: "ضربة واحدة",
+  two: "ضربتان",
+  twoGenitive: "ضربتين",
+  few: "ضربات",
+  many: "ضربة",
+}
+
 /** «لا نتائج» · «نتيجة واحدة» · «4 نتائج» · «129 نتيجة» — the search count. */
 export const NATIJA_FORMS: CountedNounForms = {
   zero: "لا نتائج",

@@ -57,7 +57,7 @@ export const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 const MAX_UA = 200
 
 /** Schema version this build expects; `PRAGMA user_version` is the ledger. */
-export const USERS_SCHEMA_VERSION = 1
+export const USERS_SCHEMA_VERSION = 2
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handle
@@ -166,6 +166,21 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
       );
       CREATE INDEX match_turns_user ON match_turns(user_id, played_at DESC);
     `)
+  },
+
+  /*
+   * 1 → 2: `rooms.rematch_code` (v2.md §5, «rematch button swaps roles»).
+   *
+   * «رجعة» opens a SECOND room with the seats exchanged, and both players have
+   * to be sent to it — including the one whose socket dropped ten seconds
+   * earlier and who will come back to the old code. So the old room has to
+   * remember the new one: with the link stored, a reconnect, a page reload and
+   * the polling fallback all discover the rematch by reading the same snapshot
+   * they were already reading. In memory it would have been a broadcast that
+   * only the connected half received.
+   */
+  (raw) => {
+    raw.exec(`ALTER TABLE rooms ADD COLUMN rematch_code TEXT`)
   },
 ]
 

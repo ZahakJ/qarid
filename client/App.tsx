@@ -40,6 +40,7 @@ import { PoemView } from "./views/PoemView.tsx"
 import { PoetView } from "./views/PoetView.tsx"
 import { PoetsView } from "./views/PoetsView.tsx"
 import { ProfileView } from "./views/ProfileView.tsx"
+import { RoomView } from "./views/RoomView.tsx"
 import { RulesView } from "./views/RulesView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { StatsView } from "./views/StatsView.tsx"
@@ -82,6 +83,7 @@ const LEDE: Record<Route["view"], string> = {
   favorites: "ما اخترته من الأبيات، ومجموعاتك.",
   rules: "قواعد المساجلة: كيف يُشتقّ الرويّ، وما يُقبل وما يُردّ.",
   profile: "صفحة الحساب: الاسم، ويوم الانضمام، وسجلّ المساجلة.",
+  room: "مساجلة بين اثنين: يُنشد أحدكما مطلعًا، ويُجيب الآخر ببيتٍ على رويّه.",
 }
 
 /** Phase-0 body: says plainly which phase fills this view in. */
@@ -104,6 +106,7 @@ const PHASE: Record<Route["view"], string> = {
   favorites: "المرحلة 2",
   rules: "المرحلة 4",
   profile: "المرحلة 5",
+  room: "المرحلة 5",
 }
 
 function Wordmark({ hero = false }: { hero?: boolean }) {
@@ -269,6 +272,10 @@ function Body({ route }: { route: Route }) {
     case "profile":
       // Keyed on the name: «صفحتي» from someone else's page is a new page.
       return <ProfileView key={route.username} username={route.username} />
+    case "room":
+      // Keyed on the code: «رجعة» opens a DIFFERENT room, and the store's
+      // socket, poller and draft all belong to the room they were opened for.
+      return <RoomView key={route.code} code={route.code} />
     default:
       return <ViewStub route={route} />
   }
