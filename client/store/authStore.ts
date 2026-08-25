@@ -17,6 +17,7 @@
 import { create } from "zustand"
 import { ApiError } from "../api/client.ts"
 import { getMe, login as loginRequest, logout as logoutRequest, register as registerRequest } from "../api/queries.ts"
+import { setToken } from "../platform/native.ts"
 import type { AuthUser } from "../../shared/schema.ts"
 
 export type AuthMode = "login" | "register"
@@ -106,6 +107,9 @@ export const useAuth = create<AuthStore>()((set, get) => ({
         ...(fields.displayName?.trim() ? { displayName: fields.displayName.trim() } : {}),
         ...(fields.invite?.trim() ? { invite: fields.invite.trim() } : {}),
       })
+      // The native shell gets a bearer back (X-Client asked for it) and keeps
+      // it; on the web `res.token` is undefined and `setToken` is a no-op.
+      if (res.token) setToken(res.token)
       set({ user: res.user, busy: false, dialog: null, error: null })
       return true
     } catch (err) {
@@ -119,6 +123,7 @@ export const useAuth = create<AuthStore>()((set, get) => ({
     set({ busy: true, error: null })
     try {
       const res = await loginRequest({ username: fields.username.trim(), password: fields.password })
+      if (res.token) setToken(res.token)
       set({ user: res.user, busy: false, dialog: null, error: null })
       return true
     } catch (err) {
@@ -135,6 +140,9 @@ export const useAuth = create<AuthStore>()((set, get) => ({
     } catch {
       /* offline: the cookie survives, and `refresh()` will find it */
     }
+    // Drop the native bearer too — the server revoked this session, and a stale
+    // token in Preferences would re-authenticate a signed-out shell on boot.
+    setToken(null)
     set({ user: null, dialog: null, error: null })
   },
 

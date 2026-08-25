@@ -26,6 +26,7 @@ import { PaletteHost, openPalette } from "./components/Palette.tsx"
 import { AuthDialog } from "./components/AuthDialog.tsx"
 import { InstallControl } from "./components/InstallControl.tsx"
 import { initialOf, useAuth } from "./store/authStore.ts"
+import { nativeBoot } from "./platform/nativeInit.ts"
 import { useKeyboard } from "./hooks/useKeyboard.ts"
 import { DuelPlayView } from "./duel/DuelPlayView.tsx"
 import { DuelSetupView } from "./duel/DuelSetupView.tsx"
@@ -291,10 +292,13 @@ export function App() {
   useEffect(() => initRouter(), [])
 
   // Who is signed in — one request, on boot. The session is an HttpOnly cookie
-  // and the server is the only thing that can say whether it is still live, so
-  // nothing about it is cached in localStorage (client/store/authStore.ts).
+  // (web) or a stored bearer (native shell), and the server is the only thing
+  // that can say whether it is still live, so nothing about it is cached in
+  // localStorage (client/store/authStore.ts). In the native shell `nativeBoot`
+  // hydrates the bearer from Preferences and arms the status bar / back button /
+  // deep links FIRST, then the same refresh runs; both are no-ops on the web.
   useEffect(() => {
-    void useAuth.getState().refresh()
+    void nativeBoot().then(() => useAuth.getState().refresh())
   }, [])
 
   // First render settled → tell the smoke harness. Gated on document.fonts so

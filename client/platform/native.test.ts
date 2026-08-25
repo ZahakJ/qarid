@@ -1,0 +1,50 @@
+/**
+ * The native shell shim (docs/roadmap-mobile.md §M1). These run in the WEB
+ * configuration (Capacitor reports `web`, so `isNative` is false), which is
+ * exactly the surface that must stay byte-for-byte unchanged: no URL rewrite,
+ * no headers, no token.
+ */
+
+import { describe, expect, it } from "vitest"
+
+import { API_BASE, isNative, nativeHeaders, resolveApiUrl, apiSocketLoc, currentToken } from "./native.ts"
+import { deepLinkHash } from "./nativeInit.ts"
+
+describe("platform shim on the web", () => {
+  it("is not native, adds no base, no headers, no socket override, no token", () => {
+    expect(isNative).toBe(false)
+    expect(API_BASE).toBe("")
+    expect(resolveApiUrl("/api/meta")).toBe("/api/meta")
+    expect(nativeHeaders()).toEqual({})
+    expect(apiSocketLoc()).toBeUndefined()
+    expect(currentToken()).toBeNull()
+  })
+})
+
+describe("deepLinkHash", () => {
+  const HOST = "qarid.avicenna.space"
+
+  it("maps a room link to its own fragment", () => {
+    expect(deepLinkHash(`https://${HOST}/#/room/BADIRU?k=abc`, HOST)).toBe("#/room/BADIRU?k=abc")
+  })
+
+  it("accepts the prod host even when a different base is configured", () => {
+    expect(deepLinkHash("https://qarid.avicenna.space/#/duel", "localhost:6760")).toBe("#/duel")
+  })
+
+  it("rejects a foreign host", () => {
+    expect(deepLinkHash("https://evil.example/#/room/BADIRU", HOST)).toBeNull()
+  })
+
+  it("rejects a link with no app fragment", () => {
+    expect(deepLinkHash(`https://${HOST}/poems/q123`, HOST)).toBeNull()
+  })
+
+  it("rejects a non-hash fragment", () => {
+    expect(deepLinkHash(`https://${HOST}/#not-a-route`, HOST)).toBeNull()
+  })
+
+  it("does not throw on a malformed URL", () => {
+    expect(deepLinkHash("not a url", HOST)).toBeNull()
+  })
+})

@@ -13,6 +13,7 @@
  */
 import type { z } from "zod"
 import { ApiErrorSchema } from "../../shared/schema.ts"
+import { nativeHeaders, resolveApiUrl } from "../platform/native.ts"
 
 export type ApiErrorKind =
   | "network" /* offline, DNS, connection reset */
@@ -88,9 +89,12 @@ function dedupable(init?: RequestInit): boolean {
 async function run<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): Promise<T> {
   let res: Response
   try {
-    res = await fetch(path, {
+    // In the native shell `resolveApiUrl` prefixes the deployment origin and
+    // `nativeHeaders` adds the bearer + `X-Client`; both are no-ops on the web,
+    // so the same-origin cookie flow is unchanged (platform/native.ts).
+    res = await fetch(resolveApiUrl(path), {
       ...init,
-      headers: { Accept: "application/json", ...(init?.headers ?? {}) },
+      headers: { Accept: "application/json", ...nativeHeaders(), ...(init?.headers ?? {}) },
     })
   } catch (err) {
     if (init?.signal?.aborted) throw new ApiError("aborted", ARABIC_MESSAGE.aborted, path)

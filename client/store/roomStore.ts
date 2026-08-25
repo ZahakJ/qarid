@@ -39,6 +39,7 @@ import {
   resignRoom as resignRequest,
 } from "../api/queries.ts"
 import { RoomEventSchema, ROOM_ERRORS, type CreateRoomRequest, type RoomState, type RoomVerdict } from "../../shared/schema.ts"
+import { apiSocketLoc } from "../platform/native.ts"
 import type { Rejection } from "../duel/machine.ts"
 
 /** How often the poller asks when there is no live socket. */
@@ -221,7 +222,12 @@ export const useRoom = create<RoomStore>()((set, get) => {
     }
     let ws: WebSocket
     try {
-      ws = new WebSocket(socketUrl(code, joinKey))
+      // Same-origin on the web; the deployment host in the native shell, whose
+      // page origin (https://localhost) has no server behind it. A WebView
+      // cannot set the Authorization header a cross-origin upgrade would need,
+      // so when the socket cannot authenticate the store falls back to the HTTP
+      // poller, which carries the bearer like every other call.
+      ws = new WebSocket(socketUrl(code, joinKey, apiSocketLoc()))
     } catch {
       set({ transport: "polling" })
       startPolling()
