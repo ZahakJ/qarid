@@ -20,6 +20,7 @@ import { useEffect, useRef, useState } from "react"
 import { ApiError } from "../api/client.ts"
 import { getRoomOpening, getRoomPlayable, search } from "../api/queries.ts"
 import { BaytPlate } from "../bayt/BaytPlate.tsx"
+import { PanelCorners } from "../components/Ornaments.tsx"
 import { Segmented } from "../components/Segmented.tsx"
 import { navigate } from "../router.ts"
 import { useAuth } from "../store/authStore.ts"
@@ -188,6 +189,10 @@ function FriendDialog({ onClose }: { onClose: () => void }) {
         ref={dialogRef}
         onMouseDown={(e) => e.stopPropagation()}
       >
+        {/* the same four manuscript corners the auth dialog and the palette
+            wear — this is the third overlay in the app that asks the reader to
+            decide something, and it was the only one without them */}
+        <PanelCorners size={16} />
         <header className="friend-dialog__head">
           <h2 className="friend-dialog__title" id="friend-title">
             غرفة مساجلة
@@ -294,12 +299,14 @@ function FriendDialog({ onClose }: { onClose: () => void }) {
           ) : null}
         </div>
 
+        {/* primary FIRST, so it lands on the reading edge — `.auth__actions`
+            and the walkthrough's footer are laid out the same way */}
         <footer className="friend-dialog__foot">
-          <button type="button" className="btn btn--ghost" onClick={onClose}>
-            رجوع
-          </button>
           <button type="button" className="btn btn--primary btn--lg" onClick={() => void create()} disabled={busy}>
             {busy ? "…تُفتح الغرفة" : "افتح الغرفة"}
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={onClose}>
+            رجوع
           </button>
         </footer>
       </div>

@@ -448,10 +448,21 @@ a.seat__name:hover {
 
 /* ══ the create dialog ═════════════════════════════════════════════════ */
 
+/* The BODY scrolls, not the card — the palette's own shape.
+ *
+ * `.overlay__card` caps the card at 80dvh and scrolls the whole thing, and this
+ * dialog is the longest overlay in the app: at 390 the reader had to scroll
+ * past three settings and three explanations to find «افتح الغرفة» at all, and
+ * the title scrolled away above them. With the rows pinned, the question at the
+ * top and the answer at the bottom stay on screen and only the settings move.
+ * `position: relative` is what the four PanelCorners hang off. */
 .friend-dialog {
+  position: relative;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--sp-4);
   padding: var(--sp-5);
+  overflow: hidden;
 }
 
 .friend-dialog__head {
@@ -470,12 +481,22 @@ a.seat__name:hover {
 
 .friend-dialog__body {
   display: grid;
+  align-content: start;
   gap: var(--sp-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* the gutter is 10px (tokens.css); keep the notes off it */
+  padding-inline-end: var(--sp-1);
 }
 
 .friend-sect {
   display: grid;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
+}
+
+/* the lede belongs to the heading; what follows it is the section's own body */
+.friend-sect__lede + * {
+  margin-block-start: var(--sp-2);
 }
 
 .friend-sect__title {
@@ -547,6 +568,18 @@ a.seat__name:hover {
   background: var(--accent-wash);
 }
 
+/* A `BaytPlate` is itself a framed card, so a hit — and the chosen مطلع — were
+ * a bordered box inside a bordered box, 30px of dead margin between two rounded
+ * rectangles. The container IS the frame here; the plate inside it is just the
+ * بيت. (views.css does the same for `.hero__plate`.) */
+.friend-hit .bayt-plate,
+.friend-pick .bayt-plate {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+}
+
 .friend-hit__poet,
 .friend-pick__poet {
   font-size: var(--fs-ui-1);
@@ -569,11 +602,20 @@ a.seat__name:hover {
   gap: var(--sp-3);
 }
 
+/* A rule and its explanation are ONE thing. `.friend-sect`'s uniform --sp-3 put
+ * each «…» note exactly as far from the row above it as from the row below, so
+ * three settings and three sentences read as six unrelated lines. The note
+ * closes up to its own row and the next group opens away from it — proximity
+ * doing the grouping the border-less card cannot. */
 .friend-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-3);
+}
+
+.friend-row__note + .friend-row {
+  margin-block-start: var(--sp-3);
 }
 
 .friend-row__label {
@@ -592,9 +634,13 @@ a.seat__name:hover {
   color: var(--text-1);
 }
 
+/* The primary action sits on the READING edge, as it does in the auth dialog
+   (`.auth__actions`) and the walkthrough (`.wt__foot`) — this footer was the one
+   overlay in the app that put «افتح الغرفة» at the far end instead. */
 .friend-dialog__foot {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--sp-2);
   padding-block-start: var(--sp-3);
   border-block-start: 1px solid var(--line-1);
