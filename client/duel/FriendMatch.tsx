@@ -25,7 +25,7 @@ import { Segmented } from "../components/Segmented.tsx"
 import { navigate } from "../router.ts"
 import { useAuth } from "../store/authStore.ts"
 import { createRoom } from "../store/roomStore.ts"
-import { ROOM_STRIKES_DEFAULT, ROOM_TIMERS, type BaitDto, type ChainMode } from "../../shared/schema.ts"
+import { ROOM_STRIKES_DEFAULT, ROOM_TIMERS, RoomCodeSchema, type BaitDto, type ChainMode } from "../../shared/schema.ts"
 import { formatNumber } from "../../shared/format.ts"
 
 /** The debounce the palette uses; the same field, the same server. */
@@ -76,8 +76,71 @@ export function FriendMatch() {
           {user ? "تبدأ المساجلة لحظة دخول صاحبك، وهو الذي يُجيب أوّلًا." : "المساجلة بين اثنين، فلا بدّ أن يُعرف كلٌّ منكما باسمه."}
         </span>
       </div>
+      {user ? <JoinByCode /> : null}
       {open ? <FriendDialog onClose={() => setOpen(false)} /> : null}
     </section>
+  )
+}
+
+/**
+ * «انضم إلى غرفة» — the OTHER way in, and the one that makes a spoken code
+ * useful: a friend reads «BADIRU» down the phone, you type it here, and you land
+ * on `#/room/<code>` with no key — where the knock flow asks the host to let you
+ * in (server/rooms.ts). The copy-link path stays the frictionless default above;
+ * this is for when the link never travels, only the six letters do.
+ */
+function JoinByCode() {
+  const [code, setCode] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = () => {
+    const parsed = RoomCodeSchema.safeParse(code)
+    if (!parsed.success) {
+      setError("الرمز ستة أحرف — كما يُملى بالصوت.")
+      return
+    }
+    navigate({ view: "room", code: parsed.data })
+  }
+
+  return (
+    <form
+      className="friend-join"
+      onSubmit={(e) => {
+        e.preventDefault()
+        submit()
+      }}
+    >
+      <label className="friend-join__label" htmlFor="friend-join-code">
+        أو انضمّ إلى غرفة بالرمز
+      </label>
+      <div className="friend-join__row">
+        <input
+          id="friend-join-code"
+          className="friend-join__input"
+          value={code}
+          onChange={(e) => {
+            // Speakable code: letters only, upper-cased, six at most — the same
+            // shape the router canonicalises to («badiru» is «BADIRU»).
+            setError(null)
+            setCode(e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 6))
+          }}
+          placeholder="BADIRU"
+          dir="ltr"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={6}
+          aria-label="رمز الغرفة"
+        />
+        <button type="submit" className="btn" disabled={code.length !== 6}>
+          انضمّ
+        </button>
+      </div>
+      {error ? (
+        <p className="friend-join__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
   )
 }
 

@@ -291,6 +291,103 @@ a.seat__name:hover {
   color: var(--text-2);
 }
 
+/* The host's own actions on a waiting room — «أغلق الغرفة» sits under the
+   share block, a quiet ghost so it never competes with the invite above it. */
+.room-wait__acts {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--sp-2);
+}
+
+.room-wait__code {
+  display: inline-block;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  letter-spacing: 0.12em;
+}
+
+/* ══ the door: knock-to-join ═══════════════════════════════════════════ */
+
+/* The host's prompt when someone knocks — an illuminated strip above the share
+   block, gold-edged so «فلان يريد الدخول» reads as the thing to answer. */
+.room-door {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  inline-size: min(40rem, 100%);
+  padding: var(--sp-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-2);
+  background: var(--accent-dim);
+}
+
+.room-door__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+  text-align: center;
+}
+
+.room-door__acts {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+/* The KNOCKER's own waiting card — no transcript, only the four states of the
+   door (server/rooms.ts). Centred like the waiting card it stands in for. */
+.room-knock {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.room-knock__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-knock__note {
+  margin: 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+.room-knock__alert {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
+}
+
+/* A single gold ring, turning — the only rotation in the room, and it turns
+   linearly so nothing about the wait bounces (§8). */
+.room-knock__spin {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 2px solid var(--accent-dim);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  animation: room-knock-spin 900ms linear infinite;
+}
+
+@keyframes room-knock-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-knock__spin {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 /* ══ the transcript ════════════════════════════════════════════════════ */
 
 .room-log {
@@ -444,6 +541,51 @@ a.seat__name:hover {
 .friend-cta__note {
   font-size: var(--fs-ui-1);
   color: var(--text-3);
+}
+
+/* «انضم إلى غرفة بالرمز» — the by-voice door, under the «افتح غرفة» CTA. A
+   friend reads the six letters down the phone; you type them and knock. */
+.friend-join {
+  display: grid;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-4);
+  padding-block-start: var(--sp-4);
+  border-block-start: 1px solid var(--line-1);
+}
+
+.friend-join__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-join__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.friend-join__input {
+  inline-size: 9rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-2);
+  letter-spacing: 0.18em;
+  color: var(--text-1);
+  text-align: center;
+}
+
+.friend-join__input::placeholder {
+  color: var(--text-3);
+  letter-spacing: 0.18em;
+}
+
+.friend-join__error {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
 }
 
 /* ══ the create dialog ═════════════════════════════════════════════════ */

@@ -38,7 +38,7 @@ import { rematchIsNew as isNewRematch, roomTimeLeft, useRoom } from "../store/ro
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { BAYT_FORMS, DARBA_FORMS, copyableBayt, countedNoun, formatClock, formatNumber } from "../../shared/format.ts"
-import type { RoomPlayer, RoomSeat, RoomState, RoomTurn } from "../../shared/schema.ts"
+import type { RoomKnockView, RoomPlayer, RoomSeat, RoomState, RoomTurn } from "../../shared/schema.ts"
 
 /** How often the countdown redraws. The remaining time itself is read live. */
 const TICK_MS = 200
@@ -84,6 +84,79 @@ function CodeBlock({ code }: { code: string }) {
         </span>
       ))}
     </p>
+  )
+}
+
+/**
+ * The door, for a guest who reached the room by VOICE — the code, no key.
+ *
+ * The old dead-end said «هذه الغرفة بدعوة» and stopped there, which made
+ * dictating the code a lie. Now he KNOCKS: the host is told (it rides in the
+ * host's snapshot) and lets him in or refuses. He is not a player until accepted,
+ * so this screen never shows the transcript — only the four states of the door.
+ */
+function KnockGate({
+  knock,
+  knocking,
+  notice,
+  onKnock,
+}: {
+  knock: RoomKnockView | null
+  knocking: boolean
+  notice: string | null
+  onKnock: () => void
+}) {
+  const status = knock?.status ?? "none"
+  const host = knock?.hostName
+  return (
+    <div className="view room-view">
+      <div className="view__head">
+        <h1 className="view__title">مساجلة الأصدقاء</h1>
+        <p className="view__lede">بلغتَ الغرفة بالرمز — واستئذانُ صاحبها هو الباب.</p>
+      </div>
+      <Rule />
+      <Panel illuminated className="room-knock">
+        {status === "rejected" ? (
+          <>
+            <p className="room-knock__line">لم يأذن لك صاحب الغرفة بالدخول.</p>
+            <p className="room-knock__note">لعلّ الغرفة امتلأت، أو لم يكن مستعدًّا. اطلب الرابط منه، أو افتح غرفتك.</p>
+            <a className="btn btn--primary btn--lg" href={routeHash({ view: "duel" })}>
+              افتح غرفة جديدة
+            </a>
+          </>
+        ) : status === "pending" || status === "accepted" ? (
+          <>
+            <p className="room-knock__line">طرقتَ الباب…</p>
+            <p className="room-knock__note">
+              {host ? (
+                <>
+                  بانتظار أن يأذن لك <bdi>{host}</bdi> —{" "}
+                </>
+              ) : (
+                "بانتظار قبول صاحب الغرفة — "
+              )}
+              يظهر لك المجلس حين يقبل. اترك الصفحة مفتوحة.
+            </p>
+            <span className="room-knock__spin" aria-label="بانتظار الإذن" role="status" />
+          </>
+        ) : (
+          <>
+            <p className="room-knock__line">هذه الغرفة تُدخَل بإذن صاحبها.</p>
+            <p className="room-knock__note">
+              الرمز يدلّ على الغرفة، والإذن هو الذي يفتحها. اطرق الباب، فيصلُ صاحبَها أنك تريد الدخول.
+            </p>
+            <button type="button" className="btn btn--primary btn--lg" onClick={onKnock} disabled={knocking}>
+              {knocking ? "…يُطرق الباب" : "اطرق الباب"}
+            </button>
+          </>
+        )}
+        {notice ? (
+          <p className="room-knock__alert" role="alert">
+            {notice}
+          </p>
+        ) : null}
+      </Panel>
+    </div>
   )
 }
 
@@ -224,6 +297,8 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
   const strikesLeft = useRoom((s) => s.strikesLeft)
   const transport = useRoom((s) => s.transport)
   const skew = useRoom((s) => s.skew)
+  const knock = useRoom((s) => s.knock)
+  const knocking = useRoom((s) => s.knocking)
   const open = useRoom((s) => s.open)
   const close = useRoom((s) => s.close)
   const setDraft = useRoom((s) => s.setDraft)
@@ -232,6 +307,9 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
   const resign = useRoom((s) => s.resign)
   const rematch = useRoom((s) => s.rematch)
   const dismissRejection = useRoom((s) => s.dismissRejection)
+  const sendKnock = useRoom((s) => s.sendKnock)
+  const acceptKnock = useRoom((s) => s.acceptKnock)
+  const rejectKnock = useRoom((s) => s.rejectKnock)
 
   const settings = useSettings()
   const authStatus = useAuth((s) => s.status)
@@ -322,28 +400,38 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
     )
   }
 
-  if (error) {
-    // A room you were not invited into is not a room that does not exist, and
-    // saying so is the difference between «you mistyped» and «ask for the
-    // link»: the code names the room, the link opens it (v2.md §5).
-    const locked = errorCode === "needs_key"
-    return (
-      <div className="view room-view">
-        <div className="view__head">
-          <h1 className="view__title">مساجلة الأصدقاء</h1>
+  // A PRESENT snapshot always wins over a transport error. The old code showed
+  // «لا غرفة بهذا الرمز» the instant a socket blipped, hiding a room the poller
+  // had already loaded — so the not-found / knock gate is reachable ONLY while
+  // there is no state at all (a genuine 404 or needs_key on the FIRST load).
+  if (!state) {
+    // Reached a room by voice — the code, no key. Instead of the old dead-end,
+    // knock: the host is told and lets you in (restores «أملِ عليه الرمز»).
+    if (errorCode === "needs_key" || knock) {
+      return (
+        <KnockGate
+          knock={knock}
+          knocking={knocking}
+          notice={notice}
+          onKnock={() => void sendKnock()}
+        />
+      )
+    }
+    if (error) {
+      return (
+        <div className="view room-view">
+          <div className="view__head">
+            <h1 className="view__title">مساجلة الأصدقاء</h1>
+          </div>
+          <EmptyState flavor="search-none" title="لا غرفة بهذا الرمز">
+            <p className="empty__note">{error}</p>
+            <a className="btn" href={routeHash({ view: "duel" })}>
+              افتح غرفة جديدة
+            </a>
+          </EmptyState>
         </div>
-        <EmptyState flavor="search-none" title={locked ? "هذه الغرفة بدعوة" : "لا غرفة بهذا الرمز"}>
-          <p className="empty__note">{error}</p>
-          {locked ? <p className="empty__note">الرمز يدلّ على الغرفة، والرابط هو الذي يفتحها.</p> : null}
-          <a className="btn" href={routeHash({ view: "duel" })}>
-            افتح غرفة جديدة
-          </a>
-        </EmptyState>
-      </div>
-    )
-  }
-
-  if (!state || loading) {
+      )
+    }
     return (
       <div className="view room-view" aria-busy="true">
         <div className="view__head">
@@ -426,6 +514,31 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
             </>
           ) : mySeat === "host" ? (
             <>
+              {state.knock ? (
+                <div className="room-door" role="alert">
+                  <p className="room-door__line">
+                    <bdi>{state.knock.displayName}</bdi> يطرق الباب — يريد الدخول.
+                  </p>
+                  <div className="room-door__acts">
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => void acceptKnock()}
+                      disabled={busy}
+                    >
+                      اقبل
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void rejectKnock()}
+                      disabled={busy}
+                    >
+                      ارفض
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <p className="room-wait__line">غرفتك مفتوحة — ابعث الرابط إلى صاحبك.</p>
               <p className="room-wait__note">تبدأ المساجلة لحظة دخوله، وهو الذي يُجيب أوّلًا عن مطلعك.</p>
               <div className="room-share">
@@ -434,7 +547,22 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
                   انسخ الرابط
                 </button>
               </div>
-              <p className="room-wait__hint">أو أملِ عليه الرمز: {state.code.split("").join(" ")}</p>
+              {/* «أملِ عليه الرمز» is a real path now: he opens the code with no
+                  key, knocks, and you accept above — not the old dead-end. */}
+              <p className="room-wait__hint">
+                أو أملِ عليه الرمز — <span className="room-wait__code" dir="ltr">{state.code.split("").join(" ")}</span> — يفتحه
+                ويطرق الباب، فتأذن له من هنا.
+              </p>
+              {notice ? (
+                <p className="room-notice" role="alert">
+                  {notice}
+                </p>
+              ) : null}
+              <div className="room-wait__acts">
+                <button type="button" className="btn btn--ghost" onClick={() => void resign()} disabled={busy}>
+                  أغلق الغرفة
+                </button>
+              </div>
             </>
           ) : (
             <>
