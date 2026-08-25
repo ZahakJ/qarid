@@ -432,6 +432,33 @@ export function bareWords(s: string | null | undefined): string {
  */
 export const PREFIX_MIN_LENGTH = 4
 
+/**
+ * How many terms of ONE query may carry a prefix star.
+ *
+ * `PREFIX_MIN_LENGTH` bounds what a single star costs; nothing bounded how
+ * MANY of them a 200-character query could buy, and the price is strictly
+ * additive because each star is its own doclist merge. Measured on
+ * data/qarid.db: «الما»* 70 ms · plus «الحا»* 110 ms · plus «الوا»* 141 ms, and
+ * twelve legal four-letter starred words — well inside `FTS_TERM_CAP` and the
+ * 200-character cap — cost **594 ms** on an anonymous `GET /api/search`. Two is
+ * what a reader actually types («ابن* المعت*»); every later star is dropped and
+ * the word is searched whole, exactly as a too-short one is.
+ */
+export const STAR_TERM_CAP = 2
+
+/** The token FTS5's `*` will actually expand: the LAST word of the term.
+ *
+ * A phrase term keeps its internal spaces («"طلب العلم"*»), and FTS5 applies
+ * the prefix operator to the last token of the phrase only — so measuring the
+ * floor against the whole term let `"يا ا"*` through at four code points and
+ * scanned the one-letter prefix «ا»: 19.8 SECONDS on the real corpus through
+ * one unauthenticated GET. The guard has to measure what the star expands.
+ */
+function starredToken(term: string): string {
+  const i = term.lastIndexOf(" ")
+  return i === -1 ? term : term.slice(i + 1)
+}
+
 export interface FtsQueryOptions {
   /**
    * Honour an explicit trailing `*` (v2.md §2's wildcard). OFF by default: a
@@ -467,11 +494,15 @@ export function ftsQuery(
   const terms = ftsTermRecords(q)
   if (terms.length === 0) return ""
   const stars = opts.stars === true
-  return terms
-    .map((t) =>
-      stars && t.starred && [...t.term].length >= PREFIX_MIN_LENGTH ? `"${t.term}"*` : `"${t.term}"`,
-    )
-    .join(mode === "or" ? " OR " : " ")
+  let spent = 0
+  const parts = terms.map((t) => {
+    const honour =
+      stars && t.starred && spent < STAR_TERM_CAP && [...starredToken(t.term)].length >= PREFIX_MIN_LENGTH
+    if (!honour) return `"${t.term}"`
+    spent += 1
+    return `"${t.term}"*`
+  })
+  return parts.join(mode === "or" ? " OR " : " ")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

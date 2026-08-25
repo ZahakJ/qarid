@@ -31,6 +31,7 @@ import {
   ftsTerms,
   normalizeArabic,
   PREFIX_MIN_LENGTH,
+  STAR_TERM_CAP,
   opensConj,
   parseBaytKey,
   rawiyyOf,
@@ -424,6 +425,27 @@ describe("ftsQuery — the trailing star (v2.md §2)", () => {
   it("stars a phrase from outside its closing quote", () => {
     expect(ftsQuery('"طلب العلم"*', "and", { stars: true })).toBe('"طلب العلم"*')
     expect(ftsQuery('"طلب العلم"', "and", { stars: true })).toBe('"طلب العلم"')
+  })
+
+  it("measures the floor on the token the star expands, not on the whole phrase", () => {
+    // FTS5 applies `*` to the LAST token of a phrase. Counting the whole term
+    // let «"يا ا"*» through at four code points and scanned the one-letter
+    // prefix «ا» — 19.8 s of blocked event loop on the real corpus, through one
+    // unauthenticated GET /api/search.
+    expect([..."يا ا"].length).toBe(PREFIX_MIN_LENGTH)
+    expect(ftsQuery('"يا ا"*', "and", { stars: true })).toBe('"يا ا"')
+    expect(ftsQuery('"في ال"*', "and", { stars: true })).toBe('"في ال"')
+    // …and a phrase whose last token clears the floor still stars.
+    expect(ftsQuery('"يا حبيب"*', "and", { stars: true })).toBe('"يا حبيب"*')
+  })
+
+  it("honours at most STAR_TERM_CAP stars in one query", () => {
+    expect(STAR_TERM_CAP).toBe(2)
+    const q = "الحب* قلبي* كانت* والم* فالم*"
+    expect(ftsQuery(q, "or", { stars: true })).toBe('"الحب"* OR "قلبي"* OR "كانت" OR "والم" OR "فالم"')
+    // The cap counts only the stars actually honoured: a term refused by the
+    // length floor does not spend one.
+    expect(ftsQuery("ال* الحب* قلبي* كانت*", "and", { stars: true })).toBe('"ال" "الحب"* "قلبي"* "كانت"')
   })
 
   it("normalizes the starred term exactly like the index", () => {

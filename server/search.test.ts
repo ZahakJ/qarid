@@ -46,8 +46,20 @@ function url(params: Record<string, string | number>): string {
   return `/api/search?${qs}`
 }
 
+/**
+ * A fresh source address per request. `/api/search` carries a token bucket now
+ * (60 per 10 s per IP, `SEARCH_RATE_LIMIT`), and every `app.request()` in a
+ * suite otherwise looks like one anonymous client — a file with fifty searches
+ * in it would 429 itself halfway through and the failure would look like a
+ * search bug. Same reasoning as the room suite's per-player IP.
+ */
+let probeIp = 0
+function fromNewClient(): RequestInit {
+  return { headers: { "CF-Connecting-IP": `10.9.${(probeIp >> 8) & 255}.${probeIp++ & 255}` } }
+}
+
 async function search(params: Record<string, string | number>): Promise<SearchResponse> {
-  const res = await app.request(url(params))
+  const res = await app.request(url(params), fromNewClient())
   expect(res.status).toBe(200)
   return SearchResponseSchema.parse(await res.json())
 }
@@ -81,7 +93,7 @@ describe("GET /api/search — the envelope", () => {
   })
 
   it("400s on an illegal enum, because the client cannot legally emit one", async () => {
-    const res = await app.request("/api/search?q=x&scope=bogus")
+    const res = await app.request("/api/search?q=x&scope=bogus", fromNewClient())
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe("bad_query")
   })
@@ -218,7 +230,7 @@ describe("GET /api/search — the empty query", () => {
   })
 
   it("answers a missing q at all", async () => {
-    const res = await app.request("/api/search")
+    const res = await app.request("/api/search", fromNewClient())
     expect(res.status).toBe(200)
     const body = SearchResponseSchema.parse(await res.json())
     expect(body.q).toBe("")
