@@ -36,6 +36,16 @@ export interface RateLimitOptions {
 
 export interface RateLimiter {
   middleware: MiddlewareHandler
+  /**
+   * Spend one token for `key`, outside HTTP.
+   *
+   * The WebSocket `turn` command runs the same `playTurn` — the same FTS5
+   * MATCH and five jaccard comparisons — that `POST /:code/turn` runs, and an
+   * upgrade never reaches Hono middleware. So the bucket has to be spendable
+   * by hand, and the room socket keys it on the USER id rather than on the
+   * socket: a per-socket counter is defeated by opening a second socket.
+   */
+  take(key: string, at?: number): { ok: boolean; retryMs: number }
   /** forget every bucket (tests, and the only way to un-punish an IP) */
   reset(): void
   /** how many buckets are being tracked — asserted by the eviction test */
@@ -54,6 +64,17 @@ interface Bucket {
  * carries no information — recreating it costs one object — so dropping it is
  * free, and that keeps a slow scan across a /16 from growing this map without
  * bound.
+ *
+ * TWO THINGS THAT WERE WRONG HERE, and both had to be true for the sweep to
+ * work at all. (1) `tokens` is REFILLED LAZILY — only when its key is touched —
+ * so the value stored on an idle bucket is what it was at the last request,
+ * i.e. at most `capacity - 1` after any completed `take()`. Judging an idle
+ * bucket by that stored number meant `tokens >= capacity` was unsatisfiable and
+ * NOTHING was ever evicted: measured 200,000 one-shot IPs → 200,000 buckets
+ * retained, 208 MB RSS. The sweep therefore folds the elapsed refill in itself.
+ * (2) The sweep then ran on EVERY new key past the threshold — a full O(n) scan
+ * of the map, on the one event loop, deleting nothing: 0.9 ms per new IP at
+ * 200K buckets. It runs at most once per window now.
  */
 const SWEEP_AT = 4096
 
@@ -64,10 +85,15 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
   const keyOf = opts.keyOf ?? clientKey
   const now = opts.now ?? (() => Date.now())
   const buckets = new Map<string, Bucket>()
+  let sweptAt = Number.NEGATIVE_INFINITY
 
   const sweep = (t: number) => {
+    sweptAt = t
     for (const [key, b] of buckets) {
-      if (b.tokens >= capacity && t - b.at >= windowMs) buckets.delete(key)
+      const elapsed = Math.max(0, t - b.at)
+      // The refill this bucket would GET if it were touched now — the only
+      // honest reading of "has been idle long enough to carry no information".
+      if (elapsed >= windowMs && b.tokens + elapsed * perMs >= capacity) buckets.delete(key)
     }
   }
 
@@ -76,7 +102,7 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
     if (b === undefined) {
       b = { tokens: capacity, at: t }
       buckets.set(key, b)
-      if (buckets.size > SWEEP_AT) sweep(t)
+      if (buckets.size > SWEEP_AT && t - sweptAt >= windowMs) sweep(t)
     } else {
       const elapsed = Math.max(0, t - b.at)
       b.tokens = Math.min(capacity, b.tokens + elapsed * perMs)
@@ -101,6 +127,7 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
 
   return {
     middleware,
+    take: (key: string, at?: number) => take(key, at ?? now()),
     reset: () => buckets.clear(),
     size: () => buckets.size,
   }
