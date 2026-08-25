@@ -1,6 +1,9 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url"
+import { build as esbuild } from "esbuild"
 import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
+import { precacheVersion } from "./client/sw/swRoutes.ts"
 
 // Dev API server sits on 5750 (prod runs on 8010 so the live site keeps
 // serving while you develop). Vite dev 5751, preview 6750 — family scheme.
@@ -8,7 +11,7 @@ const API = "http://127.0.0.1:5750"
 
 export default defineConfig({
   root: "client",
-  plugins: [react(), dropWoffFallbacks()],
+  plugins: [react(), dropWoffFallbacks(), pwaServiceWorker()],
   build: { outDir: "../dist", emptyOutDir: true },
   server: {
     port: 5751,
@@ -73,6 +76,70 @@ function dropWoffFallbacks(): Plugin {
       if (!id.split("?")[0].endsWith(".css")) return null
       const out = code.replace(FALLBACK, "")
       return out === code ? null : { code: out, map: null }
+    },
+  }
+}
+
+/**
+ * The hand-rolled PWA service worker (docs/roadmap-mobile.md §M0), NO workbox.
+ *
+ * The worker source is `client/sw/sw.ts`. It runs in a worker global, so it is
+ * excluded from the app's tsconfig and bundled HERE on its own with esbuild —
+ * that also lets it `import` the unit-tested `swRoutes.ts` (one source of truth)
+ * while the precache manifest and the cache version are injected as `define`s.
+ *
+ * The version is a hash of the built asset URLs, whose filenames already carry
+ * vite's content hash — so any change to any shipped byte moves the version and
+ * `activate` drops the previous cache cleanly. It runs in `generateBundle`,
+ * where every emitted asset's final `fileName` is known, and emits `sw.js` into
+ * the same `dist/` root as `index.html` so its scope is the whole app. The
+ * public files it also precaches (`offline.html`, the manifest, the icons) are
+ * copied verbatim by vite from `client/public/`.
+ */
+function pwaServiceWorker(): Plugin {
+  // Precached alongside the hashed bundle — copied from client/public, so their
+  // names are stable and listed by hand. `/` and `/index.html` are the shell.
+  const STATIC_PRECACHE = [
+    "/",
+    "/index.html",
+    "/offline.html",
+    "/manifest.webmanifest",
+    "/icons/icon-192.png",
+    "/icons/icon-512.png",
+    "/icons/icon-192-maskable.png",
+    "/icons/icon-512-maskable.png",
+  ]
+  const swEntry = fileURLToPath(new URL("./client/sw/sw.ts", import.meta.url))
+
+  return {
+    name: "qarid:pwa",
+    apply: "build",
+    async generateBundle(_options, bundle) {
+      // Every emitted JS / CSS / woff2 — the shell's built assets and fonts.
+      const assetUrls = Object.keys(bundle)
+        .filter((f) => /\.(js|css|woff2)$/.test(f))
+        .map((f) => "/" + f)
+
+      // The version hashes the CONTENT-HASHED asset urls only: index.html and
+      // the public files are not hashed-named, but index.html's content moves
+      // its asset references, so this still flips on any real change.
+      const version = precacheVersion(assetUrls)
+      const precache = [...new Set([...STATIC_PRECACHE, ...assetUrls])].sort()
+
+      const built = await esbuild({
+        entryPoints: [swEntry],
+        bundle: true,
+        format: "iife",
+        target: "es2020",
+        minify: true,
+        write: false,
+        define: {
+          __SW_VERSION__: JSON.stringify(version),
+          __SW_PRECACHE__: JSON.stringify(precache),
+        },
+      })
+
+      this.emitFile({ type: "asset", fileName: "sw.js", source: built.outputFiles[0]!.text })
     },
   }
 }

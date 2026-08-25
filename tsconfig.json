@@ -16,5 +16,7 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["client", "server", "shared", "scripts", "tools", "test"]
+  "include": ["client", "server", "shared", "scripts", "tools", "test"],
+  "//": "client/sw/sw.ts runs in a ServiceWorker global (not the DOM lib this project targets) and is bundled on its own by the qarid:pwa vite plugin — its pure logic lives in the type-checked swRoutes.ts.",
+  "exclude": ["**/node_modules", "client/sw/sw.ts"]
 }

@@ -46,6 +46,7 @@ import "./styles/motion.css"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 import { App } from "./App.tsx"
+import { registerServiceWorker } from "./sw/register.ts"
 
 const root = document.getElementById("root")
 if (!root) throw new Error("#root missing")
@@ -55,3 +56,7 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 )
+
+// PWA (docs/roadmap-mobile.md §M0). Guarded: production only, and a no-op if
+// the worker cannot register. The web app never depends on it.
+registerServiceWorker()
