@@ -235,8 +235,10 @@
 .duel-hud {
   position: sticky;
   /* under the masthead, which is sticky at 0 and ~3.4rem tall — two bars that
-     pin to the same edge fight, and the nav loses */
-  inset-block-start: 3.4rem;
+     pin to the same edge fight, and the nav loses. Add the status-bar inset so
+     the HUD still pins below the masthead under edge-to-edge (see app.css
+     .masthead); the var is 0 off a passthrough WebView. */
+  inset-block-start: calc(3.4rem + var(--safe-area-inset-top, 0px));
   z-index: calc(var(--z-sticky) - 1);
   display: flex;
   flex-wrap: wrap;

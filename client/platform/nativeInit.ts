@@ -33,7 +33,14 @@ export async function nativeBoot(): Promise<void> {
 async function armStatusBar(): Promise<void> {
   try {
     const { StatusBar, Style } = await import("@capacitor/status-bar")
+    // setStyle keeps the bar glyphs light on ink and still works on API 35.
     await StatusBar.setStyle({ style: Style.Dark })
+    // setBackgroundColor / setOverlaysWebView are NO-OPS from Android 15 (API
+    // 35): a targetSdk ≥ 35 app is forced edge-to-edge and the OS ignores the
+    // deprecated status-bar colour and the fullscreen layout flags. They stay
+    // for API < 35 (harmless there). The actual edge-to-edge inset on API 35+
+    // is handled by Capacitor's SystemBars plugin injecting --safe-area-inset-*
+    // (capacitor.config.ts), which app.css's masthead/footer pad for.
     await StatusBar.setBackgroundColor({ color: INK })
     await StatusBar.setOverlaysWebView({ overlay: false })
   } catch {

@@ -13,7 +13,13 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
-        <!-- Ink the system bars; the app is dark, so glyphs stay light. -->
+        <!-- Under edge-to-edge (API 35+) the system bars are transparent and
+             the WINDOW BACKGROUND shows behind them; ink it so the status/nav
+             bars sit on seamless ink. SystemBars also paints the decor view
+             with this attr on every setStyle. -->
+        <item name="android:windowBackground">@color/ink</item>
+        <!-- statusBarColor/navigationBarColor are honoured on API < 35 only;
+             kept so the bars are ink there too. -->
         <item name="android:statusBarColor">@color/ink</item>
         <item name="android:navigationBarColor">@color/ink</item>
         <item name="android:windowLightStatusBar">false</item>

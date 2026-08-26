@@ -20,6 +20,17 @@
   z-index: var(--z-sticky);
   background: linear-gradient(var(--bg-0) 62%, rgba(7, 8, 12, 0));
   backdrop-filter: blur(10px);
+  /* EDGE-TO-EDGE (docs/roadmap-mobile.md). From Android 15 (API 35) a
+   * targetSdk ≥ 35 app is FORCED edge-to-edge and the WebView spans the whole
+   * window; the deprecated StatusBar overlay/color escapes are no-ops. On a
+   * modern WebView (≥ 140) Capacitor 8's built-in SystemBars plugin runs in
+   * PASSTHROUGH mode: it stops insetting the WebView and instead injects the
+   * real bar height as `--safe-area-inset-top`, expecting the page to pad for
+   * it — without this line the wordmark/nav/دخول draw UNDER the clock. The var
+   * is 0 everywhere else (any browser, the PWA, and on an older WebView where
+   * SystemBars pads the WebView natively), so this is a single inset, never a
+   * double one, and the website is pixel-identical. */
+  padding-block-start: var(--safe-area-inset-top, 0px);
 }
 
 .masthead__inner {
@@ -225,6 +236,11 @@
   inline-size: min(var(--col-wide), 100% - 2 * var(--sp-4));
   margin-inline: auto;
   padding-block: var(--sp-5);
+  /* Clear the gesture/navigation bar under edge-to-edge (see .masthead). The
+   * var is the real nav-bar height in SystemBars passthrough mode and 0
+   * everywhere else; it collapses to 0 while the keyboard is up (SystemBars
+   * folds the nav inset into the ime inset), so no wrong-sized gap. */
+  padding-block-end: calc(var(--sp-5) + var(--safe-area-inset-bottom, 0px));
   border-block-start: 1px solid var(--line-1);
   display: flex;
   align-items: center;

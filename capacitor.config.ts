@@ -38,6 +38,18 @@ const config: CapacitorConfig = {
       splashFullScreen: true,
       splashImmersive: true,
     },
+    // Capacitor 8's built-in edge-to-edge handler. `insetsHandling: "css"`
+    // (the default, stated here for the record) is what injects the real bar
+    // heights as `--safe-area-inset-*` on API 35+, which app.css's masthead
+    // and footer consume. `style: "DARK"` keeps the bar glyphs light on the
+    // ink background regardless of the device's day/night setting.
+    SystemBars: {
+      style: "DARK",
+      insetsHandling: "css",
+    },
+    // Legacy @capacitor/status-bar. Its setStyle (glyph colour) still works on
+    // API 35; overlaysWebView / backgroundColor are dead there (the OS forces
+    // edge-to-edge) but harmless, and still apply on API < 35.
     StatusBar: {
       style: "DARK",
       backgroundColor: "#07080c",
