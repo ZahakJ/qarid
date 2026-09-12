@@ -50,7 +50,7 @@ export function verdictOf(required: string | null, alsoAccepted: readonly string
  */
 export function clauseFor(required: string | null, source: RequiredLetterSource | null, alsoAccepted: readonly string[], mode: ChainMode): string | null {
   if (required === null) return null
-  if (mode === "literal") return "المبارزة على الحرف الأخير كما يُلفظ، لا على الرويّ"
+  if (mode === "literal") return "المبارزة على الحرف الأخير كما كُتب، لا على الرويّ"
   if (source === "peeled" && alsoAccepted.length > 0) {
     const tail = alsoAccepted[0]!
     if (tail === "ه") return "التاء المربوطة تُحسب هاءً، وتُقبل «ه» أيضًا"

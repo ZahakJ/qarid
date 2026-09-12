@@ -140,7 +140,7 @@ export function reportRoutes(users: UsersDb | null, config: Config): Hono {
     // would tell a scanner which names exist (they are enumerable anyway, but
     // the shape stays consistent with `/api/profile/:username`).
     if (!target) return c.json({ error: "not_found", message: "لا حساب بهذا الاسم" }, 404)
-    if (target.id === me.id) return c.json({ error: "cannot_report_self", message: "لا يُبلَّغ عن النفس" }, 400)
+    if (target.id === me.id) return c.json({ error: "cannot_report_self", message: "لا تبلّغ عن نفسك" }, 400)
 
     createReport(users, {
       reporterId: me.id,

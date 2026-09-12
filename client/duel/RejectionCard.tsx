@@ -194,7 +194,7 @@ export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRet
             ))}
           </ul>
           <button type="button" className="btn btn--ghost" onClick={onDismiss}>
-            لا، أعيد الكتابة
+            لا، سأعيد الكتابة
           </button>
         </div>
       ) : null}
@@ -213,7 +213,7 @@ export function RejectionCard({ rejection: r, onFill, onCommit, onDismiss, onRet
       ) : null}
 
       {r.kind === "too_short" ? (
-        <p className="reject__body">البيت شطران؛ اكتب البيت كاملًا أو صدره على الأقل.</p>
+        <p className="reject__body">البيت شطران؛ اكتبه كاملًا، أو صدره على الأقل.</p>
       ) : null}
 
       {r.kind === "not_in_album" ? (

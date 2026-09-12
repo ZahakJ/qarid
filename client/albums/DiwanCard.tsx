@@ -96,8 +96,8 @@ export function SavedDiwanCard({
             cannot explain. What is true either way is that a حظر stands
             between them, and that this row is his to remove. */}
         {row.gated === "blocked"
-          ? "بينك وبين جامعه حَظرٌ، فلا يُعرض لك ما جمع. ارفعه من صفحته إن كان منك، وإلّا فأخرِج الديوان من مكتبتك."
-          : "أعاده صاحبه إلى نفسه بعد أن حفظتَه، فلم يبقَ منه إلا موضعُه في مكتبتك."}
+          ? "بينك وبين جامعه حظرٌ يحجب عنك ما جمع. إن كان منك فارفعه من صفحته، وإلا فأخرِج الديوان من مكتبتك."
+          : "جعله صاحبه خاصًّا بعد أن حفظتَه، فلم يبقَ لك منه إلا موضعُه في مكتبتك."}
       </span>
       <span className="dwcard__foot">
         <span className="dwcard__when">حُفظ في {arabicDate(row.savedAt)}</span>

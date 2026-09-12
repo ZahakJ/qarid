@@ -243,7 +243,7 @@ async function deal(s: DuelState): Promise<void> {
         // reader cannot act on.
         message: s.config.album
           ? `لم أجد في «${s.config.album.title}» بيتًا أبدأ به`
-          : "لا أبيات بهذه القيود — خفّف القيود ثم أعد",
+          : "لا بيت يوافق هذه القيود — خفّفها ثم أعد",
         now: Date.now(),
       })
   } catch (e) {

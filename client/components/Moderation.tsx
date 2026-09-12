@@ -142,7 +142,7 @@ function ReportDialog({
         <div className="auth__headings">
           <h2 className="auth__title">{heading ?? `الإبلاغ عن «${displayName}»`}</h2>
           <p className="auth__lede">
-            {lede ?? "يصل بلاغك إلى القائمين على الديوان. لا يُخبَر صاحب الحساب بأنك أبلغت عنه."}
+            {lede ?? "يصل بلاغك إلى القائمين على الديوان، ولا يبلغ صاحبَ الحساب منه شيء."}
           </p>
         </div>
         <button type="button" className="btn btn--ghost auth__close" onClick={onClose} aria-label="إغلاق">
@@ -176,7 +176,7 @@ function ReportDialog({
             onChange={(e) => setNote(e.target.value)}
             maxLength={1000}
             rows={3}
-            placeholder="ما الذي دعاك للإبلاغ؟"
+            placeholder="ما الذي دعاك إلى الإبلاغ؟"
           />
         </label>
 
@@ -217,7 +217,7 @@ function BlockConfirm({
         <div className="auth__headings">
           <h2 className="auth__title">حظر «{displayName}»؟</h2>
           <p className="auth__lede">
-            لن يستطيع الدخول إلى غرفك ولا مساجلتك، ولن يُخبَر بذلك. لك أن ترفع الحظر متى شئت.
+            لن يدخل غرفك ولن يساجلك، ولن يعلم بشيء من هذا. ولك أن ترفع الحظر متى شئت.
           </p>
         </div>
         <button type="button" className="btn btn--ghost auth__close" onClick={onClose} aria-label="إغلاق">
@@ -302,7 +302,7 @@ export function ModerationActions({
       </button>
       {blocked ? (
         <button type="button" className="btn btn--ghost mod-actions__btn" onClick={() => void doUnblock()} disabled={busy}>
-          ألغِ الحظر
+          ارفع الحظر
         </button>
       ) : (
         <button type="button" className="btn btn--ghost mod-actions__btn" onClick={() => setConfirming(true)} disabled={busy}>
@@ -367,7 +367,7 @@ export function AlbumReportAction({
           /* «القائمين على قريض», not «على الديوان»: the account form's lede uses
              الديوان for the SITE, and on this dialog the same word is already
              the shelf being reported — one sentence, two senses. */
-          lede="يصل بلاغك إلى القائمين على قريض، ومعه اسمُ هذا الديوان ووصفُه. لا يُخبَر جامعه بأنك أبلغت."
+          lede="يصل بلاغك إلى القائمين على قريض، ومعه اسمُ هذا الديوان ووصفُه، ولا يبلغ جامعَه منه شيء."
           context="ديوان"
           onClose={() => setReporting(false)}
         />

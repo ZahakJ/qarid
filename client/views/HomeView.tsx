@@ -243,7 +243,7 @@ export function HomeView() {
       <section className="duel-bar" aria-label="المساجلة">
         <div className="duel-bar__copy">
           <h2 className="duel-bar__title">المساجلة</h2>
-          <p className="duel-bar__note">يُنشد الخصمُ بيتًا، فتُجيبَه ببيتٍ يبدأ برويّه.</p>
+          <p className="duel-bar__note">يُنشد الخصمُ بيتًا، فتردُّ عليه ببيتٍ أوّلُه رويُّه.</p>
         </div>
         <dl className="duel-bar__stats">
           {/* the game's own read-outs, on the game's own scale (Hud.tsx) */}

@@ -280,7 +280,7 @@ export function DiwanView({ code }: { code: string }) {
           <p className="diwan-empty">
             {album.isOwner
               ? "افتح قصيدةً، وانقر «أضِف إلى ديوان» تحت البيت الذي أعجبك — أو أضِف القصيدة كلّها من رأسها."
-              : "لم يضع صاحب هذا الديوان فيه شيئًا بعد."}
+              : "لم يضع صاحبه فيه بيتًا بعد."}
           </p>
           {/* An empty state that names the gesture and then leaves the reader
               on it is a page with no way forward: «افتح قصيدةً» is a door and
@@ -645,8 +645,8 @@ function DiwanRow({
           className="diwan-move diwan-move--more"
           onClick={onPoemActs}
           disabled={busy}
-          aria-label={`أفعال قصيدة البيت ${index + 1}`}
-          title="أفعال القصيدة"
+          aria-label={`خيارات قصيدة البيت ${index + 1}`}
+          title="خيارات القصيدة"
         >
           {busy ? "…" : "⋯"}
         </button>

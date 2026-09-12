@@ -173,7 +173,7 @@ function AlbumPicker({ pick }: { pick: AlbumPick }) {
             </button>
           </div>
           {albums.length >= ALBUM_LIMITS.perUser ? (
-            <p className="dwpick__quiet">بلغتَ أقصى عدد من الدواوين — احذف واحدًا لتُنشئ غيره.</p>
+            <p className="dwpick__quiet">لا مكان لديوانٍ آخر — احذف واحدًا لتُنشئ غيره.</p>
           ) : null}
         </div>
 

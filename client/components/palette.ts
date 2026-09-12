@@ -54,7 +54,7 @@ export const PALETTE_MIN_CHARS = 2
 export const PALETTE_DEBOUNCE_MS = 200
 
 export const PALETTE_LABEL = "البحث السريع"
-export const PALETTE_PLACEHOLDER = "ابحث في الديوان: بيتٍ، أو قصيدةٍ، أو شاعرٍ"
+export const PALETTE_PLACEHOLDER = "ابحث في الديوان عن بيت، أو قصيدة، أو شاعر"
 
 /**
  * The same invitation, short enough to survive a phone — the omnibox's own
@@ -64,7 +64,7 @@ export const PALETTE_PLACEHOLDER = "ابحث في الديوان: بيتٍ، أ�
  */
 export const PALETTE_PLACEHOLDER_NARROW = "ابحث في الديوان"
 
-export const PALETTE_IDLE = "اكتب كلمةً، أو نصفَ بيتٍ، أو اسمَ شاعرٍ."
+export const PALETTE_IDLE = "اكتب كلمةً، أو شطر بيت، أو اسم شاعر."
 
 /** No hit — and the one thing worth trying next, which the footer names. */
 export const PALETTE_EMPTY = "لا شيء بهذا اللفظ. جرّب كلمةً أقصر، أو نجمةً في آخرها."
@@ -95,7 +95,7 @@ export const PALETTE_ALL_KEYS = ["Ctrl", "↵"]
 export const PALETTE_KEY_HINTS: { keys: string[]; label: string }[] = [
   { keys: ["↵"], label: "افتح" },
   { keys: ["↑", "↓"], label: "تنقّل" },
-  { keys: ["Esc"], label: "إغلاق" },
+  { keys: ["Esc"], label: "أغلق" },
 ]
 
 export { GROUP_LABEL }

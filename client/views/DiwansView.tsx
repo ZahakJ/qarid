@@ -185,7 +185,7 @@ function NewDiwanModal({ onClose, onCreated }: { onClose: () => void; onCreated:
   return (
     <AlbumModal
       title="ديوانٌ جديد"
-      note="سَمِّه الآن؛ الوصف ومن يراه يُضبطان في صفحته."
+      note="سَمِّه الآن، ودَع الوصف ومن يراه لصفحته."
       onClose={onClose}
       className="dwmodal--new"
       footer={

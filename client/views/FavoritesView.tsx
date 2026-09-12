@@ -123,7 +123,7 @@ export function FavoritesView({ collection }: { collection?: string }) {
             className="btn btn--ghost"
             onClick={() => {
               deleteCollection(activeCollection.id)
-              toast("حُذفت المجموعة (الأبيات باقية في الكل)", "info")
+              toast("حُذفت المجموعة، وأبياتها باقية في «الكل»", "info")
               go(undefined)
             }}
           >

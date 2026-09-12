@@ -207,7 +207,7 @@ export function MoreView() {
         <Group title="اللعب">
           <LinkRow
             icon={<RulesMark />}
-            label="كيف تتم المساجلة"
+            label="كيف تجري المساجلة"
             note="كيف يُشتقّ الرويّ، وما يُقبل وما يُردّ"
             route={{ view: "rules" }}
           />
@@ -228,7 +228,7 @@ export function MoreView() {
               </p>
               <p className="moreabout__line">
                 المتن من مجموعة <bdi dir="ltr">arbml/ashaar</bdi> المفتوحة، جُمعت من الدواوين المنشورة على الشابكة.
-                القصائد وأصحابها لأهلها، وهذا فهرسٌ لها لا أكثر.
+                القصائد لأصحابها، ونسبتُها على عهدة مصادرها، وهذا فهرسٌ لها لا أكثر.
               </p>
               <p className="moreabout__line">
                 {/* The Latin family name is its own LTR run AND unbreakable:

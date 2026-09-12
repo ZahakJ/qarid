@@ -261,7 +261,7 @@ export function AvatarControl({
       ) : null}
 
       {editing ? (
-        <div className="avatar-editor-overlay" role="dialog" aria-modal="true" aria-label="اقتطاع الصورة">
+        <div className="avatar-editor-overlay" role="dialog" aria-modal="true" aria-label="قصّ الصورة">
           <div className="avatar-editor" role="group">
           <div
             className="avatar-editor__stage"

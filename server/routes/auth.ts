@@ -120,7 +120,7 @@ export async function readJsonBody(c: Context, max = MAX_AUTH_BODY): Promise<{ o
   if (type !== "application/json") {
     return {
       ok: false,
-      res: c.json({ error: "unsupported_media_type", message: "الطلب يجب أن يكون application/json" }, 415),
+      res: c.json({ error: "unsupported_media_type", message: "لا يُقبل الطلب إلا بصيغة application/json" }, 415),
     }
   }
 
@@ -504,7 +504,7 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
     // malformed code — so none of them is distinguishable from the others.
     const badRecovery = () => c.json({ error: "bad_recovery", message: "الاسم أو رمز الاستعادة غير صحيح" }, 401)
     const locked = () =>
-      c.json({ error: "recovery_locked", message: "أُغلق باب الاستعادة مؤقتًا بعد محاولات كثيرة — أمهِل قليلًا" }, 429)
+      c.json({ error: "recovery_locked", message: "أُغلق باب الاستعادة مؤقتًا بعد محاولات كثيرة — عُد بعد قليل" }, 429)
 
     const now = Date.now()
     const row = findUserByUsername(users, username)

@@ -234,7 +234,7 @@ export function DrillView({ letter }: { letter?: string }) {
             مذاكرةٌ على حرف <span className="drill-letter">{letter}</span> — {LETTER_NAMES[letter as HijaiLetter]}.
           </>
         ) : (
-          "يُعرض الصدر، ويُطلب العجز. اكتبه من حفظك، أو اطلب أن يُظهَر."
+          "لك الصدر، وعليك العجز: اكتبه من حفظك، أو اطلب أن يُظهَر."
         )}
       </p>
     </header>

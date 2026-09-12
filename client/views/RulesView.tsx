@@ -45,11 +45,11 @@ export function RulesView() {
       <header className="view__head">
         <h1 className="view__title">قواعد المساجلة</h1>
         <p className="view__lede">
-          يُنشد الخصمُ بيتًا، فتُجيبَه ببيتٍ يبدأ بحرف رويِّه. فإذا انقطعتَ، ذهبتْ روح؛ وإذا انقطع هو، فقد أفحمتَه.
+          يُنشد الخصمُ بيتًا، فتُجيبُه ببيتٍ يبدأ بحرف رويِّه. فإذا انقطعتَ، ذهبتْ روح؛ وإذا انقطع هو، فقد أفحمتَه.
         </p>
         <p className="setup-teach">
           <button type="button" className="btn btn--ghost setup-teach__btn" onClick={() => setWalkthrough(true)}>
-            كيف تتم المساجلة؟
+            كيف تجري المساجلة؟
           </button>
           <span className="setup-teach__note">خمس خطوات على بيتٍ حقيقيّ، قبل القواعد المفصّلة.</span>
         </p>
@@ -90,7 +90,7 @@ export function RulesView() {
           </li>
           <li>
             <b>بلا تشكيل، وبأيّ رسمٍ للهمزة.</b>
-            <span>«إذا» و«اذا» سواء، و«التاء المربوطة» تُحسب هاءً، والألف المقصورة ياءً.</span>
+            <span>«إذا» و«اذا» سواء، والتاء المربوطة تُحسب هاءً، والألف المقصورة ياءً.</span>
           </li>
           <li>
             <b>ولو أخطأتَ كلمةً أو كلمتين.</b>
@@ -98,7 +98,7 @@ export function RulesView() {
           </li>
           <li>
             <b>ولا يُقبل بيتٌ قيل مرّتين.</b>
-            <span>ولا بيتٌ من قصيدةٍ سبق أن أخذتَ منها بيتًا — لا تُعدَّن على ديوانٍ واحد.</span>
+            <span>ولا بيتٌ من قصيدةٍ سبق أن أخذتَ منها بيتًا — لكلّ قصيدةٍ بيتٌ واحد.</span>
           </li>
         </ul>
       </section>
@@ -165,7 +165,7 @@ export function RulesView() {
           تحدّي اليوم
         </a>
         <button type="button" className="btn" onClick={() => setWalkthrough(true)}>
-          كيف تتم المساجلة؟
+          كيف تجري المساجلة؟
         </button>
       </div>
 

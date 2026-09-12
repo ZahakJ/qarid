@@ -198,7 +198,7 @@ export function TrainHubView() {
                 </span>
                 <span className="leech__acts">
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => restore(card.id)}>
-                    استبدل
+                    أعِده
                   </button>
                   <button type="button" className="btn btn--ghost btn--sm" onClick={() => drop(card.id)}>
                     احذف

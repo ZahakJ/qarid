@@ -141,7 +141,7 @@ function KnockGate({
         <p className="view__lede">
           {badKey
             ? "رابطك لا يفتح هذه الغرفة — لعلّه بُتر في النقل. اطرق الباب، أو اطلب الرابط ثانيةً."
-            : "بلغتَ الغرفة بالرمز — واستئذانُ صاحبها هو الباب."}
+            : "بلغتَ الغرفة بالرمز — والباب بيد صاحبها."}
         </p>
       </div>
       <Rule />
@@ -173,7 +173,7 @@ function KnockGate({
           <>
             <p className="room-knock__line">هذه الغرفة تُدخَل بإذن صاحبها.</p>
             <p className="room-knock__note">
-              الرمز يدلّ على الغرفة، والإذن هو الذي يفتحها. اطرق الباب، فيصلُ صاحبَها أنك تريد الدخول.
+              الرمز يدلّك على الغرفة، والإذن يفتحها. اطرق الباب، فيعلمَ صاحبُها أنك تريد الدخول.
             </p>
             <button type="button" className="btn btn--primary btn--lg" onClick={onKnock} disabled={knocking}>
               {knocking ? "…يُطرق الباب" : "اطرق الباب"}

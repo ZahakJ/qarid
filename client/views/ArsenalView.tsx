@@ -183,7 +183,7 @@ function LetterDetail({ stat }: { stat: LetterStat }) {
         </div>
         <div>
           <dt>محفوظ</dt>
-          <dd className="num" title="بطاقات بلغت واحدًا وعشرين يومًا">
+          <dd className="num" title="بطاقات بلغ فاصلُ مراجعتها 21 يومًا">
             {formatScore(stat.mastered)}
           </dd>
         </div>

@@ -197,7 +197,7 @@ export function QafiyaView({ query }: { query: QafiyaQuery }) {
           <Shamsa size={13} />
           <span>الرويّ</span>
         </h2>
-        <p className="qaf-well__note">تحت كلِّ حرفٍ عددُ ما في الديوان من أبياتٍ تنتهي إليه.</p>
+        <p className="qaf-well__note">تحت كلِّ حرفٍ عددُ ما خُتم به من أبيات الديوان.</p>
       </div>
 
       <LetterGrid label="الرويّ" counts={letterCounts} active={rawiyy ?? null} onPick={(l) => set("rawiyy", l)} />
@@ -245,7 +245,7 @@ export function QafiyaView({ query }: { query: QafiyaQuery }) {
     <div className="view qaf-view">
       <header className="view__head">
         <h1 className="view__title">باحث القافية</h1>
-        <p className="view__lede">اختر الرويّ، فنُريك ما قافاه به الفحول.</p>
+        <p className="view__lede">اختر الرويّ، فنُريك ما نظم عليه الفحول.</p>
       </header>
 
       {folded ? (

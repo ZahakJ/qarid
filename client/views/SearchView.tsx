@@ -126,7 +126,7 @@ export function SearchView({ q, page }: { q: string; page: number }) {
       })
       .catch((e: unknown) => {
         if (ac.signal.aborted) return
-        setError(e instanceof ApiError ? e : new ApiError("network", "تعذّر تنفيذ البحث", "/api/search"))
+        setError(e instanceof ApiError ? e : new ApiError("network", "تعذّر البحث", "/api/search"))
       })
       .finally(() => {
         if (!ac.signal.aborted) setLoading(false)
@@ -297,7 +297,7 @@ export function SearchView({ q, page }: { q: string; page: number }) {
           <p className="view-error__msg">{error.message}</p>
         </div>
       ) : !sent ? (
-        <p className="view__lede">اكتب بيتًا، أو شطرًا منه، أو اسم شاعر. وضَعْ «…» حول العبارة لتُطلب كما هي.</p>
+        <p className="view__lede">اكتب بيتًا، أو شطرًا منه، أو اسم شاعر. وضَعِ العبارة بين «…» لتأتيك كما هي.</p>
       ) : loading && baits.length === 0 ? (
         <BaytSkeleton rows={5} size={settings.verseSize} />
       ) : res && res.total === 0 ? (
@@ -341,7 +341,7 @@ export function SearchView({ q, page }: { q: string; page: number }) {
                 className="btn"
                 onClick={() => navigate({ view: "search", q: `${bare}*`, page: 1 }, true)}
               >
-                ابحث عمّا بدأ بها
+                ابحث عمّا يبدأ بها
               </button>
             ) : null}
             <a className="btn btn--ghost" href={routeHash({ view: "browse", query: {} })}>

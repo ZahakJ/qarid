@@ -16,11 +16,11 @@ export type VisibilityCopy = { label: string; note: string }
 
 export const VISIBILITY: Record<AlbumVisibility, VisibilityCopy> = {
   private: { label: "لك وحدك", note: "لا يراه أحد سواك" },
-  unlisted: { label: "بالرابط", note: "يفتحه من تُعطيه الرابط، ولا يُعرض في مكان" },
+  unlisted: { label: "بالرابط", note: "يفتحه من تُعطيه الرابط، ولا يظهر في أيّ مكان" },
   // «مفتوح» is the PUBLISH state and the wording says the part that is easy to
   // miss: it does not merely open the link, it puts the ديوان on the curator's
   // own page for anyone who visits it.
-  public: { label: "مفتوح", note: "يُعرض في صفحتك، ويفتحه كل من وصله رابطه" },
+  public: { label: "مفتوح", note: "يظهر في صفحتك، ويفتحه كلُّ من وصله الرابط" },
 }
 
 /** The order the owner's control offers them: the closed door first. */

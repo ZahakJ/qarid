@@ -618,7 +618,7 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
       {typeSheet ? (
         <Sheet
           title="القراءة"
-          note="يُحفظ اختيارك للقصائد كلّها."
+          note="اختيارك هنا يبقى لك، وللقصائد كلّها."
           onClose={() => setTypeSheet(false)}
           className="sheet--type"
           footer={

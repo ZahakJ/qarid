@@ -56,7 +56,7 @@ export const TIER_PRESETS: readonly TierPreset[] = [
   {
     tier: "poet",
     name: "شاعر",
-    lede: "نصف الديوان الأعلى شهرةً",
+    lede: "النصف الأشهر من الديوان",
     difficulty: TIER_DIFFICULTY.poet,
     tailBias: "none",
     seconds: 40,
@@ -75,7 +75,7 @@ export const TIER_PRESETS: readonly TierPreset[] = [
     lives: 2,
     pool: "الديوان كله",
     hints: "الهمس بضعف الثمن",
-    adversarial: "يؤثر القوافي النادرة",
+    adversarial: "يُؤثِر القوافي النادرة",
   },
   {
     tier: "sword",

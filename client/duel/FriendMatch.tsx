@@ -99,7 +99,7 @@ function JoinByCode() {
   const submit = () => {
     const parsed = RoomCodeSchema.safeParse(code)
     if (!parsed.success) {
-      setError("الرمز ستة أحرف — كما يُملى بالصوت.")
+      setError("الرمز ستة أحرفٍ — كما يُملى عليك شفاهًا.")
       return
     }
     navigate({ view: "room", code: parsed.data })
@@ -262,7 +262,7 @@ function FriendDialog({ onClose }: { onClose: () => void }) {
       <section className="friend-sect">
         <h3 className="friend-sect__title">المطلع</h3>
         <p className="friend-sect__lede">
-          البيت الذي تُنشده أنت، ويُجيب عنه صاحبك. اتركه لنا وسنختار من مشاهير الأبيات.
+          البيت الذي تُنشده أنت ويردّ عليه صاحبك. وإن تركته لنا اخترنا لك من مشاهير الأبيات.
         </p>
 
         {bait ? (
@@ -335,7 +335,7 @@ function FriendDialog({ onClose }: { onClose: () => void }) {
         <p className="friend-row__note">
           {timer === "off"
             ? "بلا مهلة: لا ينتهي الدور إلا ببيت — أو بانسحاب."
-            : `من انقضت مهلته خسر المساجلة. ${formatNumber(Number(timer))} ثانية لكل بيت، والخادم هو الحَكَم في الوقت.`}
+            : `من انقضت مهلته خسر المساجلة. ${formatNumber(Number(timer))} ثانية لكل بيت، والساعةُ ساعةُ الخادم لا ساعتُك.`}
         </p>
 
         <div className="friend-row">

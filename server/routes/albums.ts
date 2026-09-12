@@ -171,7 +171,7 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
     const parsed = await parseBody(c, AlbumCreateRequestSchema)
     if (!parsed.ok) return parsed.res
     if (countAlbums(who.users, who.user.id) >= ALBUM_LIMITS.perUser) {
-      return c.json({ error: "too_many_albums", message: "بلغتَ أقصى عدد من الدواوين", limit: ALBUM_LIMITS.perUser }, 409)
+      return c.json({ error: "too_many_albums", message: "لا متّسع لديوان آخر", limit: ALBUM_LIMITS.perUser }, 409)
     }
     const album = createAlbum(
       who.users,

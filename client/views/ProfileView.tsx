@@ -335,7 +335,7 @@ export function ProfileView({ username }: { username: string }) {
           ))}
         </div>
         <p className="profile-note">
-          هذا سجلّ المساجلة مع الناس. أمّا مساجلتك للديوان وحدك فمحفوظة في متصفحك، لا هنا.
+          هذا سجلّك مع الناس. أمّا مساجلتك للديوان وحدك فمحفوظة في متصفّحك، لا هنا.
         </p>
       </section>
 
@@ -347,7 +347,7 @@ export function ProfileView({ username }: { username: string }) {
           <Panel quiet className="profile-empty">
             <div className="profile-empty__text">
               <p className="profile-empty__line">لا مساجلة بعد.</p>
-              <p className="profile-empty__note">ادعُ صديقًا إلى بيتٍ واحد، وليُجِبْ عن رويّه.</p>
+              <p className="profile-empty__note">ادعُ صديقًا إلى بيتٍ واحد، ولنرَ بِمَ يردّ على رويّه.</p>
             </div>
             <a className="btn btn--primary" href={routeHash({ view: "duel" })}>
               إلى المساجلة
@@ -576,7 +576,7 @@ function DeleteAccountDialog({
           <div className="auth__headings">
             <h2 className="auth__title">حذف الحساب</h2>
             <p className="auth__lede">
-              هذا الإجراء لا رجعة فيه. سيُمحى حسابك «{username}» ولا يمكن استرجاعه.
+              لا رجعة بعد هذا: يُمحى حسابك «{username}» ولا سبيل إلى استرجاعه.
             </p>
           </div>
           <button type="button" className="btn btn--ghost auth__close" onClick={onClose} aria-label="إغلاق">
@@ -710,7 +710,7 @@ function RecoveryCodeDialog({ onClose }: { onClose: () => void }) {
             <p className="auth__lede">
               {code
                 ? "هذا رمزك الجديد، ولن يظهر ثانيةً. احفظه في مأمن — به وحده تستعيد حسابك إن نسيتَ كلمة السر."
-                : "لا بريد هنا، فرمز الاستعادة وحده يعيد إليك حسابك. وليس عند الخادم إلا بصمته لا الرمز نفسه، فإن ضاع منك فولِّد غيره — ويبطل القديم."}
+                : "لا بريد هنا، فرمز الاستعادة وحده يردّ إليك حسابك. والخادم لا يحفظ الرمز نفسه بل بصمته، فإن ضاع منك فولِّد غيره — ويبطل القديم."}
             </p>
           </div>
           <button type="button" className="btn btn--ghost auth__close" onClick={onClose} aria-label="إغلاق">

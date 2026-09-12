@@ -283,7 +283,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
         </p>
         <p className="setup-teach">
           <button type="button" className="btn btn--ghost setup-teach__btn" onClick={() => setWalkthrough(true)}>
-            كيف تتم المساجلة؟
+            كيف تجري المساجلة؟
           </button>
           <span className="setup-teach__note">خمس خطوات على بيتٍ حقيقيّ — دقيقة واحدة.</span>
         </p>
@@ -336,7 +336,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
                       <dd>{t.adversarial}</dd>
                     </div>
                   </dl>
-                  {!allowed ? <span className="tier__locked">تحتاج إلى تشغيل الوقت</span> : null}
+                  {!allowed ? <span className="tier__locked">أوقِد الوقت أولًا</span> : null}
                 </button>
               </li>
             )
@@ -353,7 +353,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
             screen: a filter narrows the ديوان the OPPONENT draws from. The
             player answers out of the whole corpus either way. */}
         <p className="setup-sect__lede">
-          تحصر ما يُنشده الخصم، لا ما تُجيب به أنت: أنت تُجيب من الديوان كلّه على كل حال. اترك «كل العصور» و«كل
+          تحصر ما يُنشده الخصم، لا ما تُجيب به أنت؛ فجوابك من الديوان كلّه مهما قيّدت. اترك «كل العصور» و«كل
           البحور» وحقلَ الشاعر فارغًا ليُنشد من كلّ شيء.
         </p>
         <div className="setup-row">
@@ -425,7 +425,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
         ) : null}
         {emptyTier ? (
           <p className="setup-pool__relax">
-            لا شيء في هذه الرتبة من هذه القيود — سيُنشد الخصم من رتبةٍ أوسع:{" "}
+            لا تُبقي هذه القيودُ في الرتبة بيتًا، فسيُنشد الخصم من رتبةٍ أوسع:{" "}
             <span className="setup-pool__n">{formatCount(pool!.effective)}</span>{" "}
             {countedUnit(pool!.effective, BAYT_FORMS)}.
           </p>
@@ -502,7 +502,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
                 : "لا اقتراحات ولا أبيات تُعرض عليك — إنّما الهمس بثمنه إن احتجت."}
             </p>
             <p className="setup-opt__price" data-on={assist ? "1" : undefined}>
-              نقاطك في هذا الوضع نصفُ نقاطك، وما تدفعه في الهمس بثمنه كاملًا.
+              نقاطك في هذا الوضع على النصف، أمّا الهمس فبثمنه كاملًا.
             </p>
           </div>
         </div>
