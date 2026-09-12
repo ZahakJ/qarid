@@ -1,7 +1,7 @@
-# Contributing to قريض
+# Contributing
 
-Thanks for looking. Two things before anything else: this project has opinions
-that are written down, and it has a done bar that is not negotiable.
+Two things first: the project's opinions are written down, and the done bar is
+not negotiable.
 
 ## The done bar
 
