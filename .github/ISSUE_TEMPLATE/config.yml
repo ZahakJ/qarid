@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Security vulnerability
+  - name: ثغرة أمنيّة
     url: https://github.com/ZahakJ/qarid/security/advisories/new
-    about: Report privately, never as a public issue. See SECURITY.md.
+    about: بلِّغ سرًّا، لا في مسألةٍ علنيّة. انظر SECURITY.md.

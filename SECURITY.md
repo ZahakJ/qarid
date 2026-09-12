@@ -1,58 +1,35 @@
-# Security policy
+# سياسة الأمن
 
-## Reporting a vulnerability
+## التبليغ عن ثغرة
 
-**Please do not open a public issue.**
+**لا تفتح مسألةً علنيّة.**
 
-Use GitHub's private reporting — the **Security** tab → *Report a
-vulnerability* — which opens a channel visible only to the maintainers.
+استعمل التبليغَ الخاصَّ في GitHub — تبويب **Security** ثمّ *Report a vulnerability* — فيفتح قناةً لا يراها إلّا القيّمون.
 
-Tell us what you can: what you did, what happened, and what you think an
-attacker gets from it. A rough report of something real is far more useful than
-a polished report of nothing. If you have a proof of concept, include it; if
-you would rather describe the class of problem than hand over a working
-exploit, that is fine too.
+قُل ما تستطيع: ما فعلتَ، وما حدث، وما الذي يظنّ المهاجمُ أنّه يناله. بلاغٌ خامٌ عن شيءٍ حقيقيٍّ أنفعُ من بلاغٍ مصقولٍ عن لا شيء. إن كان عندك إثباتُ مفهومٍ فأرفقه، وإن آثرتَ وصفَ صنف المشكلة على تسليم استغلالٍ يعمل فذاك مقبول.
 
-You should get an acknowledgement within a week. If a fix is warranted we will
-tell you when it ships, and credit you unless you would rather we did not.
+يصلك إقرارٌ في أسبوع. وإن استحقّ الأمرُ إصلاحًا أُعلمتَ بموعد شحنه، ونُسب إليك إلّا أن تأبى.
 
-## What is in scope
+## ما يدخل في النطاق
 
-This is a self-hosted application, so "in scope" means a defect in **this
-code** that a deployment cannot configure its way out of. Most usefully:
+التطبيقُ يستضيفه صاحبُه، فـ«في النطاق» يعني عيبًا في **هذه الشيفرة** لا يُخرِج منه الإعدادُ. وأنفعُ ذلك:
 
-- **Anything that writes to the corpus artefact.** It is opened read-only and a
-  stray write should throw; a path that gets around that is a real bug.
-- **Cross-account access** through the accounts database — reading, changing or
-  deleting another reader's دواوين, profile or sessions.
-- **Authentication and session handling**: password verification, the recovery
-  code flow, cookie/bearer token issuance, session revocation on password
-  change.
-- **The CSRF and origin model.** The server refuses cross-site requests from
-  sibling subdomains and allowlists exactly three Capacitor WebView origins —
-  a way past that gate is in scope.
-- **The مساجلة room protocol.** A match is decided entirely server-side
-  precisely so a client cannot lie about a بيت; a client-driven way to score,
-  to see the opponent's بيت early, or to join a room without its key is a bug.
-- **Injection** anywhere the scraped corpus reaches a query, a template or an
-  HTML attribute. The corpus is scraped text and is treated as untrusted.
-- **Stored XSS** through anything a reader types: a ديوان title or description,
-  a display name, a profile.
+- **كلُّ ما يكتب في مِعلَم المتن.** يُفتح للقراءة فقط والكتابةُ العارضة تُرمى؛ مسارٌ يلتفّ على ذلك عطبٌ حقيقيّ.
+- **العبورُ بين الحسابات** عبر قاعدة الحسابات: قراءةُ دواوين قارئٍ آخر أو صفحتِه أو جلساته، أو تغييرُها، أو حذفُها.
+- **المصادقةُ والجلسات**: التحقّقُ من كلمة السر، ومسارُ رمز الاستعادة، وإصدارُ الكوكي ورمز الحامل، وإبطالُ الجلسات عند تغيير كلمة السر.
+- **نموذجُ CSRF والأصل.** الخادمُ يرفض الطلبَ عبرَ الموقع من نطاقٍ شقيق، ويُبيح ثلاثةَ أصولٍ لـWebView كابستور بعينها — طريقٌ حول هذه البوّابة في النطاق.
+- **بروتوكولُ غرف المساجلة.** المباراةُ تُحسَم عند الخادم كلُّها كي لا يكذب العميلُ في بيت؛ طريقٌ يقودها العميلُ إلى إحراز نقطة، أو رؤيةِ بيت الخصم قبل أوانه، أو دخولِ غرفةٍ بلا مفتاحها، عطب.
+- **الحقنُ** حيثما وصل نصُّ المتن المكشوط إلى استعلامٍ أو قالبٍ أو خاصّةِ HTML. المتنُ نصٌّ مكشوطٌ ويُعامَل غيرَ موثوق.
+- **XSS المخزَّن** عبر ما يكتبه القارئ: عنوانُ ديوان أو وصفُه، اسمٌ معروض، صفحة.
 
-## What is not
+## ما لا يدخل
 
-- A deployment that has not set `PUBLIC_ORIGIN`, or that exposes the server
-  directly instead of behind TLS. The server binds loopback by design.
-- Anything requiring an attacker to already hold your session cookie, bearer
-  token, recovery code or signing keystore.
-- Rate limits tuned to your own taste. They are in-memory and per-process by
-  design; a deployment behind several processes should put a limiter in front.
-- Denial of service by asking for very large pages. Limits are enforced, and
-  the corpus is 1.6 GB of read-only SQLite — slow is not the same as insecure.
-- Vulnerabilities in the corpus dataset itself, which this project ingests and
-  does not vouch for.
+- نشرٌ لم يضبط `PUBLIC_ORIGIN`، أو كشف الخادمَ مباشرةً بلا TLS. الخادمُ يربط على loopback عمدًا.
+- ما يحتاج المهاجمُ فيه إلى أن يحمل أصلًا كوكي جلستك أو رمزَ حاملك أو رمزَ استعادتك أو مخزنَ مفاتيح توقيعك.
+- حدودُ المعدّل على ذوقك. هي في الذاكرة ولكلّ عمليّةٍ عمدًا؛ نشرٌ خلف عدّة عمليّاتٍ يضع حدًّا أمامها.
+- حجبُ الخدمة بطلب صفحاتٍ كبيرة. الحدودُ مفروضة، والمتنُ 1.6 غ.ب من SQLite للقراءة — البطءُ ليس عدمَ الأمن.
+- ثغراتُ مجموعة البيانات نفسها، فالمشروعُ يُدخلها ولا يضمنها.
 
-## No bounty
+## لا مكافأة
 
-There is no money here. This is one person's side project, published so others
-can read it and run it. Credit and thanks are what is on offer.
+لا مالَ هنا. مشروعٌ جانبيٌّ لشخصٍ واحد، نُشر ليقرأه غيرُه ويشغّله. الشكرُ والنسبةُ ما يُعرَض.
