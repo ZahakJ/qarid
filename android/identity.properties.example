@@ -1,0 +1,13 @@
+# Who this build of the app IS. Copy to `identity.properties` (gitignored) and
+# fill in your own; without it the build uses placeholders and the app is
+# nobody's — which is what a public checkout should be.
+#
+#   applicationId  your Android package id, reverse-domain, e.g. com.acme.qarid
+#                  Must match capacitor.config.ts's appId — export the same
+#                  value as QARID_APP_ID when you run `npx cap sync`.
+#   appLinkHost    the host whose https:// links should open the app directly.
+#                  It must serve /.well-known/assetlinks.json naming this
+#                  package and your signing certificate, or Android silently
+#                  falls back to the browser.
+applicationId=com.example.qarid
+appLinkHost=qarid.example.com

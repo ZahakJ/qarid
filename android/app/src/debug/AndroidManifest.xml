@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only overlay (docs/roadmap-mobile.md §M1). The debug APK is built to hit
+  a LOCAL server at http://localhost:6760 (reached from the emulator via
+  `adb reverse tcp:6760 tcp:6760`) for the smoke, so it must permit cleartext to
+  localhost. This never affects the release build — the release loads only its
+  bundled assets and the https API, with cleartext off.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

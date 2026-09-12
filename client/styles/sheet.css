@@ -1,0 +1,467 @@
+/* قريض — the BOTTOM SHEET (client/components/Sheet.tsx).
+ *
+ * The one modal surface a phone gets. It loads after every view sheet, so the
+ * same rule chrome.css holds itself to holds here: nothing in this file names a
+ * bare class another stylesheet owns. Every selector either leads with one of
+ * this sheet's own new classes (`.sheet*`) or is scoped under one —
+ * `.sheet__body .facet-rail` reaches the browse rail only where that rail has
+ * been put INSIDE a sheet, and nowhere else.
+ *
+ * That is also why the desktop is untouched by construction and not by a media
+ * query: `useNativeChrome()` decides at each call site, and a desktop reader
+ * never has a `.sheet` in the document at all.
+ *
+ * `client/styles/styles.test.ts` fails if a bare selector ever appears here.
+ */
+
+/* ── the scrim ────────────────────────────────────────────────────────── */
+
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  /* the sheet is at the BOTTOM edge — that is the whole idiom */
+  align-content: end;
+  background: rgba(4, 5, 8, 0.66);
+  backdrop-filter: blur(5px);
+  animation: qr-sheet-scrim var(--dur-3) var(--ease-out) both;
+  /* A flick on the SCRIM scrolls nothing, here or behind. `overscroll-behavior`
+     only applies to a scroll container, and a fixed box that is merely covering
+     the page is not one — a touch on it still scrolls the document underneath.
+     `overflow: hidden` makes it a (programmatically scrollable) container, and
+     that is what gives `contain` something to hold. */
+  overflow: hidden;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* …and the page itself is frozen while a sheet is up. `html` declares no
+   overflow, so the viewport takes it from `body` (css-overflow-3 §3.3) — which
+   is also how base.css's `overflow-x: hidden` already reaches the viewport.
+   Scroll position survives, so closing the sheet returns the reader to the exact
+   line they were on. `Sheet.tsx` counts, so a sheet over a sheet releases once. */
+body[data-sheet="1"] {
+  overflow: hidden;
+}
+
+/* ── the sheet ────────────────────────────────────────────────────────── */
+
+.sheet {
+  display: grid;
+  /* grab · head · body · foot — the body is the only track that grows */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  max-block-size: min(88dvh, 46rem);
+  padding-block-start: var(--sp-2);
+  /* clear the gesture bar with BOTH signals: the injected var (Capacitor's
+     SystemBars in passthrough) and the CSS env() (an iOS PWA). A browser has
+     neither and gets 0 — the same pair chrome.css's two bars use. */
+  padding-block-end: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  background: var(--bg-1);
+  /* the sheet floats over ink; without an opaque backstop the blurred scrim
+     shows through the panel's own alpha and the verse behind it stays legible */
+  background-image: linear-gradient(var(--bg-1), var(--bg-1));
+  background-color: var(--bg-0);
+  border-block-start: 1px solid var(--accent-hair);
+  border-start-start-radius: var(--r-3);
+  border-start-end-radius: var(--r-3);
+  box-shadow: var(--shadow-2);
+  /* 320ms, inside v2 §8's 300–360 band for something arriving on screen */
+  animation: qr-sheet-rise var(--dur-3) var(--ease-out) both;
+}
+
+/* The notch: a sign, not a control. */
+.sheet__grab {
+  justify-self: center;
+  inline-size: 2.25rem;
+  block-size: 4px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+}
+
+.sheet__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+}
+
+.sheet__headings {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: grid;
+  gap: 2px;
+}
+
+/* Aref Ruqaa's ascenders run outside the em box — the line box has to hold them
+   or the title reads as clipped (the `.view__title` note in app.css). */
+.sheet__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  font-weight: 400;
+  line-height: 1.9;
+  color: var(--accent);
+}
+
+.sheet__note {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* 44px of target for a 14px glyph — the touch floor, everywhere on a phone. */
+.sheet__close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  margin-block-start: -0.25rem;
+  margin-inline-end: -0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-3);
+  font-size: var(--fs-ui-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sheet__close:active {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-1);
+}
+
+.sheet__body {
+  overflow-y: auto;
+  /* THE point of a sheet's own scroller: a flick that reaches the end of this
+     list must not carry on scrolling the page underneath it. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-2) var(--sp-4) var(--sp-4);
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+}
+
+/* A sheet with no body content (a confirm) must not keep an empty 16px band. */
+.sheet__body:empty {
+  display: none;
+}
+
+.sheet__foot {
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border-block-start: 1px solid var(--line-1);
+}
+
+.sheet__acts {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+/* Every action in a sheet is a full-width, thumb-sized row: at the bottom edge
+   of a phone there is no reason to make a target smaller than the surface it
+   sits on.
+   Declared on the CONTAINER's children rather than as a class the caller adds:
+   `.sheet__acts` exists only inside a sheet, while a class on the button itself
+   would travel with the button — and three of these call sites hand the very
+   same nodes to a desktop dialog as well (AuthDialog, ShareDialog, FriendMatch).
+   That is exactly how a phone rule reaches the desktop. */
+/* A STACKED footer: one full-width act per row. «أزِل القصيدة كلها من الديوان»
+   sitting beside «أعِد القصيدة كاملة» on one line is a fifty-fifty target for
+   two opposite outcomes, on a surface reached by thumb. */
+.sheet__acts--stack {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.sheet__acts > .btn {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+/* The docked room's «⋯» sheet: أبلغ / احظر / انسحب, each a full-width row.
+   `ModerationActions` lays its two buttons out inline for the desktop rail, so
+   inside this sheet they become rows like every other sheet action. */
+.sheet--roommore .roommore {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.sheet--roommore .roommore__mod {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+/* Ghost buttons carry no border, so three of them stacked on a sheet read as
+   three centred sentences rather than three rows you can press. Inside this
+   sheet each one takes the hairline back — the same one a `.btn` has — so the
+   surface says how many choices it is offering before it is read. */
+.sheet--roommore .roommore .btn {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  justify-content: center;
+  border: 1px solid var(--line-1);
+}
+
+/* Leaving a مساجلة is not the same kind of act as reporting one; it is the
+   destructive answer, and it is LAST because it is the one that ends the game. */
+.sheet--roommore .roommore__resign {
+  color: var(--danger);
+  border-color: rgba(var(--danger-rgb), 0.28);
+}
+
+/* THE WALKTHROUGH AS A SHEET.
+   Its footer is not a row of actions but the step DOTS plus the ←/→ nav, and on
+   a phone the nav has to be the thumb-sized half: the dots say where you are,
+   the buttons are what you press. So the footer stacks — dots centred above,
+   nav a full-width pair under — instead of the desktop's single justified row.
+   The demo inside a step is set at the phone's own measure, and the لوح of the
+   opponent's بيت is what makes a step tall, so the body scrolls under the
+   pinned nav rather than pushing it off the screen. */
+.sheet--wt .sheet__foot {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+}
+
+.sheet--wt .wt__nav {
+  inline-size: 100%;
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.sheet--wt .wt__nav > .btn {
+  flex: 1;
+  min-block-size: 3rem;
+  justify-content: center;
+}
+
+.sheet--wt .wt__body {
+  gap: var(--sp-4);
+}
+
+/* «أظهر النتائج  238,733 قصيدة» — the count is the answer, so it rides in the
+   button quietly rather than being a second line the reader has to look for. */
+.sheet__act-n {
+  font-size: var(--fs-ui-1);
+  opacity: 0.72;
+}
+
+/* ── a row of controls inside a sheet ─────────────────────────────────── */
+
+/* label on the inline-start edge, control on the other — the shape «المزيد»
+   already uses for a setting, so a سطر in a sheet and a سطر in a settings list
+   are visibly the same thing. */
+.sheet-row {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.sheet-row__label {
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+}
+
+.sheet-row__note {
+  font-size: var(--fs-ui-1);
+  line-height: 1.6;
+  color: var(--text-3);
+}
+
+/* A toggle row: the label pulls, the state sits at the far edge. */
+.sheet-toggle {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sheet-toggle__label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.sheet-toggle__state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: 0.8em;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.sheet-toggle[aria-pressed="true"] .sheet-toggle__state {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.sheet-toggle:active {
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+/* A hairline between rows, never under the last — the `.morerow-slot` rule. */
+.sheet-row + .sheet-row,
+.sheet-toggle + .sheet-toggle,
+.sheet-toggle + .sheet-row,
+.sheet-row + .sheet-toggle {
+  border-block-start: 1px solid var(--line-1);
+  padding-block-start: var(--sp-3);
+}
+
+/* ── what a hosted surface needs inside a sheet ───────────────────────── */
+
+/* The browse facet rail was drawn as a sticky COLUMN 15.5rem wide with its own
+   scroller (views.css). Inside a sheet it is simply the sheet's content: the
+   sheet owns the scrolling, the safe area and the height. */
+.sheet__body .facet-rail {
+  position: static;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  max-block-size: none;
+  overflow: visible;
+  padding-inline-end: 0;
+}
+
+/* Touch targets: an accordion header and every chip inside one clear 44px. */
+.sheet__body .facet__head {
+  min-block-size: 3rem;
+  padding-inline: var(--sp-3);
+}
+
+.sheet__body .facet__body {
+  padding-block-end: var(--sp-4);
+}
+
+/* A segmented control in a sheet spans the sheet: three options across 358px is
+   three thumb targets, and an `inline-flex` control shrink-wrapped to its
+   labels leaves two thirds of the row as dead space beside them. Scoped to the
+   sheet, so the same control on the desktop keeps its content measure. */
+.sheet__body .segmented {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+
+.sheet__body .segmented__opt {
+  min-block-size: 2.75rem;
+  padding-inline: var(--sp-2);
+}
+
+/* The auth form arrives with its own card furniture (auth.css) — the corners,
+   the nib, the head, the close. In a sheet the sheet is the card, so the form
+   is all that is wanted and it fills the width. */
+.sheet__body .auth__form {
+  gap: var(--sp-4);
+}
+
+/* auth.css centres this row; in a sheet the two modes are the sheet's width. */
+.sheet__body .auth__modes {
+  display: grid;
+}
+
+/* `grid-template-columns` explicitly, and not just `display: grid`: auth.css
+   also sets `justify-content: space-between` on this row, and under that a grid's
+   single `auto` column is sized to MAX-CONTENT rather than stretched — so the
+   `inline-size: 100%` below resolved against a 117px track and the sign-in
+   button stayed button-shaped in a full-width stack (measured). */
+.sheet__body .auth__actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+
+.sheet__body .auth__submit,
+.sheet__body .auth__switch {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  justify-content: center;
+}
+
+.sheet__body .auth-field__input {
+  min-block-size: 3rem;
+}
+
+.sheet__body .auth__forgot {
+  min-block-size: 2.75rem;
+}
+
+/* The بطاقة preview: the canvas is the artefact, so it keeps its aspect ratio
+   and simply takes the width the sheet gives it. */
+.sheet__body .sharecard__stage {
+  margin: 0;
+}
+
+/* In the sheet the square card must leave room for the title, the shape
+ * toggle and the actions WITHOUT the body scrolling — cap its height against
+ * the dynamic viewport (dvh follows the keyboard/browser chrome; vh is the
+ * fallback for an older WebView). */
+.sheet__body .sharecard__canvas {
+  inline-size: auto;
+  block-size: auto;
+  max-inline-size: 100%;
+  max-block-size: 44vh;
+  max-block-size: 44dvh;
+  margin-inline: auto;
+}
+
+/* «غرفة مساجلة»: the dialog's own body scroller becomes the sheet's. */
+.sheet__body .friend-dialog__body {
+  overflow: visible;
+  max-block-size: none;
+  padding: 0;
+}
+
+/* ── the two keyframes ────────────────────────────────────────────────── */
+
+@keyframes qr-sheet-scrim {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* It rises from its own bottom edge — a sheet that fades in is a card, and a
+ * card is what this idiom exists to replace. */
+@keyframes qr-sheet-rise {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* ── reduced motion ───────────────────────────────────────────────────── */
+
+/* base.css collapses every DURATION; what it cannot do is stop a 100% travel
+ * from being applied for that one collapsed frame. A reader who asked for less
+ * motion gets the sheet simply present. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation-name: qr-sheet-scrim;
+  }
+}
+
+body[data-reduce-motion="1"] .sheet {
+  animation-name: qr-sheet-scrim;
+}

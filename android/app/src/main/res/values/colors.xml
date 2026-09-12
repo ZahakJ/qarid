@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  قريض's palette (docs/roadmap-mobile.md §M1): illumination gold on blue-black
+  ink. Overrides the Capacitor library defaults so the system chrome — status
+  bar, navigation bar, splash — matches the app instead of the template's blue.
+-->
+<resources>
+    <color name="colorPrimary">#07080c</color>
+    <color name="colorPrimaryDark">#07080c</color>
+    <color name="colorAccent">#d6ad60</color>
+    <color name="ink">#07080c</color>
+</resources>

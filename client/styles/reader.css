@@ -1,0 +1,332 @@
+/* قريض — وضع القراءة (client/views/PoemReader.tsx).
+ *
+ * The قصيدة with everything else taken away: no masthead, no app bar, no tab
+ * bar, no footer, no rail of actions beside the بيت. What is left is a page of
+ * a ديوان — ink to the edges, one measure of Amiri down the middle, a شمسة
+ * between أبيات, and a gold hairline along the top edge saying how much of the
+ * قصيدة is behind you.
+ *
+ * WHERE THIS SHEET SITS: after anthology.css and before the three phone sheets,
+ * which is late enough to reach a `.bayt-row` that bayt.css already set. It is
+ * therefore held to the same rule chrome.css, sheet.css and phone.css are, and
+ * `client/styles/styles.test.ts` fails if it is broken: every selector's LEAD
+ * compound is one of this sheet's own `.reader*` classes. `.reader .bayt-rail`
+ * narrows a رسم to the reading; a bare `.bayt-rail` would take the four actions
+ * off every بيت in the app.
+ *
+ * The reading is a FIXED box on `document.body` (the component is a portal —
+ * see the containing-block trap in client/components/Sheet.tsx), so it needs no
+ * `body[data-…]` scope of its own: nothing renders `.reader` but the reader.
+ * `body[data-immersive="read"]` still exists, and App.tsx writes it, because
+ * the two BARS have to know to stand down and because the page under a reading
+ * must not scroll.
+ */
+
+/* The page under a reading does not scroll. `html` declares no overflow, so the
+   viewport takes it from `body` (css-overflow-3 §3.3) — the same route
+   sheet.css's freeze and base.css's `overflow-x` already use. There is little
+   left under a reading to scroll (the قصيدة page hands its DOM over rather than
+   sitting behind it), and this is what keeps the little there is still. */
+body[data-immersive="read"] {
+  overflow: hidden;
+}
+
+.reader {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  /* The ink DEEPENS: the app's page is `--bg-0` under a slow gold bloom, and a
+   * reading is the same ink with the bloom shut off and one quiet illumination
+   * at the head of the page — the manuscript's own, not a dashboard gradient. */
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(var(--accent-rgb), 0.07), transparent 62%),
+    var(--bg-0);
+  color: var(--text-1);
+
+  /* GENEROUS AMIRI. The three sizes are the قصيدة page's own persisted choice
+   * (`settings.verseSize`), so the reader does not add a fourth control or a
+   * second preference — it re-declares the SCALE those three names resolve to,
+   * one step up each, for the one surface with nothing else on it. BaytPlate is
+   * untouched: it goes on reading `--fs-bayt-*` exactly as it does everywhere.  */
+  --fs-bayt-sm: clamp(1.2rem, 1.05rem + 0.7vw, 1.5rem);
+  --fs-bayt-md: clamp(1.45rem, 1.2rem + 1.3vw, 2rem);
+  --fs-bayt-lg: clamp(1.75rem, 1.35rem + 2.4vw, 2.7rem);
+}
+
+/* ── the progress hairline ─────────────────────────────────────────────── */
+
+/* Under the notch, never behind it: `--safe-top` is declared on `body` by
+ * chrome.css under the phone chrome and is simply absent on the web, where the
+ * fallback is the whole of it. */
+.reader__progress {
+  position: absolute;
+  inset-block-start: var(--safe-top, 0px);
+  inset-inline: 0;
+  block-size: 2px;
+  /* No track. A hairline drawn across the top of an unscrolled قصيدة is a
+     border, not a measure — this one exists only as far as it has been read. */
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* An inline SIZE and not a `scaleX`: under RTL the fill has to grow from the
+ * inline-start (right) edge, which a percentage in the flow does by itself and
+ * a transform does only with an origin that has to be mirrored by hand. */
+.reader__progress-fill {
+  display: block;
+  block-size: 100%;
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.35), var(--accent));
+  transition: inline-size var(--dur-1) linear;
+}
+
+/* ── the reading surface ───────────────────────────────────────────────── */
+
+.reader__scroll {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  /* the reading is the only thing on screen; a flick that reaches the last بيت
+     must not start dragging whatever the browser has behind it */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reader__page {
+  /* A COMFORTABLE MEASURE. The قصيدة page reads at 46rem because it also
+   * carries crumbs, badges and a rail. It is NOT free width, though: both
+   * hemistichs hug the centre channel (bayt.css), so every rem past what the
+   * verse needs is added to the two outer voids rather than to the reading, and
+   * every rem SHORT of it wraps a شطر onto a second line and the ديوان's
+   * geometry with it — measured at 54rem, where the enlarged scale above broke
+   * «ربِّ هب لي هُدى وأطلق لساني» in two. 62rem is that scale's own measure:
+   * ~403px of track for a صدر that asks for ~354. */
+  inline-size: min(62rem, 100%);
+  margin-inline: auto;
+  padding-inline: var(--sp-5);
+  padding-block-start: calc(var(--safe-top, 0px) + var(--sp-8));
+  /* the last بيت clears the controls' cluster and the gesture bar under it */
+  padding-block-end: calc(var(--safe-bottom, 0px) + var(--sp-9));
+}
+
+/* ── the head, which stands down once the reader moves ─────────────────── */
+
+.reader__head {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  margin-block-end: var(--sp-7);
+  text-align: center;
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+}
+
+.reader__head[data-faded="1"] {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.reader__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--accent);
+}
+
+/* A مطلع standing in for a missing عنوان is verse, and is set as verse. */
+.reader__title--matla {
+  font-family: var(--font-verse);
+  color: var(--accent-soft);
+}
+
+.reader__byline {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.reader__sep {
+  color: var(--text-3);
+}
+
+/* ── the أبيات ─────────────────────────────────────────────────────────── */
+
+.reader__abyat {
+  display: flex;
+  flex-direction: column;
+}
+
+.reader__bayt {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+}
+
+/* The rosette between verses: a manuscript's own separator, at the weight of a
+ * watermark. Never after the last بيت — the ختام closes the قصيدة instead. */
+.reader__sun {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  opacity: 0.22;
+}
+
+/* Reading is not doing: the four actions, the hover wash and the focus ring all
+ * belong to the ديوان entry, and none of them belongs here. The بيت keeps its
+ * number in the margin — a قصيدة is quoted by بيت — and the rail's column stays
+ * RESERVED though it is now empty, because that is what keeps the verse block
+ * optically centred (bayt.css's own reason for reserving both tracks). */
+.reader__bayt .bayt-row {
+  inline-size: 100%;
+  padding-block: var(--sp-2);
+  border-inline-start-color: transparent;
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 5.2rem;
+}
+
+.reader__bayt .bayt-rail {
+  display: none;
+}
+
+.reader__bayt .bayt-row:hover,
+.reader__bayt .bayt-row:focus-within {
+  background: none;
+  border-inline-start-color: transparent;
+}
+
+.reader__bayt .bayt-row:focus-visible {
+  background: var(--accent-wash);
+  box-shadow: none;
+}
+
+.reader__bayt .bayt-num {
+  color: var(--text-3);
+  opacity: 0.55;
+}
+
+/* ── the end of the قصيدة, and the page that is still coming ───────────── */
+
+.reader__more {
+  display: grid;
+  justify-items: center;
+  padding-block: var(--sp-6);
+}
+
+.reader__end {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding-block-start: var(--sp-8);
+  color: var(--text-3);
+}
+
+.reader__end-sun {
+  color: var(--accent);
+  opacity: 0.4;
+}
+
+.reader__end-word {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-1);
+  letter-spacing: normal;
+}
+
+/* ── the controls: one cluster, a tap away, gone in 2.5s ───────────────── */
+
+.reader__controls {
+  position: absolute;
+  inset-block-end: calc(var(--safe-bottom, 0px) + var(--sp-5));
+  inset-inline: 0;
+  margin-inline: auto;
+  inline-size: fit-content;
+  max-inline-size: calc(100% - var(--sp-6));
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(8px);
+  transition:
+    opacity var(--dur-3) var(--ease-out),
+    transform var(--dur-3) var(--ease-out);
+}
+
+.reader__controls[data-on="0"] {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.reader__exit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: 2.25rem;
+  padding-inline: var(--sp-4);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+  background: var(--accent-dim);
+  transition: background-color var(--dur-2) var(--ease);
+}
+
+.reader__exit:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: var(--accent);
+}
+
+/* ── the door in, on a phone ───────────────────────────────────────────── */
+
+/* The قصيدة page's own row, not part of the reading: on a phone the reading
+   toolbar does not exist (the app bar's «أأ» sheet carries its four controls),
+   so «اقرأ» needs a place of its own and takes the full measure above the first
+   بيت. On the desktop it is the toolbar's leading button instead. */
+.reader-cta {
+  display: grid;
+}
+
+.reader-cta__btn {
+  justify-content: center;
+  min-block-size: 2.75rem;
+}
+
+/* ── the phone ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 860px) {
+  .reader__page {
+    padding-inline: var(--sp-4);
+    padding-block-start: calc(var(--safe-top, 0px) + var(--sp-6));
+  }
+
+  .reader__head {
+    margin-block-end: var(--sp-6);
+  }
+
+  /* A stacked بيت is two lines; the rosette between two of them needs the air
+     the gutter used to give the centre channel. */
+  .reader__bayt {
+    gap: var(--sp-4);
+  }
+
+  .reader__bayt .bayt-row {
+    --bayt-num-col: 1.8rem;
+  }
+}
+
+/* The 44px touch floor (phone.css's rule, applied to this sheet's own two
+   controls rather than swept up by a blanket `button {}`). */
+@media (hover: none), (pointer: coarse) {
+  .reader__exit {
+    min-block-size: 2.75rem;
+  }
+
+  .reader__controls .segmented__opt {
+    min-block-size: 2.5rem;
+    padding-inline: var(--sp-4);
+    font-size: var(--fs-ui-2);
+  }
+}
