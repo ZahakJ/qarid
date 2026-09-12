@@ -1,59 +1,37 @@
-# Contributing
+# المساهمة
 
-Two things first: the project's opinions are written down, and the done bar is
-not negotiable.
+أمران أوّلًا: آراءُ المشروع مكتوبة، وحدُّ الإنجاز غيرُ قابلٍ للنقاش.
 
-## The done bar
+## حدّ الإنجاز
 
-Every change, however small, goes through all four:
+كلُّ تغيير، مهما صغُر، يمرّ بالأربعة:
 
 ```sh
 npm run typecheck && npm test && npm run build && npm run smoke
 ```
 
-`npm run smoke` starts the real server against a real artefact and walks 29
-routes at desktop **and** phone widths in headless Chromium, failing on any
-console error. If you have no corpus built, `npm run ingest:fixture` gives you
-one in seconds and `--db data/fixture.db` points the walk at it.
+`npm run smoke` يشغّل الخادمَ الحقيقيَّ على مِعلَمٍ حقيقيّ ويمشي على 29 مسارًا بعرضَي الحاسوب **والهاتف** في Chromium، ويفشل على أيّ خطأٍ في السجلّ. ومن لا مِعلَمَ عنده: `npm run ingest:fixture` يبني عيّنةً في ثوانٍ، و`--db data/fixture.db` يوجّه المشيَ إليها.
 
-## Read `CLAUDE.md` first
+## اقرأ `CLAUDE.md` أوّلًا
 
-It is long and it is the point. It holds the invariants this codebase has
-already paid for — each one with the measurement or the bug that earned it.
-A patch that violates one will be asked to change, so it is cheaper to skim it
-first. The ones that catch newcomers most often:
+طويلٌ، وهو المقصود. فيه الثوابتُ التي دُفع ثمنُها، وكلٌّ منها بالقياس أو العطب الذي اكتُسب به. التغييرُ الذي يخالف ثابتًا يُطلب تعديلُه، فالأرخصُ أن يُتصفَّح قبلُ. وأكثرُها إيقاعًا للقادم الجديد:
 
-- **`shared/arabic.ts` is the only normalizer.** The FTS index, the chain
-  letter, the ديوان anchors and the search query all fold text the same way.
-  A second normalizer is a silent corpus bug.
-- **العدد والمعدود live in `shared/format.ts`, never at the call site.** Arabic
-  agreement is not decoration: «12 بيت» is wrong, «بيتان» is not «2 بيت», and a
-  نعت beside a معدود has to agree too. Five functions, and which you need
-  depends on the grammar of the sentence you are writing.
-- **Western digits everywhere a reader sees a number** — `0-9`, and never glued
-  to a hand-written noun.
-- **The corpus artefact is opened read-only.** Nothing in a request path may
-  write to it.
+- **`shared/arabic.ts` هو المُطبِّع الوحيد.** فهرسُ البحث، وحرفُ السلسلة، ومراسي الدواوين، ونصُّ الاستعلام، كلُّها تُطوى بالطريقة نفسها. مُطبِّعٌ ثانٍ عطبٌ صامت في المتن.
+- **العددُ والمعدود في `shared/format.ts`، لا عند الاستعمال.** الموافقةُ ليست زينة: «12 بيت» خطأ، و«بيتان» ليست «2 بيت»، والنعتُ بجانب المعدود يوافقه هو الآخر. خمسُ دوالّ، وأيُّها يلزم يقرّره نحوُ الجملة.
+- **الأرقامُ غربيّةٌ حيثما رآها القارئ** — `0-9`، ولا تُلصق باسمٍ مكتوبٍ باليد.
+- **المِعلَمُ يُفتح للقراءة فقط.** لا شيءَ في مسار الطلب يكتب فيه.
 
-## Shape of a change
+## شكل التغيير
 
-- **Arabic for every user-facing string, English for code and comments.** The
-  interface has no English in it.
-- **Comments say why, not what.** The house style explains the decision and the
-  thing that went wrong before it — see any file for the register.
-- **Tests where there is real logic.** Pure functions get unit tests; routes get
-  driven through `app.request()` in-process. A test that would have caught the
-  bug you are fixing is worth more than three that would not.
-- **No new runtime dependency without a reason in the PR description.** The
-  server runs on three packages and Node's own sqlite, deliberately.
+- **العربيّة لكلِّ نصٍّ يراه القارئ، والإنجليزيّة للشيفرة والتعليقات.** الواجهةُ لا إنجليزيّةَ فيها.
+- **التعليقُ يقول لماذا، لا ماذا.** يشرح القرارَ وما انكسر قبله — أيُّ ملفٍّ يُري النبرة.
+- **الاختبارُ حيث منطقٌ حقيقيّ.** الدوالُّ الخالصة تُختبر وحدةً، والمساراتُ تُقاد عبر `app.request()` داخل العمليّة. اختبارٌ واحدٌ كان سيلتقط العطبَ الذي تُصلحه خيرٌ من ثلاثةٍ لا.
+- **لا تبعيّةَ جديدةً في التشغيل بلا سبب** يُذكر في وصف الطلب. الخادمُ على ثلاثِ حزمٍ و`node:sqlite`، عمدًا.
 
-## Corpus changes
+## تغييرات المتن
 
-The ingest is the only thing that writes the artefact, and it is reproducible:
-two builds of the same input must be byte-identical. If you change
-`scripts/ingest/`, say in the PR what the row counts were before and after.
+الإدخالُ وحده يكتب المِعلَم، وهو قابلٌ للإعادة: بناءان لمُدخلٍ واحد يجب أن يتطابقا بايتًا بايتًا. من غيّر في `scripts/ingest/` فليذكر في الطلب عددَ الصفوف قبلُ وبعدُ.
 
-## Reporting things
+## البلاغ
 
-Bugs and features: open an issue. Security: **do not** open an issue — see
-[SECURITY.md](SECURITY.md).
+العيوبُ والمقترحات: مسألةٌ في المستودع. الأمن: **لا** تفتح مسألة — انظر [SECURITY.md](SECURITY.md).

@@ -1,18 +1,18 @@
-**What this changes, and why**
+**ما الذي يغيّره هذا، ولماذا**
 
-**The done bar** — all four, please:
+**حدُّ الإنجاز** — الأربعةُ كلُّها:
 
 - [ ] `npm run typecheck`
 - [ ] `npm test`
 - [ ] `npm run build`
-- [ ] `npm run smoke` (desktop **and** `--mobile` if the change is visual)
+- [ ] `npm run smoke` (الحاسوب **و**`--mobile` إن كان التغييرُ مرئيًّا)
 
-**Invariants** (see `CLAUDE.md`)
+**الثوابت** (انظر `CLAUDE.md`)
 
-- [ ] No second normalizer — Arabic text still folds through `shared/arabic.ts`
-- [ ] Any number a reader sees goes through `shared/format.ts`, agreement and all
-- [ ] Nothing in a request path writes to the corpus artefact
+- [ ] لا مُطبِّعَ ثانيًا — النصُّ العربيُّ ما زال يُطوى عبر `shared/arabic.ts`
+- [ ] كلُّ عددٍ يراه القارئ يمرّ بـ`shared/format.ts`، بموافقته
+- [ ] لا شيءَ في مسار الطلب يكتب في مِعلَم المتن
 
-**If it is visual**, attach the before/after from `screenshots/`.
+**إن كان مرئيًّا**، أرفق قبلُ/بعدُ من `screenshots/`.
 
-**If it touches the ingest**, give the row counts before and after.
+**إن مسَّ الإدخال**، اذكر عددَ الصفوف قبلُ وبعدُ.

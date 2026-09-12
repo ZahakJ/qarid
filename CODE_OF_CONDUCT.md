@@ -1,38 +1,31 @@
-# Code of conduct
+# ميثاق السلوك
 
-## The short version
+## المختصر
 
-Be decent. Assume the other person is trying.
+كُن كريمًا. وافترض أنّ الآخر يحاول.
 
-## Scope
+## النطاق
 
-This applies in the issue tracker, in pull requests and in any other space this
-project uses, including when you are representing the project elsewhere.
+يسري في متتبّع المسائل، وفي طلبات الدمج، وفي كلّ مكانٍ يستعمله المشروع، وحين تمثّل المشروعَ في غيره.
 
-## Expected
+## المطلوب
 
-- Take the disagreement seriously and the person charitably.
-- Critique the code, the design or the argument — not the author.
-- Accept that a maintainer may say no, and that a contributor may ask why.
-- This project works in two languages. Someone writing in their second one is
-  making an effort you are not; read past the grammar to the point.
+- خُذ الخلافَ مأخذَ الجدّ، والشخصَ مأخذَ الحُسنى.
+- انقد الشيفرةَ أو التصميمَ أو الحجّة، لا صاحبَها.
+- تقبَّل أن يقول القيّمُ لا، وأن يسأل المساهمُ لماذا.
+- المشروعُ يعمل بلغتين. من يكتب بغير لغته الأولى يبذل جهدًا لا تبذله، فاقرأ ما وراء النحو إلى القصد.
 
-## Not acceptable
+## الممنوع
 
-- Harassment, personal attacks, or sustained hostility.
-- Sexual attention or imagery, in any project space.
-- Publishing someone's private information without their consent.
-- Deliberately derailing discussions or wasting maintainers' time.
+- التحرّشُ والتهجّمُ الشخصيّ والعداوةُ المستمرّة.
+- الإيحاءُ أو الصورُ الجنسيّة في أيّ مكانٍ من المشروع.
+- نشرُ معلوماتِ أحدٍ الخاصّة بغير إذنه.
+- تعمّدُ تحريف النقاش أو إهدارُ وقت القيّمين.
 
-## Enforcement
+## التطبيق
 
-Report a problem to the maintainers privately — see
-[MAINTAINERS.md](MAINTAINERS.md) — and it will be looked at. Responses run from
-a private word, through removing a comment, to a ban from the project's spaces.
-Reports are kept confidential; a maintainer involved in an incident will not be
-the one deciding it.
+يُبلَّغ القيّمون سرًّا — انظر [MAINTAINERS.md](MAINTAINERS.md) — ويُنظر فيه. والردُّ من كلمةٍ خاصّة، إلى حذف تعليق، إلى منعٍ من أماكن المشروع. البلاغاتُ سرّيّة، والقيّمُ الطرفُ في واقعةٍ لا يحكم فيها.
 
-## Attribution
+## النسبة
 
-Adapted from the [Contributor Covenant](https://www.contributor-covenant.org/),
-version 2.1.
+مقتبسٌ من [Contributor Covenant](https://www.contributor-covenant.org/) في إصداره 2.1.

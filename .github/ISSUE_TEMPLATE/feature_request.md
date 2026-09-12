@@ -1,15 +1,13 @@
 ---
-name: Feature request
-about: Something قريض should be able to do
+name: مقترح
+about: شيءٌ ينبغي لقَريض أن يفعله
 labels: enhancement
 ---
 
-**What you are trying to do**
-Describe the reading or the game, not the button — what are you trying to get
-to, and where does قريض stop you?
+**ما الذي تحاول أن تصل إليه**
+صِف القراءةَ أو اللعبَ لا الزرّ: ما الذي تريد بلوغَه، وأين يقف قَريض دونه؟
 
-**What you do today instead**
+**ما تفعله اليوم بدلًا منه**
 
-**Anything in `CLAUDE.md` or `docs/` this would run into?**
-Not required, but if you have read something that argues against it, say so —
-it saves a round trip.
+**هل يصطدم بشيءٍ في `CLAUDE.md` أو `docs/`؟**
+ليس لازمًا، لكن إن قرأتَ ما يعارضه فقُله — يوفّر دورةً.

@@ -1,22 +1,22 @@
 ---
-name: Bug report
-about: Something behaves wrongly
+name: بلاغ عطب
+about: شيءٌ يعمل على غير ما ينبغي
 labels: bug
 ---
 
-**What happened, and what you expected instead**
+**ما حدث، وما كان يُتوقَّع**
 
-**How to get there**
+**كيف يُبلَغ إليه**
 1.
 2.
 
-**Where**
-- قريض version / commit:
-- Web or the Android app:
-- Browser and OS (or phone and Android version):
+**أين**
+- إصدار قَريض / الإيداع:
+- الوِب أم تطبيق أندرويد:
+- المتصفّح ونظامُ التشغيل (أو الهاتف وإصدار أندرويد):
 
-**Was a corpus built?** (`npm run ingest`, `ingest:fixture`, or none)
+**هل بُني متن؟** (`npm run ingest` أو `ingest:fixture` أو لا شيء)
 
-**Console errors, if any**
+**أخطاءُ السجلّ إن وُجدت**
 ```
 ```

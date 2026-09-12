@@ -1,12 +1,9 @@
-# Maintainers
+# القيّمون
 
-قريض is maintained by [@ZahakJ](https://github.com/ZahakJ).
+يقوم على قَريض [@ZahakJ](https://github.com/ZahakJ).
 
-- **Issues and pull requests**: the GitHub tracker.
-- **Security reports**: the Security tab → *Report a vulnerability*, never a
-  public issue. See [SECURITY.md](SECURITY.md).
-- **Code-of-conduct reports**: the same private security channel reaches the
-  maintainers and will be treated confidentially.
+- **المسائلُ وطلباتُ الدمج**: متتبّع GitHub.
+- **بلاغاتُ الأمن**: تبويب Security ثمّ *Report a vulnerability*، لا مسألةً علنيّة أبدًا. انظر [SECURITY.md](SECURITY.md).
+- **بلاغاتُ ميثاق السلوك**: القناةُ الخاصّةُ نفسُها تصل إلى القيّمين وتُعامَل سرًّا.
 
-Expect a reply within a week or so. This is a side project; a quiet week means
-a busy one elsewhere, not a closed door.
+الردُّ في نحو أسبوع. مشروعٌ جانبيّ؛ أسبوعٌ صامتٌ يعني أسبوعًا مشغولًا في غيره، لا بابًا مغلقًا.
