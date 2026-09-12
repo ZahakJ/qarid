@@ -13,7 +13,7 @@
  *    `https://localhost` (Capacitor's `androidScheme`), so a relative `/api/…`
  *    would hit the WebView's own empty origin, not the server. `API_BASE`
  *    therefore points every request at the real deployment
- *    (`https://qarid.example.com`, overridable at build time with
+ *    (no default — it MUST be set at build time with
  *    `VITE_API_BASE` for the emulator smoke). Cross-origin WebView cookies are
  *    unreliable, so the shell authenticates with a bearer token instead: it
  *    asks for one at login (`X-Client: capacitor`), keeps it in Capacitor
@@ -36,7 +36,12 @@ export const platform: string = Capacitor.getPlatform()
 function buildApiBase(): string {
   if (!isNative) return ""
   const configured = (import.meta.env?.VITE_API_BASE ?? "").trim()
-  return (configured || "https://qarid.example.com").replace(/\/+$/, "")
+  // No fallback host on purpose. A native shell with no API base is broken,
+  // and the honest way to be broken is loudly and at once — not by quietly
+  // sending every request to a placeholder domain, which is what a default
+  // would be in a public checkout. Set VITE_API_BASE at build time.
+  if (!configured) console.error("VITE_API_BASE is not set: the native shell has no API origin to talk to")
+  return configured.replace(/\/+$/, "")
 }
 
 /** Prefix for every `/api/…` and `/ws/…` path; `""` on the web (same-origin). */

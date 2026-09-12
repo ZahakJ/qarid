@@ -86,7 +86,10 @@ async function armDeepLinks(): Promise<void> {
 
 /** The deployment host a deep link is allowed to name (plus the prod host). */
 function expectedHost(): string {
-  return API_BASE ? new URL(API_BASE).host : "qarid.example.com"
+  // No API base means no site to be linked from — an empty host, and every
+  // deep link is refused below, rather than a placeholder host that would
+  // accept links to a domain nobody deploys to.
+  return API_BASE ? new URL(API_BASE).host : ""
 }
 
 /**
@@ -99,7 +102,7 @@ export function deepLinkHash(rawUrl: string, host: string = expectedHost()): str
   let hash: string
   try {
     const u = new URL(rawUrl)
-    if (u.host && u.host !== host && u.host !== "qarid.example.com") return null
+    if (!host || (u.host && u.host !== host)) return null
     hash = u.hash
   } catch {
     return null
