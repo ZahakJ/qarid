@@ -11,3 +11,9 @@
 #                  falls back to the browser.
 applicationId=com.example.qarid
 appLinkHost=qarid.example.com
+
+# Two more values the app build needs that are NOT in this file, because Gradle
+# never sees them — the web bundle does. Export both when you build:
+#
+#   VITE_API_BASE=https://your.host      the deployment the shell talks to
+#   QARID_APP_ID=<applicationId above>   keeps capacitor.config.ts in step

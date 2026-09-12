@@ -28,8 +28,13 @@ describe("deepLinkHash", () => {
     expect(deepLinkHash(`https://${HOST}/#/room/BADIRU?k=abc`, HOST)).toBe("#/room/BADIRU?k=abc")
   })
 
-  it("accepts the prod host even when a different base is configured", () => {
-    expect(deepLinkHash("https://qarid.example.com/#/duel", "localhost:6760")).toBe("#/duel")
+  it("accepts only the configured host — there is no second, hard-coded one", () => {
+    // The configured host is the ONLY host a deep link is accepted from: there
+    // is no second, hard-coded production host any more, so a shell whose API
+    // base is localhost refuses a link to anywhere else.
+    expect(deepLinkHash("https://qarid.example.com/#/duel", HOST)).toBe("#/duel")
+    expect(deepLinkHash("https://qarid.example.com/#/duel", "localhost:6760")).toBeNull()
+    expect(deepLinkHash("https://elsewhere.example/#/duel", HOST)).toBeNull()
   })
 
   it("rejects a foreign host", () => {

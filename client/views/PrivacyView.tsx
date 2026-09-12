@@ -18,6 +18,7 @@
  */
 import { Rule } from "../components/Ornaments.tsx"
 import { routeHash } from "../router.ts"
+import { shareOrigin } from "../platform/native.ts"
 
 /**
  * The owner-only blanks. **RELEASE BLOCKER: `OWNER_CONTACT` and
@@ -116,8 +117,8 @@ export function PrivacyView() {
         <p>
           عنوان الحذف على الشابكة هو صفحةُ حسابك نفسها:{" "}
           <span dir="ltr" className="privacy-url">
-            https://qarid.example.com/#/u/&lt;اسمك&gt;
-          </span>
+              {shareOrigin()}/#/u/&lt;اسمك&gt;
+            </span>
           . ولعبُك المفرد محفوظٌ في متصفّحك أنت لا عندنا، فامسحُه بمسح بيانات الموقع من المتصفح.
         </p>
       </section>

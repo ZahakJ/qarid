@@ -26,6 +26,17 @@ if (identityPropsFile.exists()) {
 def qaridAppId = identityProps.getProperty("applicationId") ?: "com.example.qarid"
 def qaridLinkHost = identityProps.getProperty("appLinkHost") ?: "qarid.example.com"
 
+// The version, from a tracked file rather than a literal here: bumping a
+// release should be a one-line diff in version.properties, not an edit inside
+// a Gradle block that also holds signing and identity.
+def versionPropsFile = rootProject.file("version.properties")
+def versionProps = new Properties()
+if (versionPropsFile.exists()) {
+    versionProps.load(new FileInputStream(versionPropsFile))
+}
+def qaridVersionCode = (versionProps.getProperty("versionCode") ?: "1").toInteger()
+def qaridVersionName = versionProps.getProperty("versionName") ?: "1.0"
+
 android {
     namespace = qaridAppId
     compileSdk = rootProject.ext.compileSdkVersion
@@ -40,8 +51,8 @@ android {
         resValue "string", "custom_url_scheme", qaridAppId
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode qaridVersionCode
+        versionName qaridVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
