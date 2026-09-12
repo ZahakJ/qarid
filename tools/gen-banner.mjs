@@ -23,6 +23,7 @@
  *
  *   node tools/gen-banner.mjs
  */
+import { formatBaits, formatPoems, formatPoets } from "../shared/format.ts"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -141,14 +142,16 @@ ${fontFaces}
 
   <!-- what it is, in a clean face -->
   <text x="${W / 2}" y="386" text-anchor="middle"
-        font-family="Plex Sans Arabic" font-weight="500" font-size="17.5"
-        letter-spacing="5.2" fill="${GOLD}" fill-opacity="0.8"
-      >AN ARABIC POETRY DIWAN — AND A DUEL ON THE RHYME</text>
+        font-family="Plex Sans Arabic" font-weight="500" font-size="22"
+        direction="rtl" unicode-bidi="embed"
+        fill="${GOLD}" fill-opacity="0.85"
+      >ديوان الشعر العربي ومساجلته</text>
 
   <!-- what is in it -->
   <text x="${W / 2}" y="416" text-anchor="middle"
-        font-family="Plex Mono" font-size="14.5" letter-spacing="1.1" fill="${TEXT_3}"
-      >238,733 poems · 3,369,701 verses · 6,941 poets</text>
+        font-family="Plex Sans Arabic" font-size="15.5" fill="${TEXT_3}"
+        direction="rtl" unicode-bidi="embed"
+      >${formatPoems(238733)} · ${formatBaits(3369701)} · ${formatPoets(6941)}</text>
 
   <!-- one real بيت, set the way the ديوان sets it: صدر · شمسة · عجز -->
   <text id="sadr" x="${W / 2 + 208}" y="494" text-anchor="middle" direction="rtl"

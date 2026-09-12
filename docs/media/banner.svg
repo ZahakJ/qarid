@@ -64,14 +64,16 @@
 
   <!-- what it is, in a clean face -->
   <text x="640" y="386" text-anchor="middle"
-        font-family="Plex Sans Arabic" font-weight="500" font-size="17.5"
-        letter-spacing="5.2" fill="#d6ad60" fill-opacity="0.8"
-      >AN ARABIC POETRY DIWAN — AND A DUEL ON THE RHYME</text>
+        font-family="Plex Sans Arabic" font-weight="500" font-size="22"
+        direction="rtl" unicode-bidi="embed"
+        fill="#d6ad60" fill-opacity="0.85"
+      >ديوان الشعر العربي ومساجلته</text>
 
   <!-- what is in it -->
   <text x="640" y="416" text-anchor="middle"
-        font-family="Plex Mono" font-size="14.5" letter-spacing="1.1" fill="#8a8478"
-      >238,733 poems · 3,369,701 verses · 6,941 poets</text>
+        font-family="Plex Sans Arabic" font-size="15.5" fill="#8a8478"
+        direction="rtl" unicode-bidi="embed"
+      >238,733 قصيدة · 3,369,701 بيتًا · 6,941 شاعرًا</text>
 
   <!-- one real بيت, set the way the ديوان sets it: صدر · شمسة · عجز -->
   <text id="sadr" x="848" y="494" text-anchor="middle" direction="rtl"

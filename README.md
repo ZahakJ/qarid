@@ -1,160 +1,130 @@
 <p align="center">
-  <img src="docs/media/banner.png" alt="قريض — an Arabic poetry diwan, and a duel on the rhyme. 238,733 poems, 3,369,701 verses, 6,941 poets." width="820">
+  <img src="docs/media/banner.png" alt="قَريض — ديوان الشعر العربي ومساجلته" width="820">
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-d6ad60" alt="Licence: AGPL-3.0-or-later"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-AGPL--3.0--or--later-d6ad60" alt="AGPL-3.0-or-later"></a>
   <img src="https://img.shields.io/badge/tests-1%2C583-d6ad60" alt="1,583 tests">
-  <img src="https://img.shields.io/badge/node-%E2%89%A5%2024-d6ad60" alt="Node 24 or newer">
-  <img src="https://img.shields.io/badge/server%20deps-3-d6ad60" alt="Three server dependencies">
+  <img src="https://img.shields.io/badge/node-%E2%89%A5%2024-d6ad60" alt="Node 24+">
+  <img src="https://img.shields.io/badge/server%20deps-3-d6ad60" alt="3 server deps">
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/security-report%20privately-d6ad60" alt="Security policy"></a>
 </p>
 
 <p align="center">
-  <a href="https://zahakj.github.io/qarid/"><b>zahakj.github.io/qarid</b></a> — what it is, what it holds, and how to run your own
+  <a href="https://zahakj.github.io/qarid/"><b>zahakj.github.io/qarid</b></a>
 </p>
 
-**قَريض** — the old Arabic word for verse itself — is a browsable ديوان of the
-classical Arabic corpus **and** a strict مساجلة duel played against it.
+<div dir="rtl">
 
-Three and a third million أبيات by nearly seven thousand شعراء, ingested into a
-single read-only SQLite artefact: browsable by عصر, بحر, غرض and روي, searchable
-with FTS5, and playable. In a مساجلة the machine recites a بيت and you must
-answer with one that **starts on its روي** — the letter its rhyme runs on. It
-judges by the same rule the قدماء did, and it does not accept a near miss.
+**قَريض** اسمٌ قديمٌ للشعر. وهذا ديوانٌ للشعر العربيّ يُقرأ ويُبحث فيه، ومساجلةٌ تُلعب عليه.
 
-It runs on the web and as an Android app, from one codebase. The whole interface
-is in Arabic, right-to-left, set in Amiri and Aref Ruqaa.
+3,369,701 بيتًا لـ6,941 شاعرًا في مِعلَمٍ واحد من SQLite للقراءة فقط: يُتصفَّح بالعصر والبحر والغرض والرويّ، ويُبحث فيه بـFTS5، ويُلعب. في المساجلة يُلقي الحاسوبُ بيتًا ويُجاب ببيتٍ يبدأ **برويّه**، والحكمُ على مذهب القدماء لا يُقبل فيه القريب.
 
-![The home page: بيت اليوم, the corpus counts, and the curated anthologies](docs/media/home.png)
+يعمل على الوِب وعلى أندرويد من مصدرٍ واحد. الواجهةُ كلُّها بالعربيّة، من اليمين إلى اليسار، بخطَّي أميري وعارف رقعة.
 
-> The first screen is one بيت — the same one for everybody, that day — and the
-> doors under it. Nothing here asks you to sign in.
+</div>
+
+![الصفحة الأولى](docs/media/home.png)
 
 | | |
 |---|---|
-| ![A قصيدة laid out as a printed diwan page, two hemistichs on the outer margins](docs/media/poem.png) | ![The شعراء index, folded by the letter each poet is known by](docs/media/poets.png) |
-| *A قصيدة, set as a ديوان page — أبيات on the outer margins, a quiet centre channel* | *6,941 شعراء, folded by the letter each is known by* |
-| ![A مساجلة in progress against the corpus](docs/media/duel.png) | ![The sixteen بحور with their تفعيلات and an exemplar بيت each](docs/media/buhur.png) |
-| *A مساجلة: answer on the روي, or concede* | *The sixteen بحور, each with its تفعيلات and a شاهد* |
-| ![Search results across poems, poets and verses](docs/media/search.png) | ![دواويني — the shelves a reader compiles](docs/media/diwans.png) |
-| *FTS5 search over three million أبيات* | *دواوين — shelves a reader compiles, orders and shares* |
+| ![القصيدة](docs/media/poem.png) | ![الشعراء](docs/media/poets.png) |
+| <div dir="rtl">القصيدة صفحةَ ديوان</div> | <div dir="rtl">الشعراء على حروف الشهرة</div> |
+| ![مساجلة](docs/media/duel.png) | ![البحور](docs/media/buhur.png) |
+| <div dir="rtl">مساجلة</div> | <div dir="rtl">البحور الستّة عشر، ولكلٍّ شاهد</div> |
+| ![البحث](docs/media/search.png) | ![الدواوين](docs/media/diwans.png) |
+| <div dir="rtl">البحث</div> | <div dir="rtl">الدواوين</div> |
 
 <p align="center">
-  <img src="docs/media/home-phone.png" alt="The home page on a phone" width="240">
-  <img src="docs/media/poem-phone.png" alt="A قصيدة on a phone" width="240">
-  <img src="docs/media/duel-phone.png" alt="A مساجلة on a phone" width="240">
+  <img src="docs/media/home-phone.png" width="240"> <img src="docs/media/poem-phone.png" width="240"> <img src="docs/media/duel-phone.png" width="240">
 </p>
 
-<p align="center"><i>The same app on a phone — a real phone build, not a narrowed window</i></p>
+<div dir="rtl">
 
-## What it does
+## ما فيه
 
-**Read.** Browse by عصر, بحر, غرض or روي; search anything with FTS5; open a
-شاعر's ديوان; read a قصيدة in a reading mode where every bar stands down and the
-أبيات alone run down one measure. تشكيل on or off, three verse sizes, the روي
-underlined on request.
+**القراءة.** تصفّحٌ بالعصر والبحر والغرض والرويّ. ديوانُ كلِّ شاعر. والقصيدةُ صفحةً كما تُطبع، أو في وضع قراءةٍ تنزوي فيه الأدواتُ كلُّها. تشكيلٌ يُظهَر ويُخفى، وثلاثةُ مقاسات، والرويُّ يُخطُّ تحته عند الطلب.
 
-**Play.** A مساجلة against the corpus: it recites, you answer on the روي. Scored,
-timed, with an arsenal of letters you have proved you can answer on. Or play a
-friend in a room over a WebSocket — the whole match is decided server-side, so
-neither client can lie about a بيت.
+**المساجلة.** ضدّ الديوان، بعدٍّ ووقت، وترسانةٍ من الحروف التي ثبت أنّها تُجاب عليها. أو ضدّ صديقٍ في غرفةٍ على WebSocket، والحكمُ عند الخادم لا عند اللاعب.
 
-**Keep.** المختارات is a ♥ list held in your browser, no account needed.
-دواوين are named, ordered, shareable shelves that live on an account — compile
-one, reorder it by hand, and play a مساجلة inside it.
+**الحفظ.** المختاراتُ قائمةٌ في المتصفّح بلا حساب. والدواوينُ رفوفٌ مُسمّاةٌ مرتَّبةٌ على حساب: تُجمَع، وتُرتَّب باليد، وتُشارَك، وتُلعب فيها المساجلة.
 
-**Learn.** التحفيظ drills a قصيدة until you have it. المختارات المنظومة are
-curated shelves — the ten المعلقات, a hundred proverbial أبيات — resolved
-against the corpus at runtime rather than copied out of it.
+**التحفيظ.** تمرينٌ على القصيدة حتى تثبت. والمختاراتُ المنظومة رفوفٌ منتقاة — المعلّقاتُ العشر، ومئةُ بيتٍ سائر — تُحلُّ على المتن عند التشغيل لا تُنسَخ منه.
 
-## Run it
+## التشغيل
 
-Needs **Node 24 or newer** — it runs TypeScript directly, with no server build
-step, which needs unflagged type-stripping and `node:sqlite`. Developed and
-deployed on Node 26. Budget about 1.6 GB of disk for the artefact.
+يلزم **Node 24 فما فوق** — يُشغِّل TypeScript مباشرةً بلا بناءٍ للخادم — ونحوُ 1.6 غ.ب للمِعلَم.
+
+</div>
 
 ```sh
 git clone https://github.com/ZahakJ/qarid && cd qarid
 npm install
-cp .env.example .env          # then set PUBLIC_ORIGIN
+cp .env.example .env          # ثم يُضبط PUBLIC_ORIGIN
 
-# Build the corpus. Put arbml/ashaar's parquet files in data/raw/ first.
-npm run ingest                # ~3 minutes, ~700 MB peak, 1.6 GB out
+# ملفّات arbml/ashaar (parquet) في data/raw/ ثم:
+npm run ingest                # نحو 3 دقائق، 700 م.ب ذروةً، 1.6 غ.ب ناتجًا
 
 npm run dev:server & npm run dev
 ```
 
-Without the corpus you can still run everything against a fixture:
+<div dir="rtl">
+
+وبلا متن:
+
+</div>
 
 ```sh
-npm run ingest:fixture        # seconds, from test/fixtures/
+npm run ingest:fixture        # عيّنةٌ من test/fixtures/ في ثوانٍ
 ```
 
-In production the server binds loopback only and serves the built client
-itself, so put a reverse proxy or a tunnel in front of it for TLS.
-`deploy/qarid.service` is a systemd **user** unit for exactly that.
+<div dir="rtl">
+
+في الإنتاج يربط الخادمُ على loopback وحده ويقدّم العميلَ المبنيَّ بنفسه؛ يُوضع أمامه وكيلٌ أو نفقٌ للـTLS. و`deploy/qarid.service` وحدةُ systemd للمستخدم.
+
+</div>
 
 ```sh
 npm run build && npm start
 ```
 
-The done bar, all four green:
+<div dir="rtl">
+
+وحدُّ الإنجاز أربعةٌ كلُّها خضراء:
+
+</div>
 
 ```sh
 npm run typecheck && npm test && npm run build && npm run smoke
 ```
 
-`npm run smoke` starts the real server and walks 29 routes at desktop and phone
-widths in headless Chromium, failing on any console error.
+<div dir="rtl">
 
-## How it is built
+`npm run smoke` يشغّل الخادمَ الحقيقيَّ ويمشي على 29 مسارًا بعرضَي الحاسوب والهاتف في Chromium، ويفشل على أيّ خطأٍ في السجلّ.
 
-One npm package. The server runs on **three** — `hono` and its two Node
-adapters — plus Node's own `node:sqlite`; the client adds React, zustand and
-zod. No ORM, no query builder, no bundler on the server.
+## البناء
 
-- **`shared/`** is the contract layer both halves import: one Arabic normalizer,
-  one number formatter, one seeded RNG, and zod schemas that are the single
-  source of truth for every DTO on the wire.
-- **`scripts/ingest/`** streams `arbml/ashaar` → a read-only SQLite artefact in
-  two passes. It is Node rather than Python precisely so it imports the same
-  normalizer the server does, and the two can never drift.
-- **`server/`** is Hono on Node's own `node:sqlite`, opened **read-only** so a
-  stray write throws instead of corrupting the corpus. `app.ts` is listen-free,
-  so the tests drive it in-process.
-- **`client/`** is Vite + React, hash-routed, RTL. One بيت renderer, one share
-  card renderer, one formatter.
+حزمةُ npm واحدة. الخادمُ على **ثلاثٍ** — `hono` ومحوِّلاه لـNode — و`node:sqlite`؛ والعميلُ على React وzustand وzod.
 
-The corpus artefact is immutable at runtime. The only writable database is the
-accounts one, and it is a separate file.
+- **`shared/`** طبقةُ العقد التي يستوردها الطرفان: مُطبِّعٌ عربيٌّ واحد، ومنسِّقُ أعدادٍ واحد، ومولِّدٌ عشوائيٌّ مبذور، ومخطّطاتُ zod مرجعًا لكلِّ ما على السلك.
+- **`scripts/ingest/`** يُدخل `arbml/ashaar` في مِعلَم SQLite للقراءة فقط على مرورَين. بـNode لا بـPython كي يستورد المُطبِّعَ نفسَه الذي يستورده الخادم، فلا ينحرفان.
+- **`server/`** Hono على `node:sqlite`، يُفتح **للقراءة فقط** فتُرمى الكتابةُ العارضة بدل أن تُفسد المتن. `app.ts` بلا استماع، فتُقاد الاختباراتُ داخل العمليّة.
+- **`client/`** Vite وReact، توجيهٌ بالكسر، من اليمين إلى اليسار. راسمُ بيتٍ واحد، وراسمُ بطاقةٍ واحد، ومنسِّقٌ واحد.
 
-Design notes live in [`docs/`](docs/) and the working invariants — the
-hard-won ones, with the measurements that earned them — in
-[`CLAUDE.md`](CLAUDE.md).
+المِعلَم ثابتٌ عند التشغيل. قاعدةُ الحسابات وحدها تُكتَب، وهي ملفٌّ مستقلّ. ملاحظاتُ التصميم في [`docs/`](docs/)، والثوابتُ — بقياساتها التي اكتُسبت بها — في [`CLAUDE.md`](CLAUDE.md).
 
-## The corpus
+## المتن
 
-The verses come from [**arbml/ashaar**](https://huggingface.co/datasets/arbml/ashaar),
-a dataset of classical and modern Arabic poetry. قريض ingests it, normalizes it
-and indexes it; it does not redistribute it — `data/` is not in this repository
-and you build the artefact yourself.
+الأبياتُ من [**arbml/ashaar**](https://huggingface.co/datasets/arbml/ashaar). يُدخَل ويُطبَّع ويُفهرَس، ولا يُعاد نشرُه: `data/` ليست في المستودع، والمِعلَم يُبنى محلّيًّا.
 
-254,630 rows are read; 15,891 duplicate قصائد and 6 verse-less poems are dropped,
-leaving 238,733. Of the 3,369,701 أبيات, **1,713,459 are game-playable** — a بيت
-needs both halves and a resolvable روي before a مساجلة can ask you to answer it.
+يُقرأ 254,630 قصيدة، ويُحذف 15,891 مكرّرةً و6 بلا أبيات، فتبقى 238,733. ومن 3,369,701 بيتٍ يصلح للمساجلة **1,713,459**: البيتُ يحتاج شطرَيه ورويًّا يُستخرج.
 
-The corpus is scraped, and it shows: some titles are the مطلع with the تشكيل
-stripped, 39.8% of قصائد carry no بحر, and a few أبيات lost a hemistich on the
-way in. قريض works around these rather than pretending they are not there —
-[`CLAUDE.md`](CLAUDE.md) names the ones worth knowing before you "fix" them.
+والمتنُ مكشوطٌ ويظهر ذلك: عناوينُ كثيرةٌ هي المطلعُ منزوعَ التشكيل، و39.8% من القصائد بلا بحر، وأبياتٌ فقدت شطرًا في الطريق. يُتعامل مع ذلك ولا يُدّعى خلافُه، وما يُحسن أن يُعرف قبل «إصلاحه» مدوَّنٌ في [`CLAUDE.md`](CLAUDE.md).
 
-## Licence
+## الرخصة
 
-[AGPL-3.0-or-later](LICENSE). If you run a modified قريض as a network service,
-that licence asks you to offer your users its source.
+[AGPL-3.0-or-later](LICENSE). من شغّل نسخةً معدَّلةً خدمةً على الشبكة فعليه أن يتيح مصدرَها.
 
-The corpus is the dataset's, under its own terms. The fonts are
-[Amiri](https://github.com/alif-type/amiri) (OFL),
-[Aref Ruqaa](https://github.com/aliftype/aref-ruqaa) (OFL) and
-IBM Plex Sans Arabic / Mono (OFL).
+المتنُ على شروط أصحابه. والخطوطُ [أميري](https://github.com/alif-type/amiri) و[عارف رقعة](https://github.com/aliftype/aref-ruqaa) وIBM Plex Sans Arabic وMono، كلُّها OFL.
+
+</div>
