@@ -1,0 +1,256 @@
+/* ══════════════════════════════════════════════════════════════════════════
+ * buhur.css — صفحة البحور (#/buhur, client/views/BuhurView.tsx).
+ *
+ * It loads AFTER views.css, poets.css, app.css, duel.css and room.css — the
+ * position that once let duel.css's `.letter-well` reach into the browse rail
+ * (CLAUDE.md §Invariants) — so every selector LEADS with one of its own new
+ * `.buhur-*` classes and `styles.test.ts` fails the build if one does not. Like
+ * anthology.css it also never names `.bayt`, `.sadr`, `.ajuz` or `.bayt-plate`:
+ * a lesson FRAMES أبيات, it does not set them. `BaytPlate` and bayt.css stay
+ * the only place a بيت is typeset.
+ *
+ * The page is five دوائر, each a heading over a grid of cards, and every card
+ * is the same five bands in the same order: name · تفعيلات · مفتاح · شاهد ·
+ * تفعيلات again. The repeat at the bottom is the teaching device, so the two
+ * تفعيلات rows are the same component at the same size and the second one is
+ * only dimmed — a reader has to be able to see they are the same thing.
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+.view.buhur-view {
+  gap: var(--sp-7);
+}
+
+/* ══ one دائرة ═════════════════════════════════════════════════════════ */
+
+.buhur-daira {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.buhur-daira__head {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: stretch;
+}
+
+.buhur-daira__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2.1;
+  color: var(--accent-soft);
+}
+
+.buhur-daira__rule {
+  margin: 0;
+}
+
+.buhur-daira__why {
+  margin-inline: auto;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: 2;
+  color: var(--text-2);
+}
+
+/* ONE card per row, at the ديوان's 58rem measure (App.tsx picks it).
+   A three-up grid was tried first and it is what a list of sixteen wants — but
+   not what a بيت wants: at 21rem a card gave each شطر about 150px of Amiri and
+   the شاهد broke over three lines, so the one thing on the card that had to be
+   read as a بيت was the one thing that could not be. Full measure gives each
+   شطر a hand's width, and the five دائرة headings are what keep sixteen stacked
+   cards from reading as a scroll with no shape. */
+.buhur-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+/* ══ one بحر ═══════════════════════════════════════════════════════════ */
+
+/* A SPECIMEN, and therefore centred.
+   Every band on this card except the بيت is short — a name, four تفعيلة cells,
+   one mnemonic hemistich — so set against the card's inline edge they left the
+   other two thirds of a full-measure card empty while the بيت sat optically
+   centred in the middle of it. One centre axis puts all five bands on the axis
+   `BaytPlate` already puts the شاهد on, which is the only way a card this wide
+   reads as one object. */
+.buhur-card {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  scroll-margin-block: var(--sp-7);
+  transition:
+    border-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    box-shadow var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+/* Arrived on from a بحر chip's popover (`?b=<slug>`). The card is lit, not
+   isolated: the other fifteen stay exactly where they are, because the lesson
+   is that a بحر is one of a circle of relatives. */
+.buhur-card[data-open="1"] {
+  border-color: var(--accent-hair);
+  box-shadow: 0 0 0 1px var(--accent-hair), var(--shadow-2);
+}
+
+/* Name over count, not name opposite count: across a 55rem card `space-between`
+   put «الطويل» and «33,994 قصيدة» a hand's width apart and made two unrelated
+   things out of one heading. */
+.buhur-card__head {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+}
+
+.buhur-card__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  line-height: 1.9;
+  padding-block-start: 0.1em;
+  color: var(--text-1);
+}
+
+.buhur-card__n {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.buhur-card__n:hover {
+  color: var(--accent);
+}
+
+/* ══ التفعيلات ═════════════════════════════════════════════════════════ */
+
+/* Cells, not a sentence: the first thing anyone is told about a بحر is how many
+   أجزاء it has, and four boxes are counted faster than four words with spaces
+   between them. `wrap` because الطويل's four cells do not fit a 21rem card. */
+.buhur-tafilat {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.buhur-tafila {
+  padding: 0.3rem var(--sp-3);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-1);
+  background: var(--accent-dim);
+  font-size: var(--fs-ui-2);
+  line-height: 1.7;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+/* The second printing, under the شاهد. Same size and same cells — only quieter,
+   because a reader has to see at a glance that it is the same row again. */
+.buhur-tafilat[data-muted="1"] .buhur-tafila {
+  border-color: var(--line-1);
+  background: none;
+  color: var(--text-3);
+}
+
+/* ══ المفتاح and الشاهد ════════════════════════════════════════════════ */
+
+.buhur-card__caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-block-end: var(--sp-2);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.buhur-card__caption > svg {
+  color: var(--accent);
+  opacity: 0.7;
+  flex: none;
+}
+
+.buhur-card__miftah,
+.buhur-card__shahid {
+  justify-self: stretch;
+}
+
+/* The مفتاح is a hemistich, so it is set in the verse face — but it is NOT a
+   `BaytPlate` and must not look like one: it is a mnemonic, not a line from the
+   ديوان, it has no شاعر, and there is nothing to ♥. Gold and centred is the
+   whole distinction, and it is enough: the caption above it says what it is,
+   and the شاهد under it is unmistakably a بيت. */
+.buhur-card__key {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-5);
+  line-height: 2.05;
+  color: var(--accent-soft);
+}
+
+.buhur-card__note {
+  margin-inline: auto;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-1);
+  line-height: 1.95;
+  color: var(--text-3);
+}
+
+.buhur-card__shahid {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: var(--sp-3);
+}
+
+/* The بيت is the one band that must NOT be squeezed by the card's centring —
+   it needs the whole measure to keep its صدر and عجز on one line each. */
+.buhur-card__shahid > :not(.buhur-card__caption) {
+  inline-size: 100%;
+}
+
+.buhur-card__ghost {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: center;
+}
+
+.buhur-card__none {
+  font-size: var(--fs-ui-1);
+  line-height: 1.9;
+  color: var(--text-3);
+}
+
+.buhur-card__by {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.buhur-card__dot {
+  color: var(--text-3);
+}
+
+.buhur-card__by a:hover {
+  color: var(--accent);
+}
+
+/* ══ the head's own note ═══════════════════════════════════════════════ */
+
+/* «the شواهد did not arrive» — a line under the lede, not an error panel. The
+   sixteen cards are still a complete lesson without them. */
+.buhur-note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}

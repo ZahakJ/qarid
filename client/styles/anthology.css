@@ -1,0 +1,522 @@
+/* ══════════════════════════════════════════════════════════════════════════
+ * anthology.css — المختارات المنظومة: the home strip, the two shelf cards,
+ * and the two shelf pages (client/views/AnthologyView.tsx).
+ *
+ * It loads AFTER views.css, poets.css, app.css, duel.css and room.css, which
+ * is the position that once let duel.css's `.letter-well` reach into the
+ * browse rail (CLAUDE.md §Invariants). So every selector in this file leads
+ * with one of its OWN new classes — `.anth-*` — and `styles.test.ts` fails the
+ * build if one does not. It names no class any earlier sheet owns.
+ *
+ * The one thing it deliberately does NOT restyle is the بيت: `BaytPlate` and
+ * bayt.css own the صدر/عجز geometry everywhere in the app, and a shelf is a
+ * frame around أبيات, not a second way to set them.
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+/* ══ the strip under بيت اليوم (#/) ════════════════════════════════════ */
+
+.anth-strip {
+  display: grid;
+  gap: var(--sp-3);
+  /* `.view--centred` centres its type; the strip is a row of left-set cards
+     inside it, so it takes its own alignment back. */
+  text-align: start;
+}
+
+/* `justify-items: center` here would shrink the `<hr>` to its content width,
+   which is zero — the rule has no intrinsic size, only a background. Stretch
+   the items and centre the TYPE. */
+.anth-strip__head {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: stretch;
+  text-align: center;
+}
+
+/* Two tiles at any width that can hold them, one below. `auto-fit` and not a
+   fixed pair: at 390px a 2-column grid of 16rem cards is what drags a phone
+   page sideways, and the shelf names are long. */
+.anth-strip__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--sp-3);
+}
+
+.anth-tile {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "mark title"
+    "mark tagline"
+    "mark spine";
+  align-content: start;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  overflow: hidden;
+  transition:
+    border-color var(--dur-micro, 180ms) var(--ease-enter, ease),
+    transform var(--dur-micro, 180ms) var(--ease-enter, ease),
+    box-shadow var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+/* The gold belongs to the hairline that sweeps the top edge, not to all four
+   sides — the same restraint `.pcard` shows in poets.css. */
+.anth-tile::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 1px;
+  background: var(--rule-gold);
+  opacity: 0;
+  transition: opacity var(--dur-micro, 180ms) var(--ease-enter, ease);
+}
+
+.anth-tile:hover {
+  border-color: var(--line-2);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
+}
+
+.anth-tile:hover::before {
+  opacity: 1;
+}
+
+.anth-tile__mark {
+  grid-area: mark;
+  align-self: start;
+  padding-block-start: 0.35rem;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.anth-tile__title {
+  grid-area: title;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.anth-tile__tagline {
+  grid-area: tagline;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+/* The first thing actually on the shelf, in the verse face. It is here instead
+   of a count because two tiles side by side would otherwise both read «كلّها في
+   الديوان» — true, and no reason at all to open either. A line of المتنبي is. */
+.anth-tile__spine {
+  grid-area: spine;
+  margin-block-start: var(--sp-2);
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+  color: var(--accent-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ══ #/anthology — the two shelves ═════════════════════════════════════ */
+
+.anth-index .anth-shelves {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--sp-5);
+}
+
+.anth-card {
+  position: relative;
+  display: grid;
+  /* head · tagline · rule · blurb · foot, with the blurb taking the slack so
+     two cards of different prose length still end on one baseline. */
+  grid-template-rows: auto auto auto 1fr auto auto;
+  gap: var(--sp-3);
+  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+.anth-card--ghost {
+  min-block-size: 18rem;
+  border-color: var(--line-1);
+  background: var(--bg-1);
+  opacity: 0.5;
+}
+
+.anth-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  color: var(--accent);
+}
+
+.anth-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  line-height: 2.1;
+  padding-block-start: 0.1em;
+  color: var(--text-1);
+}
+
+.anth-card__tagline {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.anth-card__rule {
+  margin: 0;
+}
+
+.anth-card__blurb {
+  font-size: var(--fs-ui-2);
+  line-height: 2;
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+}
+
+/* The spines. Each line is one thing actually on the shelf, set in the verse
+   face and clipped to one line — a shelf seen edge-on, not a table of
+   contents. The last item is the «…» that says the shelf goes on. */
+.anth-card__shelf {
+  display: grid;
+}
+
+.anth-card__spines {
+  display: grid;
+  gap: var(--sp-1);
+  list-style: none;
+  margin: 0;
+  padding-inline-start: var(--sp-4);
+  border-inline-start: 1px solid var(--accent-hair);
+}
+
+.anth-card__spine {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The shelf goes on — a hairline that dissolves at both ends, inset so it
+   reads as the fourth spine fading out rather than as a divider. */
+.anth-card__spines-end {
+  margin: var(--sp-2) 0 0;
+  inline-size: 40%;
+  /* under the spines' own edge, which under RTL is the right one */
+  justify-self: start;
+}
+
+.anth-card__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-block-size: var(--meta-band);
+}
+
+.anth-card__count {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.anth-card__go {
+  font-size: var(--fs-ui-2);
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.anth-card__go:hover {
+  color: var(--accent);
+}
+
+/* ══ #/anthology/<slug> — one shelf ════════════════════════════════════ */
+
+.anth-shelf__head {
+  gap: var(--sp-3);
+}
+
+.anth-shelf__up {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.anth-shelf__up:hover {
+  color: var(--accent-soft);
+}
+
+.anth-shelf__count {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--meta-band);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+/* ── المعلقات ───────────────────────────────────────────────────────── */
+
+.anth-odes {
+  display: grid;
+  gap: var(--sp-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Ordinal in the inline-start margin, everything else in one column. The
+   margin is reserved at every width, so the odes' مطالع share one edge and
+   the numerals read as a numbered list rather than as ten separate cards. */
+.anth-ode {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-3);
+  padding-block-end: var(--sp-5);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.anth-odes > .anth-ode:last-child {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+/* A ringed numeral, the way a folio is marked. Mono because the Amiri we ship
+   is the `arabic` subset and carries no Latin figures (CLAUDE.md §Western
+   digits) — a numeral set in the verse face falls through to the OS serif. */
+.anth-ode__ord,
+.anth-bayt__ord {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--accent-hair);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-soft);
+}
+
+.anth-ode__body {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.anth-ode__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
+  min-block-size: var(--meta-band);
+}
+
+.anth-ode__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  line-height: 2.1;
+  padding-block-start: 0.1em;
+  color: var(--text-1);
+}
+
+.anth-ode__poet {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.anth-ode__poet:hover {
+  color: var(--accent);
+}
+
+.anth-ode__poet--plain:hover {
+  color: var(--text-2);
+}
+
+/* The fallback مطلع, when the corpus has no قصيدة behind the entry: the
+   anthology's own words, in the verse face, quiet. */
+.anth-ode__matla {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 2.1;
+  color: var(--text-3);
+}
+
+.anth-ode__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-block-size: var(--meta-band);
+  /* aligned with the بيت's own text column, not with the card's edge — the
+     same inset `.bcard__meta` takes in views.css */
+  padding-inline-start: var(--bayt-num-col, 3.2rem);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* Every chip in a meta band is exactly one band tall — the app has three such
+   bands (views.css) and these two are the fourth and fifth. Without this the
+   قافية chip renders at its own `.letter-well` size and becomes a 2.5rem lapis
+   disc beside a 13px line. */
+.anth-ode__meta > .chip,
+.anth-bayt__meta > .chip {
+  min-block-size: var(--meta-band);
+}
+
+.anth-ode__meta > .chip--rawiyy,
+.anth-bayt__meta > .chip--rawiyy {
+  inline-size: var(--meta-band);
+  block-size: var(--meta-band);
+  padding-block-end: 0.18em;
+  font-size: var(--fs-ui-3);
+}
+
+.anth-ode__len {
+  font-variant-numeric: tabular-nums;
+}
+
+.anth-ode__go {
+  margin-inline-start: auto;
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.anth-ode__go:hover {
+  color: var(--accent);
+}
+
+/* ── مئة بيت سائر ───────────────────────────────────────────────────── */
+
+.anth-baits {
+  display: grid;
+  gap: var(--sp-5);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.anth-bayt {
+  display: grid;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: var(--sp-2) var(--sp-3);
+  padding-block-end: var(--sp-5);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.anth-baits > .anth-bayt:last-child {
+  border-block-end: 0;
+  padding-block-end: 0;
+}
+
+.anth-bayt--missing {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.anth-bayt__ord {
+  align-self: start;
+  margin-block-start: 0.4rem;
+}
+
+.anth-bayt__card {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.anth-bayt__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-block-size: var(--meta-band);
+  padding-inline-start: var(--bayt-num-col, 3.2rem);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.anth-bayt__poet {
+  color: var(--text-2);
+}
+
+.anth-bayt__poet:hover {
+  color: var(--accent);
+}
+
+.anth-bayt__go {
+  margin-inline-start: auto;
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.anth-bayt__go:hover {
+  color: var(--accent);
+}
+
+/* ══ the honest gap ════════════════════════════════════════════════════ */
+
+/* «ليست في الديوان» is a FACT the shelf reports, not an error it apologises
+   for — so it is a dashed marker in the meta band's own colour, not a red
+   state. The reader is being told where the ديوان ends. */
+.anth-missing {
+  padding: 0 var(--sp-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-1);
+  line-height: calc(var(--meta-band) - 2px);
+  color: var(--text-3);
+}
+
+.anth-error {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  /* The ordinal disc leaves the margin and joins the heading row: 2.75rem of
+     reserved gutter is 8% of a 390px screen, and the مطلع needs the measure
+     more than the list needs its numbered edge. */
+  .anth-ode,
+  .anth-bayt {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .anth-ode__ord,
+  .anth-bayt__ord {
+    inline-size: 1.75rem;
+    font-size: var(--fs-ui-0);
+  }
+
+  .anth-bayt__ord {
+    margin-block-start: 0;
+  }
+
+  .anth-ode__meta,
+  .anth-bayt__meta {
+    padding-inline-start: 0;
+  }
+
+  .anth-card {
+    padding: var(--sp-5) var(--sp-4) var(--sp-4);
+  }
+
+  .anth-card__title {
+    font-size: var(--fs-ui-5);
+  }
+
+  .anth-card__spines {
+    padding-inline-start: var(--sp-3);
+  }
+}

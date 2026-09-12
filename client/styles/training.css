@@ -1,0 +1,1047 @@
+/* قريض — Phase 4 (v1.5): التحفيظ, الترسانة, التجوال, and the بطاقة dialog.
+ *
+ * Loaded last, after bayt.css and views.css, because two rules here are
+ * deliberate overrides of the بيت: the ruled blank that stands in for a hidden
+ * عجز, and the drill plate's tighter measure.
+ *
+ * Every grid track is `minmax(0, 1fr)`: a grid item's automatic minimum is its
+ * min-content width, and one long شطر would otherwise widen the page under RTL
+ * (CLAUDE.md invariant, learned on the browse rail).
+ */
+
+/* ── small shared affordances ──────────────────────────────────────── */
+.btn--sm {
+  padding: 0.25rem 0.6rem;
+  font-size: var(--fs-ui-1);
+}
+
+.linkish {
+  color: var(--accent-soft);
+  font-size: inherit;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+
+.linkish:hover {
+  color: var(--accent);
+}
+
+/* ══ HUB — #/train ═════════════════════════════════════════════════════ */
+
+.train-view {
+  gap: var(--sp-5);
+}
+
+.train-due__body {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+.train-due__count {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  min-inline-size: 5.5rem;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--accent-wash);
+}
+
+.train-due__n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 2.6rem;
+  line-height: 1.1;
+  color: var(--accent);
+}
+
+.train-due__cap {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.train-due__copy {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.train-due__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.train-due__note {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+/* ── the streak ribbon ─────────────────────────────────────────────── */
+.streak {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.streak__nib {
+  color: var(--accent);
+  opacity: 0.7;
+  display: inline-flex;
+}
+
+.streak__dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.streak__dot {
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+}
+
+.streak__dot[data-lit="1"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.35);
+}
+
+/* ── the ترسانة card on the hub ────────────────────────────────────── */
+
+/* Three blocks across the panel, not two half-panel columns.
+ *
+ * Both blocks are capped, and for good reasons: the heatmap at 26rem because
+ * its cells are `aspect-ratio: 1`, so a wider thumbnail is a TALLER one; the
+ * weak-letter list because its rows are letter + name + number + button and a
+ * wide track pulls those into separated columns that stop reading as rows. Two
+ * capped blocks in two `1fr` tracks can then only sit right-aligned inside
+ * oversized tracks — at 1440 that was ~165px of canyon between them AND ~160px
+ * of dead panel at the far end, directly under a head whose own action
+ * («الترسانة كاملة ←») sits at that very edge.
+ *
+ * So: the two ends are sized, and the MIDDLE track takes the slack. The
+ * heatmap holds the inline-start edge, the weak list holds the far one, and
+ * the coverage ring is pinned `justify-self: start` so it stays beside the map
+ * it describes instead of floating in the panel's centre. `display: contents`
+ * is what makes the ring a track at all — it promotes `__side`'s two children
+ * into this grid without another wrapper. Below 861px `__side` goes back to
+ * being a real box and the three stack. */
+.train-arsenal-card__body {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr) minmax(0, 18rem);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.train-arsenal-card__thumb {
+  display: block;
+  min-inline-size: 0;
+  max-inline-size: 26rem;
+}
+
+.train-arsenal-card__side {
+  display: contents;
+}
+
+/* The middle track carries the slack, so the ring is pinned to the map it
+ * describes instead of floating in the panel's centre. */
+.train-arsenal-card__body > .ring {
+  justify-self: start;
+}
+
+.ring--lg .ring__cap {
+  font-size: var(--fs-ui-1);
+}
+
+.weak__title {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  margin-block-end: var(--sp-2);
+}
+
+.weak__list {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.weak__list li {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.weak__ch {
+  font-family: var(--font-verse);
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--lapis);
+  inline-size: 1.6em;
+  block-size: 1.6em;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--lapis-line);
+  border-radius: 50%;
+}
+
+.weak__name {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weak__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.weak__none {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* ── leeches ───────────────────────────────────────────────────────── */
+.leeches {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.leeches__head {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.leeches__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.leeches__list {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.leech {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+}
+
+.leech__bayt {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.leech__meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.leech__n {
+  font-family: var(--font-mono);
+  color: var(--danger);
+}
+
+.leech__acts {
+  display: flex;
+  gap: var(--sp-1);
+}
+
+/* ══ HEATMAP ═══════════════════════════════════════════════════════════ */
+
+.heatmap {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.heatmap__row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+/* One cell: the fill IS the data — `--fill` is min(1, supply/12). */
+.heatcell {
+  --fill: 0;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  min-inline-size: 0;
+  aspect-ratio: 1;
+  border: 1px solid rgba(var(--accent-rgb), calc(0.18 + var(--fill) * 0.5));
+  border-radius: var(--r-2);
+  background: rgba(var(--accent-rgb), calc(var(--fill) * 0.34));
+  color: var(--text-1);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+button.heatcell:hover {
+  border-color: var(--accent);
+}
+
+.heatcell[data-empty="1"] {
+  border-style: dashed;
+  border-color: var(--line-2);
+  color: var(--text-3);
+}
+
+.heatcell[data-active="1"] {
+  border-color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.heatcell__ch {
+  font-family: var(--font-verse);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.heatcell__n {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-3);
+}
+
+.heatmap[data-compact="1"] {
+  gap: 4px;
+}
+
+.heatmap[data-compact="1"] .heatmap__row {
+  gap: 4px;
+}
+
+.heatmap[data-compact="1"] .heatcell__ch {
+  font-size: 0.95rem;
+}
+
+/* ══ ARSENAL — #/train/arsenal ═════════════════════════════════════════ */
+
+.arsenal-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
+}
+
+.arsenal-grid-panel {
+  display: grid;
+  gap: var(--sp-4);
+  min-inline-size: 0;
+}
+
+.arsenal-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.arsenal-legend__swatch {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 3px;
+  background: rgba(var(--accent-rgb), 0.34);
+}
+
+.arsenal-side {
+  display: grid;
+  gap: var(--sp-4);
+  min-inline-size: 0;
+}
+
+.arsenal-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex-wrap: wrap;
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+.arsenal-figures {
+  display: flex;
+  gap: var(--sp-5);
+  margin: 0;
+}
+
+.arsenal-figures dt {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* `.num` puts `direction: ltr` on the element, so a BLOCK carrying it aligns
+ * its digits to the physical left — under an RTL label sitting on the right.
+ * `text-align: end` inside that ltr box is the physical right, i.e. the
+ * inline-start of the Arabic column the label lives in. */
+.arsenal-figures dd,
+.letter-detail__facts dd {
+  text-align: end;
+}
+
+.arsenal-figures dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-5);
+  color: var(--accent);
+}
+
+.arsenal-hint {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.letter-detail {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--bg-1);
+}
+
+.letter-detail__head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.letter-detail__ch {
+  font-family: var(--font-verse);
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--accent);
+  inline-size: 1.7em;
+  block-size: 1.7em;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--accent-line);
+  border-radius: 50%;
+  background: var(--accent-wash);
+}
+
+.letter-detail__name {
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+}
+
+.letter-detail__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin: 0;
+}
+
+.letter-detail__facts dt {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.letter-detail__facts dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+}
+
+.letter-detail__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.letter-detail__acts {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.arsenal-weak {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.arsenal-weak__head {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.weakrow-list {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.weakrow {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 7rem) minmax(0, 1fr) max-content max-content;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+}
+
+.weakrow__ch {
+  font-family: var(--font-verse);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--lapis);
+}
+
+.weakrow__name {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.weakrow__bar {
+  block-size: 6px;
+  border-radius: var(--r-pill);
+  background: var(--line-1);
+  overflow: hidden;
+  min-inline-size: 0;
+}
+
+/* A physical `90deg` gradient reads backwards under RTL — the bar fills from
+ * the inline-start (the right) and the gradient would run out of it. One
+ * colour, and it is `warn`: a weak حرف is a warning, not an error. */
+.weakrow__fill {
+  display: block;
+  block-size: 100%;
+  background: rgba(var(--warn-rgb), 0.65);
+}
+
+.weakrow__facts {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.weakrow__sep {
+  opacity: 0.5;
+}
+
+/* ══ DRILL — #/train/drill ═════════════════════════════════════════════ */
+
+.drill-view {
+  gap: var(--sp-4);
+}
+
+.drill-letter {
+  font-family: var(--font-verse);
+  font-size: 1.3em;
+  color: var(--accent);
+}
+
+.drill-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.drill-progress__bar {
+  block-size: 3px;
+  border-radius: var(--r-pill);
+  background: var(--line-1);
+  overflow: hidden;
+}
+
+.drill-progress__fill {
+  display: block;
+  block-size: 100%;
+  background: var(--accent);
+  opacity: 0.75;
+  transition: inline-size var(--dur-3) var(--ease);
+}
+
+.drill-progress__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.drill-card {
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  min-inline-size: 0;
+}
+
+/* The ruled blank standing in for the hidden عجز. It is a RULE, not a box:
+ * a memoriser reads the length of the line, and a filled block would read as
+ * redacted rather than as waiting. */
+.ajuz--blank {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  /* the track may be an auto one — never let the blank set its minimum */
+  min-inline-size: 0;
+}
+
+.ajuz-blank {
+  display: inline-block;
+  max-inline-size: 100%;
+  block-size: 1px;
+  background: linear-gradient(90deg, var(--line-2) 60%, transparent 60%);
+  background-size: 10px 1px;
+  transform: translateY(-0.35em);
+}
+
+.bayt[data-size="lg"] .ajuz-blank {
+  block-size: 2px;
+}
+
+.drill-tag {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.drill-input {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.drill-input__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.drill-input textarea {
+  inline-size: 100%;
+  resize: vertical;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: var(--lh-bayt);
+}
+
+.drill-input textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: var(--accent-glow);
+}
+
+.drill-acts,
+.drill-done__acts {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.drill-reveal {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-size: var(--fs-ui-1);
+}
+
+.drill-reveal__poet {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 2;
+  color: var(--accent-soft);
+}
+
+.drill-reveal__poet:hover {
+  color: var(--accent);
+}
+
+.drill-reveal__poem {
+  color: var(--text-3);
+}
+
+.drill-reveal__poem:hover {
+  color: var(--accent);
+}
+
+.drill-diff {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  border-inline-start: 2px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.015);
+  border-radius: var(--r-2);
+}
+
+.drill-diff__head {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.drill-diff__head--shown {
+  padding-inline-start: var(--sp-1);
+}
+
+/* ── the word diff ─────────────────────────────────────────────────── */
+.worddiff {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.45em;
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 2.1;
+}
+
+.worddiff__w {
+  position: relative;
+  color: var(--text-1);
+}
+
+.worddiff__w[data-state="missing"] {
+  color: var(--text-3);
+  text-decoration: underline dotted rgba(255, 255, 255, 0.25);
+  text-underline-offset: 0.35em;
+}
+
+.worddiff__w[data-state="wrong"] {
+  color: var(--danger);
+}
+
+.worddiff__typed {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-0);
+  line-height: 1.4;
+  color: var(--text-3);
+}
+
+/* ── the four grades ───────────────────────────────────────────────── */
+.drill-grades {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.drill-grade {
+  justify-content: center;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.drill-grade__key {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  border: 1px solid var(--line-1);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.drill-grade[data-grade="again"]:hover {
+  border-color: rgba(var(--danger-rgb), 0.5);
+  color: var(--danger);
+}
+
+.drill-grade[data-suggested="1"] {
+  border-color: var(--accent-line);
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.drill-foot {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.drill-done {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-7) var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+  text-align: center;
+}
+
+.drill-done__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  line-height: 2.2;
+  color: var(--accent);
+}
+
+.drill-done__line {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+/* ══ WANDER — #/wander ═════════════════════════════════════════════════ */
+
+.wander-view {
+  gap: var(--sp-5);
+}
+
+.wander-error {
+  font-size: var(--fs-ui-2);
+  color: var(--danger);
+}
+
+.doors--wander {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.door--wander {
+  align-content: start;
+  gap: var(--sp-2);
+}
+
+.door--wander .door__name {
+  font-family: var(--font-display);
+  line-height: 2;
+  color: var(--accent-soft);
+}
+
+.door--wander .door__note {
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.door__go {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.door--wander:hover .door__go {
+  color: var(--accent);
+}
+
+.wander-foot {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.wander-trail {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.wander-trail__list {
+  display: grid;
+  gap: var(--sp-1);
+  inline-size: 100%;
+}
+
+.wander-trail__step {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-1);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.wander-trail__step[data-current="1"] {
+  background: var(--accent-wash);
+  color: var(--text-2);
+}
+
+.wander-trail__via {
+  color: var(--accent-soft);
+  white-space: nowrap;
+}
+
+.wander-trail__label {
+  color: var(--text-3);
+}
+
+.wander-trail__bayt {
+  font-family: var(--font-verse);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+/* A walk in progress dims the بيت it is leaving rather than blanking it. */
+.bayt-plate.is-walking {
+  opacity: 0.45;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+/* ══ SHARE CARD dialog ═════════════════════════════════════════════════ */
+
+.sharecard {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.sharecard__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.sharecard__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2;
+  color: var(--text-1);
+}
+
+.sharecard__stage {
+  display: grid;
+  place-items: center;
+  min-block-size: 12rem;
+  padding: var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  /* Shrink-wrap the card: a height-capped SQUARE canvas is narrower than the
+   * dialog, and a stage that keeps the wide card's width letterboxes it
+   * between two empty panels. */
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin-inline: auto;
+}
+
+/* The preview scales to FIT — it never asks the reader to scroll (owner's
+ * rule: no new scrollbars). A canvas is a replaced element, so auto sizes
+ * plus max constraints on BOTH axes keep the aspect and pick whichever axis
+ * binds; the height cap is what stops the square card overflowing a short
+ * viewport. */
+.sharecard__canvas {
+  display: block;
+  inline-size: auto;
+  block-size: auto;
+  max-inline-size: min(34rem, 100%);
+  max-block-size: 58vh;
+  margin-inline: auto;
+  border-radius: var(--r-1);
+  box-shadow: var(--shadow-1);
+}
+
+.sharecard__stage[data-shape="square"] .sharecard__canvas {
+  max-inline-size: min(22rem, 100%);
+}
+
+.sharecard__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.sharecard__acts {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.sharecard__dim {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  .train-due__body {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .train-due__go {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .train-arsenal-card__body,
+  .arsenal-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked, the ring and the weak list are one column again — so `__side`
+   * has to be a box that can hold them, not `display: contents`. */
+  .train-arsenal-card__side {
+    display: grid;
+    gap: var(--sp-4);
+    min-inline-size: 0;
+    max-inline-size: 28rem;
+  }
+
+  .leech {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .weakrow {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    row-gap: var(--sp-2);
+  }
+
+  .weakrow__bar {
+    grid-column: 1 / -1;
+  }
+
+  .drill-grades {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .letter-detail__facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .heatcell__ch {
+    font-size: 1.15rem;
+  }
+
+  .train-due__n {
+    font-size: 2rem;
+  }
+}

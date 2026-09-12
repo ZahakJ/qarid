@@ -1,0 +1,1529 @@
+/* قريض — المساجلة: setup, play, summary, and تحدّي اليوم.
+ * design-ux.md §4/§5. Loaded after app.css, so it may lean on every token and
+ * on `.btn`, `.chip`, `.panel`, `.popover` and `.bayt-plate` as they stand.
+ *
+ * Three things in here are load-bearing rather than decorative:
+ *
+ *  1. `.letter-ind .letter-well` is the largest single glyph in the product
+ *     (2.4rem Amiri) because the required letter is the whole game. The turn's
+ *     timer is drawn as a hairline arc AROUND it, so the two facts a player
+ *     needs — which letter, how long — occupy one point of focus instead of
+ *     two. Every rule in that cluster is scoped under `.letter-ind` and MUST
+ *     stay so: `.letter-well` is also views.css's 28-cell روي grid, and this
+ *     file loads after views.css.
+ *  2. `.recite` animates a stepped mask, one step per word, so the opponent's
+ *     بيت arrives word by word without `BaytPlate` ever reflowing. The mask
+ *     only exists while `[data-reveal]` is on the element; the finished state
+ *     carries no mask at all, which is why a browser that ignores masks still
+ *     ends with a readable بيت.
+ *  3. lapis stays inside its three sanctioned uses: the opponent's plate edge
+ *     (`[data-side='them']`, already in bayt.css) and its half of the letter
+ *     ribbon. Everything else here is gold, ink, or a semantic tone.
+ */
+
+/* ═════════════════════════════ setup ═════════════════════════════════ */
+
+.duel-setup {
+  display: grid;
+  gap: var(--sp-6);
+}
+
+.setup-sect {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.setup-sect__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.setup-sect__opt {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  margin-inline-start: var(--sp-2);
+}
+
+.tier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--sp-3);
+  list-style: none;
+}
+
+.tier {
+  inline-size: 100%;
+  block-size: 100%;
+  display: grid;
+  gap: var(--sp-2);
+  align-content: start;
+  text-align: start;
+  padding: var(--sp-4);
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+  color: var(--text-1);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.tier:hover:not([disabled]) {
+  border-color: var(--accent-line);
+}
+
+.tier[data-active="1"] {
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  box-shadow: var(--accent-glow);
+}
+
+.tier[disabled] {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.tier__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--accent);
+}
+
+.tier__lede {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.tier__params {
+  display: grid;
+  gap: var(--sp-1);
+  margin-block-start: var(--sp-2);
+  font-size: var(--fs-ui-0);
+}
+
+.tier__params > div {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+}
+
+.tier__params dt {
+  color: var(--text-3);
+  min-inline-size: 3.4rem;
+}
+
+.tier__params dd {
+  color: var(--text-2);
+}
+
+.tier__locked {
+  font-size: var(--fs-ui-0);
+  color: var(--warn);
+}
+
+.setup-row {
+  display: grid;
+  grid-template-columns: 4rem 1fr;
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.setup-row__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  padding-block-start: 0.35rem;
+}
+
+.setup-pool {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.setup-pool[data-stale="1"] {
+  opacity: 0.5;
+}
+
+.setup-pool__n {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.setup-pool[data-thin="1"] .setup-pool__n {
+  color: var(--warn);
+}
+
+.setup-pool__warn {
+  color: var(--warn);
+}
+
+/* ── «الشاعر» — the third قيد, a search rather than a cloud of chips ──── */
+/* العصر is twelve chips and البحر sixteen, so both are laid out whole; a شاعر
+ * is 6,941, so this one asks. Everything below is sized off the same --sp-
+ * scale and the same --line- and --accent- tokens the chips use, so the row
+ * does not read as a foreign control dropped into the القيود. */
+.poetpick {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.poetpick__field {
+  inline-size: min(24rem, 100%);
+  /* the 44px touch floor, and it is declared here rather than in phone.css
+     because a 34px field is wrong with a mouse too */
+  min-block-size: 2.75rem;
+  padding: var(--sp-2) var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+}
+
+.poetpick__field::placeholder {
+  color: var(--text-3);
+}
+
+/* The house call, twice made already (views.css `.omnibox__input`, phone.css
+ * `.fsearch__input`): Chromium's own clear-affordance is a Latin glyph in an
+ * Arabic field, and it lands where the ✕ of the CHOSEN chip will be. */
+.poetpick__field::-webkit-search-cancel-button {
+  display: none;
+}
+
+.poetpick__field:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+/* The field's own width, so the ranked rows line up under it. It has to be
+ * declared HERE and not only on the list: a grid item with no inline-size of
+ * its own that is not stretched shrinks to fit-content, and the list's
+ * `min(24rem, 100%)` then resolved its 100% against 179px of شاعر name. */
+.poetpick__answer {
+  inline-size: min(24rem, 100%);
+  min-inline-size: 0;
+}
+
+.poetpick__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.poetpick__note--warn {
+  color: var(--warn);
+}
+
+.poetpick__list {
+  display: grid;
+  gap: 1px;
+  inline-size: 100%;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  background: var(--line-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+/* One ranked شاعر: his name in the display face, his عصر and his ديوان's size
+ * under it — the two facts that tell you whether this is a مساجلة. */
+.poetpick__hit {
+  display: grid;
+  gap: 2px;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--sp-2) var(--sp-3);
+  text-align: start;
+  background: var(--bg-1);
+  border: 0;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease);
+}
+
+.poetpick__hit:hover,
+.poetpick__hit:focus-visible {
+  background: var(--accent-dim);
+  outline: none;
+}
+
+.poetpick__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+}
+
+.poetpick__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.poetpick__count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The chosen شاعر. Not a `.chip`: a facet chip is one of a cloud you toggle,
+ * and this is a single standing قيد with its own ✕ — gold-hairlined, because
+ * gold on this screen means «this is in force». */
+.poetpick__chip {
+  display: inline-flex;
+  /* the chip is one standing قيد, not a bar: it takes the width of the name it
+     carries, and the row it sits in is 40rem wide */
+  justify-self: start;
+  align-items: center;
+  gap: var(--sp-3);
+  /* logical, always — the ✕ sits at the inline END and the name at the START,
+     and a physical `padding-left` puts the tighter side under the name in RTL */
+  padding-block: 2px;
+  padding-inline: var(--sp-3) 2px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+}
+
+/* His NAME is the قيد; the size of his ديوان is the footnote. Aref Ruqaa runs
+ * small for its em, so a display face at the UI face's size reads smaller than
+ * the count beside it — the step up is what puts them in the right order. */
+.poetpick__chip .poetpick__name {
+  font-size: var(--fs-ui-4);
+  color: var(--accent);
+}
+
+.poetpick__chip .poetpick__count {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.poetpick__off {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+
+.poetpick__off:hover,
+.poetpick__off:focus-visible {
+  color: var(--accent);
+  background: var(--accent-dim);
+  outline: none;
+}
+
+.setup-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: center;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.switch input {
+  inline-size: 1.05rem;
+  block-size: 1.05rem;
+  accent-color: rgb(var(--accent-rgb));
+}
+
+.setup-note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.setup-go__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.setup-record {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.setup-record__label {
+  color: var(--text-3);
+}
+
+.setup-record__val {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-soft);
+}
+
+.setup-record__sep {
+  color: var(--text-3);
+}
+
+.btn--lg {
+  padding: 0.7rem 1.6rem;
+  font-size: var(--fs-ui-3);
+}
+
+/* ═════════════════════════════ play ══════════════════════════════════ */
+
+.duel-play {
+  display: grid;
+  gap: var(--sp-4);
+  /* wider than the reading column: a طويل عجز wraps inside 46rem, and a بيت
+     that wraps mid-duel reads as two lines of verse instead of one */
+  max-inline-size: min(62rem, 100%);
+  margin-inline: auto;
+}
+
+.duel-hud {
+  position: sticky;
+  /* under the masthead, which is sticky at 0 and ~3.4rem tall — two bars that
+     pin to the same edge fight, and the nav loses. Add the status-bar inset so
+     the HUD still pins below the masthead under edge-to-edge (see app.css
+     .masthead); the var is 0 off a passthrough WebView. */
+  inset-block-start: calc(3.4rem + var(--safe-area-inset-top, 0px));
+  z-index: calc(var(--z-sticky) - 1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  background: linear-gradient(var(--bg-1), var(--bg-1)), var(--bg-0);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+}
+
+.duel-hud__lives {
+  display: inline-flex;
+  gap: var(--sp-1);
+  color: var(--accent);
+}
+
+.duel-hud__nib[data-spent="1"] {
+  opacity: 0.18;
+}
+
+.duel-hud__stat {
+  display: inline-flex;
+  gap: var(--sp-2);
+  align-items: baseline;
+  font-size: var(--fs-ui-1);
+}
+
+.duel-hud__label {
+  color: var(--text-3);
+}
+
+.duel-hud__streak {
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+
+.duel-hud__stat[data-hot="1"] .duel-hud__streak {
+  color: var(--accent);
+}
+
+.duel-hud__score,
+.duel-hud__used {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+.duel-hud__stat--quiet .duel-hud__used {
+  color: var(--text-2);
+}
+
+.duel-hud__quit {
+  margin-inline-start: auto;
+}
+
+.duel-scope {
+  margin-block-start: var(--sp-1);
+  /* The قيد a ديوان مساجلة is fought under, said once under the HUD. It reads
+     as a note and not as an instrument: the ink is the quiet one, the gold is
+     kept for the link, and the rule under it is the dissolving hairline the
+     manuscript surfaces use rather than a box. */
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  text-align: center;
+  padding-block-end: var(--sp-2);
+  border-block-end: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.28), transparent) 1;
+}
+
+.duel-scope a {
+  color: rgb(var(--accent-rgb));
+}
+
+.duel-progress,
+.duel-wait,
+.duel-precheck {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  text-align: center;
+}
+
+.duel-wait {
+  color: var(--text-3);
+  padding-block: var(--sp-2);
+}
+
+.duel-failed {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+  padding: var(--sp-5);
+  border: 1px solid var(--danger);
+  border-radius: var(--r-2);
+  background: var(--danger-dim);
+}
+
+/* ── transcript ─────────────────────────────────────────────────────── */
+
+.exchange-log {
+  display: grid;
+  gap: var(--sp-4);
+  list-style: none;
+}
+
+.exchange {
+  scroll-margin-block: 6rem;
+  border-radius: var(--r-3);
+}
+
+.exchange[data-pulse="1"] {
+  animation: bayt-pulse 900ms var(--ease) 2;
+}
+
+.exchange__who {
+  color: var(--text-2);
+}
+
+.exchange__who--hidden {
+  color: var(--lapis);
+  letter-spacing: normal;
+}
+
+a.exchange__who:hover {
+  color: var(--accent);
+}
+
+.exchange__link {
+  color: var(--text-3);
+  font-size: var(--fs-ui-0);
+}
+
+.exchange__link:hover {
+  color: var(--accent);
+}
+
+/* «خرج عن القيود» — the opponent answered from OUTSIDE the player's عصر/بحر
+ * because nothing inside them chained. Warn-toned and quiet: it is an honest
+ * disclosure, not a fault, and it must never outweigh the شاعر's name beside
+ * it. `.num`-free, so nothing here needs an LTR run. */
+.exchange__relaxed {
+  font-size: var(--fs-ui-0);
+  color: var(--warn);
+  border: 1px solid currentColor;
+  border-radius: var(--r-1);
+  padding-inline: var(--sp-2);
+  opacity: 0.8;
+}
+
+/* sits after the exchange's own metadata, not 700px away at the far edge */
+.exchange__award {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  animation: award-in var(--dur-3) var(--ease);
+}
+
+@keyframes award-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.exchange-log__end {
+  block-size: 1px;
+}
+
+/* ── the recitation ─────────────────────────────────────────────────── */
+
+.recite[data-reveal] .sadr,
+.recite[data-reveal] .ajuz {
+  /* hug the text so the mask lines up with the words, not the grid cell */
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  -webkit-mask-image: linear-gradient(to left, #000 42%, rgba(0, 0, 0, 0) 58%);
+  mask-image: linear-gradient(to left, #000 42%, transparent 58%);
+  -webkit-mask-size: 260% 100%;
+  mask-size: 260% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.recite[data-reveal] .sadr {
+  justify-self: start;
+  animation: recite-sweep var(--recite-sadr-ms, 500ms) steps(var(--recite-sadr-steps, 6), jump-start) forwards;
+}
+
+.recite[data-reveal] .ajuz {
+  justify-self: end;
+  -webkit-mask-position: 0% 0;
+  mask-position: 0% 0;
+}
+
+.recite[data-reveal="ajuz"] .ajuz {
+  animation: recite-sweep var(--recite-ajuz-ms, 500ms) steps(var(--recite-ajuz-steps, 6), jump-start) forwards;
+}
+
+.recite[data-reveal] .gutter {
+  opacity: 0;
+}
+
+@keyframes recite-sweep {
+  from {
+    -webkit-mask-position: 0% 0;
+    mask-position: 0% 0;
+    filter: blur(3px);
+  }
+  to {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recite[data-reveal] .sadr,
+  .recite[data-reveal] .ajuz {
+    -webkit-mask-image: none;
+    mask-image: none;
+    animation: none;
+  }
+}
+
+body[data-reduce-motion="1"] .recite[data-reveal] .sadr,
+body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none;
+}
+
+/* ── the desk: letter, clock, field ─────────────────────────────────── */
+
+.duel-desk {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+}
+
+/* ── the «المطلوب → عندك» cluster ────────────────────────────────────
+ *
+ * Rebuilt for v2 §6. Four things it now guarantees, each of which was wrong:
+ *
+ *  1. NO CLASS COLLISION. `.letter-well` is ALSO the browse rail's 28-cell روي
+ *     grid (views.css), and duel.css loads after views.css — so every cell of
+ *     that grid was inheriting this 4.25rem gold disc, overflowing its 15.5rem
+ *     rail and letting the neighbouring circle swallow the click, which is the
+ *     exact failure CLAUDE.md's grid-minimum invariant was written about.
+ *     Everything here is scoped under `.letter-ind`, so the two never meet.
+ *  2. TRUE CIRCLES. `inline-size` + `aspect-ratio: 1` (not a matched
+ *     block-size) — a circle that cannot be distorted by a stretching parent.
+ *  3. THE WELLS SHARE A ROW. Each side is a three-row grid — label / well /
+ *     footnote — with the footnote row a fixed height, so the side that grows
+ *     ghost chips and the side that grows a verdict stay level. Centring two
+ *     unequal columns is what used to drift the two discs apart by 4px.
+ *  4. THE ARC IS CONCENTRIC BY CONSTRUCTION. It is inset a fixed gap on all
+ *     four sides of the well it rings, and its viewBox is square, so the ring
+ *     radius is (well + 2·gap)·0.47 whatever the well measures — no second
+ *     hairline riding on the border.
+ */
+
+.letter-ind {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+  /* the disc, the ring gap and the footnote band — one place, three sizes */
+  --well: 4.25rem;
+  --well-gap: 7px;
+  --well-foot: 1.75rem;
+}
+
+/* ONE grid holds both sides and the arrow between them, with the three rows
+ * declared — caption / disc / footnote. The two `.letter-ind__side` wrappers
+ * are `display: contents`, so their children are placed directly here and the
+ * two discs are literally in the same grid row: no amount of ghost chips on
+ * one side and verdict text on the other can drift them apart, which is what a
+ * pair of independently-centred flex columns used to do. */
+.letter-ind__row {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  grid-template-rows: auto var(--well) var(--well-foot);
+  align-items: center;
+  justify-items: center;
+  /* room for the ring on both sides of each disc, and for the arrow between */
+  column-gap: var(--sp-5);
+  /* the ring stands `--well-gap` proud of the disc on every side, so the row
+     gap has to clear it before the caption and the ghosts start */
+  row-gap: var(--sp-4);
+  max-inline-size: 100%;
+}
+
+.letter-ind__side {
+  display: contents;
+}
+
+.letter-ind__row > .letter-ind__side:first-child > * {
+  grid-column: 1;
+}
+
+.letter-ind__row > .letter-ind__side:last-child > * {
+  grid-column: 3;
+}
+
+.letter-ind__label {
+  grid-row: 1;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.letter-ind .letter-well {
+  grid-row: 2;
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: var(--well);
+  aspect-ratio: 1;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent-line);
+}
+
+/* BASELINE-ALIGNED, not ink-centred. `place-items: center` centres the LINE
+ * BOX, and with `line-height: 1` Amiri's box centre sits 9.5px above the
+ * baseline at 38.4px — so the letter rendered ~3.5px low in the disc.
+ *
+ * The nudge is ONE value for all 28 letters on purpose. Measured with canvas
+ * actualBoundingBox on the isolated forms at 2.4rem Amiri, the ink centre
+ * ranges from 5.5px above the box centre (ك) to 14.5px below it (ج): centring
+ * each letter's own ink would move ا down 4px and ج up 14px and the disc would
+ * visibly jump between turns. Putting the shared BASELINE 6.1px (the mean ink
+ * half-height, (20.4 − 8.2) / 2) below the disc's centre instead typesets the
+ * whole alphabet on one line — 9.5 − 6.1 = 3.4px up, which is 0.09em and
+ * therefore survives every step of the size scale. */
+.letter-ind .letter-well__glyph {
+  font-family: var(--font-verse);
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--accent);
+  transform: translateY(-0.09em);
+}
+
+.letter-ind .letter-well--typed {
+  background: none;
+  border-color: var(--line-2);
+}
+
+.letter-ind .letter-well--typed .letter-well__glyph {
+  color: var(--text-2);
+}
+
+.letter-ind[data-verdict="match"] .letter-well--typed,
+.letter-ind[data-verdict="lenient"] .letter-well--typed {
+  border-color: var(--accent);
+}
+
+.letter-ind[data-verdict="match"] .letter-well--typed .letter-well__glyph,
+.letter-ind[data-verdict="lenient"] .letter-well--typed .letter-well__glyph {
+  color: var(--accent);
+}
+
+.letter-ind[data-verdict="miss"] .letter-well--typed {
+  border-color: var(--danger);
+}
+
+.letter-ind[data-verdict="miss"] .letter-well--typed .letter-well__glyph {
+  color: var(--danger);
+}
+
+.letter-ind__verdict {
+  grid-row: 3;
+  align-self: center;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.letter-ind[data-verdict="match"] .letter-ind__verdict,
+.letter-ind[data-verdict="lenient"] .letter-ind__verdict {
+  color: var(--ok);
+}
+
+.letter-ind[data-verdict="miss"] .letter-ind__verdict {
+  color: var(--danger);
+}
+
+/* An SVG, not «←». An arrow character is bidi-mirrored in an RTL run by some
+ * shapers and not by others, so the one glyph whose whole job is to point had
+ * a 50% chance of pointing at the wrong disc. Geometry is never reordered. */
+.letter-ind__arrow {
+  grid-column: 2;
+  grid-row: 2;
+  inline-size: 1.75rem;
+  block-size: auto;
+  color: var(--accent-line);
+}
+
+/* The ghosts are the same disc, quieter and a third the size, so the row reads
+ * as «this letter, or these» rather than as two unrelated shapes. */
+.letter-ind__ghosts {
+  grid-row: 3;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.letter-ghost {
+  display: grid;
+  place-items: center;
+  inline-size: 1.55rem;
+  aspect-ratio: 1;
+  flex: none;
+  border: 1px dashed var(--line-2);
+  border-radius: 50%;
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-2);
+  line-height: 1;
+  color: var(--text-3);
+}
+
+/* the same measured baseline offset as the disc — see above */
+.letter-ghost > bdi {
+  transform: translateY(-0.09em);
+}
+
+.letter-ind__clause {
+  max-inline-size: 30rem;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* Concentric by construction: inset the same gap on all four sides of a disc
+ * that is itself square. The viewBox is 100×100 with r 47, so the ring always
+ * lands 0.47·(well + 2·gap) from the centre — clear of the disc's own border
+ * at every size the scale produces. */
+.letter-arc {
+  position: absolute;
+  inset: calc(-1 * var(--well-gap));
+  inline-size: calc(100% + 2 * var(--well-gap));
+  block-size: calc(100% + 2 * var(--well-gap));
+  /* base.css caps every svg at `max-inline-size: 100%`, which here is the
+   * DISC's width — the ring came out the size of the disc it was meant to
+   * surround, dropped a second hairline onto its border, and (RTL, so
+   * `inset-inline-start` is the ignored one when the box is over-constrained)
+   * slid off centre. The ring opts out. */
+  max-inline-size: none;
+  overflow: visible;
+  /* 12 o'clock is where a clock starts; the sweep unwinds with the reading
+     direction, which under RTL is anticlockwise. */
+  transform: rotate(-90deg) scaleX(-1);
+}
+
+.letter-arc__track {
+  fill: none;
+  stroke: var(--line-1);
+  stroke-width: 3;
+}
+
+.letter-arc__run {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 220ms linear;
+}
+
+.letter-arc[data-tone="warn"] .letter-arc__run {
+  stroke: var(--warn);
+}
+
+.letter-arc[data-tone="danger"] .letter-arc__run {
+  stroke: var(--danger);
+  animation: arc-pulse 700ms var(--ease-out) infinite alternate;
+}
+
+@keyframes arc-pulse {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.duel-clock {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.duel-clock[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.duel-clock[data-tone="danger"] {
+  color: var(--danger);
+}
+
+/* ── the field ──────────────────────────────────────────────────────── */
+
+.answer {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: flex-end;
+}
+
+.answer__field {
+  flex: 1;
+  resize: none;
+  padding: var(--sp-3);
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 1.9;
+  color: var(--text-1);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+}
+
+/* The primary action must not read as the disabled one: a 118px ghost beside a
+ * 250px field did. Full height of the field, real gold fill, verse-scale label. */
+.answer__send {
+  align-self: stretch;
+  padding-inline: var(--sp-5);
+  font-size: var(--fs-ui-3);
+  background: rgba(var(--accent-rgb), 0.22);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.answer__send:hover:not([disabled]) {
+  background: rgba(var(--accent-rgb), 0.32);
+  box-shadow: var(--accent-glow);
+}
+
+/* هَمْس is a PRICED game mechanic; it gets button chrome, not bare text */
+.duel-acts__hint-btn {
+  border-color: var(--accent-hair);
+  color: var(--accent-soft);
+}
+
+.answer__field:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--accent-glow);
+}
+
+.answer__field::placeholder {
+  color: var(--text-3);
+  font-size: var(--fs-ui-2);
+}
+
+.answer[data-invalid="1"] .answer__field {
+  border-color: var(--danger);
+  animation: answer-shake 260ms var(--ease);
+}
+
+@keyframes answer-shake {
+  0%,
+  100% {
+    transform: none;
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.duel-acts {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.duel-acts__hint {
+  position: relative;
+}
+
+.duel-acts__note {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.duel-precheck {
+  color: var(--danger);
+}
+
+/* ── hints ──────────────────────────────────────────────────────────── */
+
+/* Opens UPWARD (the field is at the bottom of the desk) and keeps `.popover`'s
+   inline-start anchoring, which under RTL pins its right edge to the button —
+   flipping it to inline-end throws the panel off the desk's outer margin. */
+.hint-pop {
+  inset-block-end: calc(100% + var(--sp-2));
+  inset-block-start: auto;
+  max-inline-size: min(22rem, calc(100vw - 2 * var(--sp-4)));
+}
+
+.hint-pop__list {
+  display: grid;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.hint-pop__btn {
+  inline-size: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+}
+
+.hint-pop__btn:hover:not([disabled]) {
+  border-color: var(--accent-line);
+}
+
+.hint-pop__btn[disabled] {
+  opacity: 0.45;
+}
+
+.hint-pop__price {
+  font-family: var(--font-mono);
+  color: var(--warn);
+}
+
+.hint-pop__reveal {
+  padding-inline: var(--sp-3);
+  padding-block-start: var(--sp-1);
+  font-size: var(--fs-ui-1);
+  color: var(--accent);
+}
+
+.hint-pop__note,
+.hint-pop__none {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* ── rejections ─────────────────────────────────────────────────────── */
+
+.reject {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: linear-gradient(var(--bg-2), var(--bg-2)), var(--bg-0);
+  animation: fade-in var(--dur-2) var(--ease);
+}
+
+.reject[data-cost="life"] {
+  border-color: var(--danger);
+}
+
+.reject__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  justify-content: space-between;
+}
+
+.reject__title {
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+  font-weight: 500;
+}
+
+.reject__cost {
+  font-size: var(--fs-ui-0);
+  color: var(--danger);
+}
+
+.reject__cost--free {
+  color: var(--text-3);
+}
+
+.reject__body {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.reject__letter {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-5);
+  color: var(--danger);
+  padding-inline: 0.25rem;
+}
+
+.reject__letter--want {
+  color: var(--accent);
+}
+
+.reject__norm-text {
+  font-family: var(--font-verse);
+  color: var(--text-1);
+}
+
+.reject__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.reject__suggs,
+.reject__chips {
+  display: grid;
+  gap: var(--sp-2);
+  inline-size: 100%;
+  list-style: none;
+}
+
+.reject__chips {
+  grid-auto-flow: row;
+}
+
+.reject__sugg-btn {
+  inline-size: 100%;
+  text-align: start;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+}
+
+.reject__sugg-btn:hover {
+  border-color: var(--accent-line);
+}
+
+.reject__sugg-poet {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  padding-inline-start: var(--sp-4);
+}
+
+.reject__chip {
+  inline-size: 100%;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--bg-1);
+  color: var(--text-1);
+}
+
+.reject__chip:hover {
+  border-color: var(--accent);
+}
+
+.reject__chip-text {
+  font-family: var(--font-verse);
+}
+
+.reject__chip-poet {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.reject__acts {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ═════════════════════════════ summary ═══════════════════════════════ */
+
+.duel-summary {
+  display: grid;
+  gap: var(--sp-5);
+  justify-items: center;
+  max-inline-size: min(62rem, 100%);
+  margin-inline: auto;
+}
+
+.summary-headline {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  color: var(--accent);
+  font-weight: 400;
+  text-align: center;
+}
+
+/* «مساجلة في ديوان المتنبي» — the قيد, directly under the headline it qualifies
+ * and above the rule, so the two read as one sentence and the numbers below the
+ * rule are read knowing what they are numbers OF. */
+.summary-scope {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+  text-align: center;
+}
+
+.summary-scope a {
+  color: var(--accent-soft);
+}
+
+.bignums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--sp-4);
+  inline-size: 100%;
+}
+
+.bignum {
+  display: grid;
+  gap: var(--sp-1);
+  justify-items: center;
+}
+
+.bignum__val {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-6);
+  color: var(--text-1);
+}
+
+.bignum__label {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.summary-flavor {
+  inline-size: min(44rem, 100%);
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.summary-flavor__poet {
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* ONE axis on this page. The headline and the four big numbers are centred, so
+ * the sections under them are too — they used to be right-aligned with their
+ * content hugging the inline-start edge, two competing axes on one 4,100px
+ * results screen. */
+.summary-sect {
+  inline-size: 100%;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+}
+
+.summary-sect .section-title,
+.summary-sect .met-total {
+  text-align: center;
+}
+
+.summary-sect .exchange-log,
+.summary-sect .met-grid {
+  inline-size: 100%;
+}
+
+.ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.ribbon__letter {
+  inline-size: 2.1rem;
+  block-size: 2.1rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-3);
+  background: none;
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+}
+
+.ribbon__letter[data-side="player"] {
+  border-color: var(--accent-line);
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.ribbon__letter[data-side="opponent"] {
+  border-color: var(--lapis-line);
+  color: var(--lapis);
+  background: var(--lapis-dim);
+}
+
+/* design-ux.md §4 Summary asks for a poet-card grid here, and `.pcard` IS that
+ * card — the شعراء index's. The track is wider than the index's 15rem because
+ * a مساجلة meets a handful of شعراء, not four hundred, so the cells may
+ * breathe; `minmax(0, …)` keeps a long اسم from pushing the grid past the
+ * column (the min-content trap in CLAUDE.md). */
+.met-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+  gap: var(--sp-3);
+  list-style: none;
+}
+
+/* The نِيب is the retention mechanic's whole visual vocabulary, and it belongs
+ * to the CELL rather than to the card: `.pcard` is shared with #/poets, which
+ * has no notion of «جديد عليك». */
+.met-cell {
+  position: relative;
+  min-inline-size: 0;
+}
+
+.met-cell[data-new="1"] .pcard,
+.met-cell[data-new="1"] .met {
+  border-color: var(--accent-line);
+}
+
+.met-cell__nib {
+  position: absolute;
+  inset-block-start: var(--sp-2);
+  inset-inline-end: var(--sp-2);
+  color: var(--accent);
+  display: inline-flex;
+  pointer-events: none;
+}
+
+/* The fallback when `/api/poets?slugs=` did not answer: the name alone, which
+ * is all an `Exchange` carries. */
+.met {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  color: var(--text-1);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+}
+
+.met:hover {
+  border-color: var(--accent-line);
+}
+
+.met-total {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.gained {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.gained__letter {
+  inline-size: 2.1rem;
+  block-size: 2.1rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-1);
+  font-family: var(--font-verse);
+  border: 1px dashed var(--line-2);
+  color: var(--text-2);
+}
+
+.gained__letter[data-new="1"] {
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-wash);
+}
+
+.summary-acts {
+  inline-size: 100%;
+}
+
+.summary-acts__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  justify-content: center;
+}
+
+/* ═════════════════════════════ daily ═════════════════════════════════ */
+
+/* The opening panel is a hero CARD (~34rem, centred), not a full-width frame:
+ * at 1440px every child sat in the rightmost 300px of a 1,730px box and the
+ * illumination corners marked out 1,400px of nothing. */
+.daily-open {
+  inline-size: min(38rem, 100%);
+  margin-inline: auto;
+}
+
+.daily-open__inner {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  text-align: center;
+}
+
+.daily-open__inner .bayt-plate {
+  inline-size: 100%;
+}
+
+.daily-open__terms {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+.daily-open__attrib {
+  margin-block-start: calc(-1 * var(--sp-3));
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.daily-result {
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: start;
+}
+
+.daily-result__n {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-5);
+  color: var(--accent);
+}
+
+.daily-result__ribbon {
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+}
+
+.daily-share {
+  inline-size: 100%;
+  padding: var(--sp-3);
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+.daily-acts {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ═════════════════════════════ narrow ════════════════════════════════ */
+
+@media (max-width: 860px) {
+  .setup-row {
+    grid-template-columns: 1fr;
+    gap: var(--sp-2);
+  }
+
+  /* One size step down, declared where the cluster declares its sizes — the
+   * disc, its ring and its footnote band all follow from these three, so a
+   * phone gets the same geometry rather than a separately-tuned one. (This
+   * used to name the bare `.letter-well`, which is the browse rail's روي grid
+   * as well: at ≤860px all 28 of ITS cells were being resized too.) */
+  .letter-ind {
+    --well: 3.6rem;
+    --well-gap: 6px;
+    --well-foot: 1.6rem;
+  }
+
+  .letter-ind__row {
+    column-gap: var(--sp-4);
+  }
+
+  .letter-ind .letter-well__glyph {
+    font-size: 2rem;
+  }
+
+  .letter-ind__arrow {
+    inline-size: 1.4rem;
+  }
+
+  .duel-hud {
+    /* the masthead wraps to two rows on a phone, so there is no honest offset
+       to pin under — the HUD scrolls with the transcript instead */
+    position: static;
+    gap: var(--sp-3);
+    font-size: var(--fs-ui-0);
+  }
+
+  .tier-grid {
+    grid-template-columns: 1fr;
+  }
+}

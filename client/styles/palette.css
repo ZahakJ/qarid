@@ -1,0 +1,574 @@
+/* قريض — the global palette (v2.md §3), styled as the index page of a
+ * manuscript: an ink panel inside a gold hairline, corner pieces at the four
+ * corners, a dissolving rule under the field, and the entries themselves set
+ * the way the ديوان sets them — أبيات in Amiri, شعراء in Aref Ruqaa, everything
+ * else in the UI face.
+ *
+ * Two rules this file keeps that are easy to lose:
+ *  • every space is a --sp-* step (v2.md §8); the only bare numbers left are
+ *    intrinsic sizes — a 1px rule, the 18px mark, the scrollbar's own width.
+ *  • one easing family for the entrances (--ease-enter), 300–420 ms, and every
+ *    animation here is erased by base.css's two reduced-motion switches.
+ */
+
+.palette-scrim {
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  justify-items: center;
+  padding: var(--sp-4);
+  padding-block-start: min(12vh, var(--sp-8));
+  background: rgba(4, 5, 8, 0.72);
+  backdrop-filter: blur(6px);
+  animation: palette-scrim-in var(--dur-2) var(--ease-enter);
+}
+
+@media (max-width: 860px) {
+  .palette-scrim {
+    padding-block-start: var(--sp-5);
+  }
+}
+
+.palette {
+  position: relative;
+  inline-size: min(44rem, 100%);
+  display: grid;
+  /* The column is PINNED — an implicit `auto` grid track is sized to its
+   * widest item's MAX-content and is NOT clamped to the grid container
+   * (CLAUDE.md, the same trap `.app` documents). Without it the footer's
+   * max-content (475px) sized the whole panel, and `overflow: hidden` turned
+   * that into a scroll container `scrollIntoView` then shoved sideways: the
+   * overlay rendered 20px off its own left edge on a 390px phone. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  max-block-size: min(78dvh, 44rem);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  /* ink first, then a single illumination bloom at the block-start edge */
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(var(--accent-rgb), 0.07), transparent 62%),
+    linear-gradient(var(--bg-1), var(--bg-1)),
+    var(--bg-0);
+  box-shadow: var(--shadow-2);
+  animation: palette-in 320ms var(--ease-enter) both;
+  overflow: hidden;
+}
+
+@keyframes palette-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes palette-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* ── the field ─────────────────────────────────────────────────────────── */
+
+.palette__field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.palette__mark {
+  flex: none;
+  color: var(--accent-soft);
+}
+
+.palette__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-4);
+  line-height: var(--lh-ui);
+}
+
+.palette__input::placeholder {
+  color: var(--text-3);
+}
+
+.palette__input:focus {
+  outline: none;
+}
+
+/* Fixed measure: the spinner and the Esc cap swap places, and the field's
+ * inline-end must not twitch between them. */
+.palette__state {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-inline-size: 2.5rem;
+}
+
+.palette__spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-dim);
+  border-block-start-color: var(--accent);
+  animation: palette-spin 720ms linear infinite;
+}
+
+@keyframes palette-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* the dissolving gold hairline, the same one the wordmark sits on */
+.palette__rule {
+  block-size: 1px;
+  background: var(--rule-gold);
+}
+
+/* ── results ───────────────────────────────────────────────────────────── */
+
+/* `overflow-x: hidden` and the `minmax(0, …)` tracks below are one rule with
+ * two halves: a grid item's automatic minimum is its MIN-CONTENT width, and a
+ * `white-space: nowrap` بيت is 700px of min-content, so an `auto` track sized
+ * itself to the longest line and the list scrolled sideways under a phone
+ * (measured at 390: the panel's own content dragged the body 340px wide).
+ * Every track from here down is `minmax(0, …)`; the ellipsis does the rest. */
+.palette__body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-3) var(--sp-3) var(--sp-4);
+  /* themed, and never a hijack: the track is ink, the thumb is dim gold */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-rgb), 0.35) transparent;
+}
+
+.palette__body::-webkit-scrollbar {
+  inline-size: 10px;
+}
+
+.palette__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.palette__body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  background-clip: content-box;
+  background-color: rgba(var(--accent-rgb), 0.32);
+  border-radius: var(--r-pill);
+}
+
+.palette__body::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(var(--accent-rgb), 0.55);
+}
+
+.palette__idle {
+  margin: 0;
+  padding: var(--sp-5) var(--sp-4);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  text-align: center;
+}
+
+.palette__groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-4);
+}
+
+.palette__group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-1);
+}
+
+/* «أبيات» over a rule that dissolves toward the far edge — the section head of
+ * a folio, not a table header. Never letter-spaced: this is Arabic. */
+.palette__label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0 0 var(--sp-1);
+  padding-inline: var(--sp-3);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-0);
+  font-weight: 600;
+  color: var(--accent-soft);
+}
+
+.palette__label-rule {
+  flex: 1 1 auto;
+  block-size: 1px;
+  background: linear-gradient(to left, rgba(var(--accent-rgb), 0.28), transparent);
+}
+
+/* A قصيدة or a شاعر is ONE index line: the entry at the inline-start (right),
+ * what distinguishes it at the inline-end (left), the way a printed فهرس sets
+ * a title against its author. A بيت overrides this below. */
+.palette__row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-2);
+  transition: background-color var(--dur-2) var(--ease-enter);
+  animation: palette-row-in 320ms var(--ease-enter) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+
+/* The highlight's marker is a RULE, not a border. A `border-inline-start` on a
+ * `--r-2` box is drawn along the two rounded corners as well, so it tapers to a
+ * point at each end and reads as a bracket around the row rather than a nib in
+ * the margin (measured at 1024: a 2px gold parenthesis). A pseudo-element is a
+ * straight bar, inset from the row's own corners, and it can fade. */
+.palette__row::before {
+  content: "";
+  position: absolute;
+  inset-block: var(--sp-1);
+  inset-inline-start: 0;
+  inline-size: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-enter);
+}
+
+@keyframes palette-row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* base.css's two reduced-motion switches zero the DURATION, not the DELAY —
+ * and a `both`-filled animation paints its `from` frame throughout the delay,
+ * so the stagger would have hidden the fifth row for 120ms with motion off.
+ * Zero the delay in the same two places. */
+@media (prefers-reduced-motion: reduce) {
+  .palette__row {
+    animation-delay: 0ms !important;
+  }
+}
+
+body[data-reduce-motion="1"] .palette__row {
+  animation-delay: 0ms !important;
+}
+
+.palette__row[data-cursor="1"] {
+  background: var(--accent-wash);
+}
+
+.palette__row[data-cursor="1"]::before {
+  opacity: 1;
+}
+
+.palette__row-main {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__row-note {
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__row[data-kind="poet"] .palette__row-main {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 1.9;
+}
+
+/* ── a بيت entry, set as a بيت ──────────────────────────────────────────
+ *
+ * Two equal tracks with a quiet centre channel, and both شطر pulled to the
+ * INNER edge of their track — bayt.css §the two-hemistich grid, and for the
+ * reason stated there: outer alignment opens a void wider than either شطر.
+ * The third line names the شاعر and البحر, which is what separates five
+ * near-identical مطالع from one another.
+ */
+.palette__row[data-kind="bait"] {
+  grid-template-columns: minmax(0, 1fr) 1.75rem minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 0;
+  row-gap: 2px;
+}
+
+.palette__sadr,
+.palette__ajuz {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 1.85;
+  color: var(--text-1);
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__sadr {
+  justify-self: end;
+  text-align: start;
+}
+
+.palette__ajuz {
+  justify-self: start;
+  text-align: end;
+  color: var(--text-2);
+}
+
+/* the شمسة in the centre channel, lit only on the highlighted entry */
+.palette__gutter {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  color: var(--accent);
+  opacity: 0;
+  transition: opacity var(--dur-3) var(--ease-enter);
+}
+
+.palette__row[data-cursor="1"] .palette__gutter {
+  opacity: 0.85;
+}
+
+/* The بيت block is optically centred over the two tracks, so its attribution
+ * is centred under it — an attribution pinned to the row's inline-start edge
+ * reads as orphaned the moment both شطر are short («قفا نبكِ / أو لا نبكِ»). */
+.palette__meta {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-0);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.palette__sep {
+  color: var(--accent-line);
+}
+
+/* the search hit: a lapis UNDERLINE, never a fill (amendment 14) */
+.palette mark {
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+  border-block-end: 1.5px solid var(--lapis);
+  padding-block-end: 0.06em;
+}
+
+/* ── the footer: what the keys do, and the one piece of syntax ─────────── */
+
+.palette__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  border-block-start: 1px solid var(--line-1);
+  background: rgba(7, 8, 12, 0.55);
+}
+
+.palette__all {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--accent-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  cursor: pointer;
+  transition: color var(--dur-2) var(--ease-enter);
+}
+
+.palette__all:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.palette__all:disabled {
+  color: var(--text-3);
+  cursor: default;
+}
+
+.palette__wild {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette__hints {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.palette__hints li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.palette__all-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* A phone has no keycaps to advertise — and `.keys-only` alone cannot hide
+ * these two, because it is one class of specificity declared in base.css
+ * BEFORE this file: `.palette__hints { display: flex }` simply wins the tie.
+ * (It won by 20px of footer min-content, which made the panel a scroll
+ * container and let `scrollIntoView` shove the whole overlay sideways.) */
+@media (hover: none), (pointer: coarse) {
+  .palette__hints,
+  .palette__all-keys {
+    display: none;
+  }
+}
+
+/* ── phone ─────────────────────────────────────────────────────────────
+ *
+ * Two tracks of verse in 358px is 160px a شطر — narrower than the شطر, so
+ * every line would ellipse. Below 700px an entry is one column: صدر, عجز, then
+ * its meta line, each running the full measure.
+ */
+@media (max-width: 700px) {
+  .palette__foot {
+    padding-inline: var(--sp-4);
+    gap: var(--sp-2);
+  }
+
+  .palette__field {
+    padding-inline: var(--sp-4);
+  }
+
+  .palette__row,
+  .palette__row[data-kind="bait"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .palette__sadr,
+  .palette__ajuz {
+    justify-self: stretch;
+    text-align: start;
+  }
+
+  .palette__gutter {
+    display: none;
+  }
+
+  /* stacked hemistichs run from the inline-start; the meta follows them */
+  .palette__meta {
+    justify-content: flex-start;
+  }
+}
+
+/* ── the masthead trigger ───────────────────────────────────────────────
+ *
+ * The door «البحث» used to be (v2.md §3). It lives with the palette rather
+ * than in app.css because it IS the palette's affordance: ⌕ plus the word and
+ * the chord that opens the same overlay. `flex: none` matters — the masthead
+ * inner is a flex row whose nav owns the slack, and a shrinking trigger would
+ * clip its own label before the nav ever scrolled.
+ */
+.masthead__search {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  cursor: pointer;
+  transition:
+    color var(--dur-2) var(--ease, ease),
+    border-color var(--dur-2) var(--ease, ease),
+    background-color var(--dur-2) var(--ease, ease);
+}
+
+.masthead__search:hover,
+.masthead__search:focus-visible {
+  color: var(--text-1);
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+.masthead__search:hover svg,
+.masthead__search:focus-visible svg {
+  color: var(--accent);
+}
+
+.masthead__search svg {
+  color: var(--text-3);
+  transition: color var(--dur-2) var(--ease, ease);
+}
+
+.masthead__search kbd {
+  padding-block: 0;
+}
+
+/* A phone has no ⌃K and little room: the trigger keeps the mark alone, sized
+ * as a tap target rather than as a label. */
+@media (max-width: 700px) {
+  .masthead__search {
+    padding: var(--sp-2);
+  }
+
+  .masthead__search-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

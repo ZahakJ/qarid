@@ -1,0 +1,874 @@
+/* قريض — مساجلة الأصدقاء: the room screen and the «ضدّ صديق» dialog (v2.md §5).
+ *
+ * Loaded AFTER duel.css, because the room reuses the duel's own furniture — the
+ * `.duel-desk` block, `.exchange-log` and its `.exchange` plates, `.letter-ind`,
+ * `.duel-clock` — and only adds what a second PERSON needs: two seats instead
+ * of a lives strip, a code to hand over, and a line saying whose turn it is.
+ *
+ * Every bare class here is new (`.room-*`, `.seat*`, `.friend-*`): nothing in
+ * this file re-declares a class views.css already owns (CLAUDE.md's stylesheet
+ * -order invariant). Spacing is the one 4/8 scale and the radii are --r-1/--r-2
+ * (--r-3 only where an overlay card already uses it); the only intrinsic sizes
+ * are the two circles, which carry `aspect-ratio` rather than a padding guess.
+ */
+
+.view.room-view {
+  inline-size: min(var(--col-home), 100%);
+  margin-inline: auto;
+}
+
+/* ══ head: what this room is, and the code that opens it ═══════════════ */
+
+.view__head.room-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-5);
+}
+
+.room-head__id {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.room-head__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.room-chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-pill);
+  background: var(--panel);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+/* The transport tell. It is a chip and not an icon because "this page is a
+   little slower right now" is a sentence, and a grey dot is a riddle. */
+.room-chip--live {
+  color: var(--text-3);
+}
+
+.room-chip--live[data-transport="socket"] {
+  color: var(--ok);
+  border-color: rgba(var(--ok-rgb), 0.3);
+  background: var(--ok-dim);
+}
+
+.room-head__code {
+  display: grid;
+  justify-items: end;
+  gap: var(--sp-2);
+}
+
+.room-head__code-label {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* One cell per letter: a code that is read down a phone is read letter by
+   letter, and «BADIRU» set as a word invites «badiru» to be heard as one. */
+.room-code {
+  display: flex;
+  gap: var(--sp-1);
+  margin: 0;
+}
+
+.room-code__ch {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-2);
+  background: var(--accent-wash);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-4);
+  font-weight: 500;
+  color: var(--accent);
+}
+
+/* ══ the two seats ═════════════════════════════════════════════════════ */
+
+.room-seats {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--sp-3);
+}
+
+.room-seats__vs {
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-3);
+  color: var(--text-3);
+}
+
+/* One CLUSTER, not four pinned fragments.
+ *
+ * The name column used to be the `1fr`, so on a 58rem room the seat was 445px
+ * wide and everything else was pushed to its far edge: the socket lamp sat 300px
+ * from the name it reports on and «لا أبيات» sat 300px from the نِيب row it
+ * belongs beside. The slack is its own column now (the third), and the two
+ * trailing pieces hug what they describe — a card whose content starts on the
+ * reading edge, like every other card in the app. */
+.seat {
+  display: grid;
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+  grid-template-areas:
+    "disc name live"
+    "disc role role"
+    "nibs nibs turns";
+  align-items: center;
+  gap: var(--sp-1) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+/* Whose turn it is, said with the accent — the one place on this screen where
+   gold means "now" rather than "important". */
+.seat[data-active="1"] {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+  box-shadow: var(--accent-glow);
+}
+
+.seat__disc {
+  grid-area: disc;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  aspect-ratio: 1;
+  border: 1px solid var(--accent-line);
+  border-radius: 50%;
+  background: var(--accent-dim);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.seat__disc--empty {
+  border-style: dashed;
+  border-color: var(--line-2);
+  background: transparent;
+  color: var(--text-3);
+}
+
+.seat__name {
+  grid-area: name;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+}
+
+a.seat__name:hover {
+  color: var(--accent);
+}
+
+.seat__role {
+  grid-area: role;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.seat__strikes {
+  grid-area: nibs;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* A spent strike DIMS; it never leaves, or the row would reflow mid-turn. */
+.seat__nib {
+  display: inline-flex;
+  color: var(--accent);
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+
+.seat__nib[data-spent="1"] {
+  opacity: 0.18;
+}
+
+.seat__turns {
+  grid-area: turns;
+  justify-self: start;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The socket lamp. Small, quiet, and never the only thing that says anything. */
+.seat__live {
+  grid-area: live;
+  justify-self: start;
+  inline-size: 0.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--line-2);
+}
+
+.seat__live[data-on="1"] {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px rgba(var(--ok-rgb), 0.14);
+}
+
+.seat--empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* ══ في الانتظار ═══════════════════════════════════════════════════════ */
+
+.room-wait {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.room-wait__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-wait__note {
+  margin: 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+.room-wait__hint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* The link is the whole point of this card, so it has to be READABLE, not just
+   present: at 30rem the field held ~46 mono characters and
+   `https://qarid.example.com/#/room/KORAZU?k=<24>` is 62, so every host saw
+   his own invite cut off mid-key inside a panel with 400px to spare. 40rem
+   fits the longest link this app can mint and still collapses to 100% on a
+   phone, where the «انسخ الرابط» button is the affordance anyway.
+
+   And at 390 even 40rem is 390: a single-line field showed
+   «http://127.0.0.1:6766/» and clipped the rest, so the reader could not see
+   the code or the key they were about to send. It is WRAPPING text now, not a
+   field — nothing about it was editable in the first place. */
+.room-share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--sp-2);
+  inline-size: min(40rem, 100%);
+}
+
+.room-share__link {
+  min-inline-size: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+  /* a URL has no spaces, so it needs explicit permission to break */
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+/* The host's own actions on a waiting room — «أغلق الغرفة» sits under the
+   share block, a quiet ghost so it never competes with the invite above it. */
+.room-wait__acts {
+  display: flex;
+  justify-content: center;
+  margin-block-start: var(--sp-2);
+}
+
+.room-wait__code {
+  display: inline-block;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  letter-spacing: 0.12em;
+}
+
+/* ══ the door: knock-to-join ═══════════════════════════════════════════ */
+
+/* The host's prompt when someone knocks — an illuminated strip above the share
+   block, gold-edged so «فلان يريد الدخول» reads as the thing to answer. */
+.room-door {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  inline-size: min(40rem, 100%);
+  padding: var(--sp-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-2);
+  background: var(--accent-dim);
+}
+
+.room-door__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-4);
+  color: var(--text-1);
+  text-align: center;
+}
+
+.room-door__acts {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+/* The KNOCKER's own waiting card — no transcript, only the four states of the
+   door (server/rooms.ts). Centred like the waiting card it stands in for. */
+.room-knock {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  text-align: center;
+}
+
+.room-knock__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-knock__note {
+  margin: 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+.room-knock__alert {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
+}
+
+/* A single gold ring, turning — the only rotation in the room, and it turns
+   linearly so nothing about the wait bounces (§8). */
+.room-knock__spin {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 2px solid var(--accent-dim);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  animation: room-knock-spin 900ms linear infinite;
+}
+
+@keyframes room-knock-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-knock__spin {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/* ══ the transcript ════════════════════════════════════════════════════ */
+
+.room-log {
+  margin-block: var(--sp-2);
+}
+
+.room-opening {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--meta-band);
+  padding-inline: var(--sp-2);
+  border-radius: var(--r-1);
+  background: var(--accent-dim);
+  font-size: var(--fs-ui-0);
+  color: var(--accent);
+}
+
+/* A miss is part of the record. It is set quietly — one line, the danger ink
+   only on the mark — because the بيت that WAS said is the thing to read. */
+.room-miss {
+  padding-inline-start: var(--sp-4);
+  border-inline-start: 2px solid rgba(var(--danger-rgb), 0.4);
+}
+
+.room-miss__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.room-miss__who {
+  color: var(--text-2);
+}
+
+.room-miss__mark {
+  color: var(--danger);
+}
+
+.room-miss__text {
+  margin: var(--sp-1) 0 0;
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  color: var(--text-3);
+  opacity: 0.72;
+}
+
+/* ══ the desk ══════════════════════════════════════════════════════════ */
+
+.room-turnline {
+  margin: 0;
+  padding: var(--sp-4);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-2);
+  text-align: center;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.room-notice {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
+}
+
+.duel-acts.room-acts {
+  justify-content: space-between;
+}
+
+/* ══ انتهت ═════════════════════════════════════════════════════════════ */
+
+/* The ending is a MOMENT, not a row of facts: centred, like the waiting card,
+   so the headline sits over its own two lines instead of hugging one edge of a
+   900px panel with the rest of it empty. */
+.room-end {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding-block: var(--sp-6);
+  text-align: center;
+}
+
+.room-end .panel__head {
+  justify-content: center;
+  margin-block-end: var(--sp-2);
+  text-align: center;
+}
+
+.room-end .panel__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  font-weight: 400;
+  color: var(--accent);
+}
+
+.room-end__why,
+.room-end__count {
+  margin: 0;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.room-end__count {
+  color: var(--text-3);
+}
+
+.room-end__acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-4);
+}
+
+/* ══ the gate ══════════════════════════════════════════════════════════ */
+
+.room-gate {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-4);
+  text-align: center;
+}
+
+.room-gate__line {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.room-gate__note {
+  margin: var(--sp-2) 0 0;
+  max-inline-size: var(--col-text);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+/* ══ «ضدّ صديق» on the setup screen ════════════════════════════════════ */
+
+.friend-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.friend-cta__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* «انضم إلى غرفة بالرمز» — the by-voice door, under the «افتح غرفة» CTA. A
+   friend reads the six letters down the phone; you type them and knock. */
+.friend-join {
+  display: grid;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-4);
+  padding-block-start: var(--sp-4);
+  border-block-start: 1px solid var(--line-1);
+}
+
+.friend-join__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-join__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.friend-join__input {
+  inline-size: 9rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-2);
+  letter-spacing: 0.18em;
+  color: var(--text-1);
+  text-align: center;
+}
+
+.friend-join__input::placeholder {
+  color: var(--text-3);
+  letter-spacing: 0.18em;
+}
+
+.friend-join__error {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--warn);
+}
+
+/* ══ the create dialog ═════════════════════════════════════════════════ */
+
+/* The BODY scrolls, not the card — the palette's own shape.
+ *
+ * `.overlay__card` caps the card at 80dvh and scrolls the whole thing, and this
+ * dialog is the longest overlay in the app: at 390 the reader had to scroll
+ * past three settings and three explanations to find «افتح الغرفة» at all, and
+ * the title scrolled away above them. With the rows pinned, the question at the
+ * top and the answer at the bottom stay on screen and only the settings move.
+ * `position: relative` is what the four PanelCorners hang off. */
+.friend-dialog {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+  padding: var(--sp-5);
+  overflow: hidden;
+}
+
+.friend-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.friend-dialog__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.friend-dialog__body {
+  display: grid;
+  align-content: start;
+  gap: var(--sp-5);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* the gutter is 10px (tokens.css); keep the notes off it */
+  padding-inline-end: var(--sp-1);
+}
+
+.friend-sect {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+/* the lede belongs to the heading; what follows it is the section's own body */
+.friend-sect__lede + * {
+  margin-block-start: var(--sp-2);
+}
+
+.friend-sect__title {
+  margin: 0;
+  font-size: var(--fs-ui-3);
+  color: var(--accent);
+}
+
+.friend-sect__lede,
+.friend-row__note {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+}
+
+.friend-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
+}
+
+.friend-search__input {
+  min-inline-size: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+}
+
+.friend-search__input:focus-visible {
+  border-color: var(--accent-line);
+  outline: none;
+  box-shadow: var(--accent-glow);
+}
+
+.friend-search__state {
+  margin: 0;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-hits {
+  display: grid;
+  gap: var(--sp-2);
+  max-block-size: 18rem;
+  overflow-y: auto;
+}
+
+.friend-hit {
+  display: grid;
+  gap: var(--sp-1);
+  inline-size: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  text-align: start;
+  background: var(--panel);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    background-color var(--dur-2) var(--ease-out);
+}
+
+.friend-hit:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-wash);
+}
+
+/* A `BaytPlate` is itself a framed card, so a hit — and the chosen مطلع — were
+ * a bordered box inside a bordered box, 30px of dead margin between two rounded
+ * rectangles. The container IS the frame here; the plate inside it is just the
+ * بيت. (views.css does the same for `.hero__plate`.) */
+.friend-hit .bayt-plate,
+.friend-pick .bayt-plate {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.friend-hit__poet,
+.friend-pick__poet {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.friend-pick {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-2);
+  background: var(--accent-wash);
+}
+
+.friend-pick__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+/* A rule and its explanation are ONE thing. `.friend-sect`'s uniform --sp-3 put
+ * each «…» note exactly as far from the row above it as from the row below, so
+ * three settings and three sentences read as six unrelated lines. The note
+ * closes up to its own row and the next group opens away from it — proximity
+ * doing the grouping the border-less card cannot. */
+.friend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.friend-row__note + .friend-row {
+  margin-block-start: var(--sp-3);
+}
+
+.friend-row__label {
+  min-inline-size: 6.5rem;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.friend-dialog__error {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid rgba(var(--danger-rgb), 0.4);
+  border-radius: var(--r-2);
+  background: var(--danger-dim);
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+}
+
+/* The primary action sits on the READING edge, as it does in the auth dialog
+   (`.auth__actions`) and the walkthrough (`.wt__foot`) — this footer was the one
+   overlay in the app that put «افتح الغرفة» at the far end instead. */
+.friend-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line-1);
+}
+
+/* The شاعر, distinguished from the PLAYER standing next to him.
+   Both are names, and set identically they read as one confused pair — so the
+   شاعر keeps the لام of attribution and a quieter ink, and the player's own
+   name stays in `.exchange__who`. */
+.exchange__poet {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  transition: color var(--dur-2) var(--ease-out);
+}
+
+.exchange__poet:hover {
+  color: var(--accent);
+}
+
+/* ══ narrow ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 860px) {
+  .view__head.room-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-head__code {
+    justify-items: start;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Two seats side by side stop being readable long before they stop fitting:
+     the name ellipsises to three letters and the نِيب row wraps. Stacked, with
+     the «×» turned into a divider, both seats keep their whole width. */
+  .room-seats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .room-seats__vs {
+    justify-self: center;
+  }
+
+  .room-code__ch {
+    inline-size: 2rem;
+    font-size: var(--fs-ui-3);
+  }
+
+  .friend-row__label {
+    min-inline-size: 100%;
+  }
+
+  .friend-dialog {
+    padding: var(--sp-4);
+  }
+}
+
+/* Report / block the opponent (Track 3) — a quiet row under the two seats, on
+ * the far (out) edge so it never competes with the seats it hangs beneath. */
+.room-opponent-mod {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: calc(-1 * var(--sp-2));
+  margin-block-end: var(--sp-2);
+}
+
+
+/* The ديوان a مساجلة is being played inside, as one of the room's rules.
+   Gold, because it is the only chip in the row that is a DOOR — the other
+   three state a setting, this one goes to the shelf. */
+.room-chip--diwan {
+  color: rgb(var(--accent-rgb));
+  border-color: var(--accent-line);
+  text-decoration: none;
+  max-inline-size: min(18rem, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

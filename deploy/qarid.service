@@ -1,0 +1,22 @@
+# A systemd USER unit — `systemctl --user`, no root anywhere.
+#
+#   mkdir -p ~/.config/systemd/user
+#   ln -s /path/to/qarid/deploy/qarid.service ~/.config/systemd/user/qarid.service
+#   systemctl --user enable --now qarid.service
+#
+# `WorkingDirectory` is the checkout; adjust it to wherever yours lives. The
+# server reads `.env` from there (HOST, PORT, PUBLIC_ORIGIN, DB_PATH) and binds
+# loopback only, so put a reverse proxy or a tunnel in front of it for TLS.
+[Unit]
+Description=Qarid (قريض — Arabic poetry corpus + مساجلة duel)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/qarid
+ExecStart=/usr/bin/node --env-file-if-exists=.env server/index.ts
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=default.target

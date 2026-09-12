@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      # The four Capacitor plugins and the ten @capacitor packages move
+      # together or not at all; separate PRs for them are pure noise.
+      capacitor:
+        patterns: ["@capacitor*"]
+      fonts:
+        patterns: ["@fontsource/*"]

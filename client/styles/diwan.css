@@ -1,0 +1,995 @@
+/**
+ * الدواوين — «دواويني» (#/diwans), one ديوان (#/diwan/<CODE>), and the four
+ * modal surfaces that make and edit them.
+ *
+ * It loads after views.css, poets.css, app.css, duel.css and room.css — the
+ * exact position that once let duel.css's `.letter-well` redraw the browse
+ * rail's 28 cells — so it is held to anthology.css's rule and
+ * `styles.test.ts` enforces it: EVERY selector's lead compound carries one of
+ * this sheet's own classes (`.diwan-*`, `.diwans-*`, `.dw*`), and none of them
+ * names a `.bayt`, a `.sadr` or a `.ajuz`. A ديوان FRAMES أبيات; `BaytPlate`
+ * sets them, here as everywhere.
+ *
+ * The motif is the shelf: a card is a spine standing next to its neighbours,
+ * and the page itself is one — an ordinal in the margin, the بيت in the middle,
+ * the curator's rail on the far edge, and a gold hairline dissolving between
+ * each pair. The ordinal is `--font-mono` because it is a number
+ * (CLAUDE.md: Amiri's arabic subset carries no Latin figures).
+ */
+
+/* ── #/diwans — the index ─────────────────────────────────────────────── */
+
+.view.diwans-view {
+  max-inline-size: var(--col-home);
+  margin-inline: auto;
+}
+
+/* `.view__head` is `justify-items: start`, which shrink-wraps every child — so
+   the count/«ديوانٌ جديد» row could not space-between and the dissolving rule
+   under it came out zero-wide and invisible. */
+.view__head.diwans-head {
+  justify-items: stretch;
+}
+
+.diwans-head__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  margin-block-start: var(--sp-4);
+}
+
+.diwans-head__count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+}
+
+.diwans-head__rule {
+  margin-block-start: var(--sp-4);
+}
+
+.diwans-empty {
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+  margin-inline: auto;
+  margin-block-end: var(--sp-4);
+  line-height: var(--lh-ui);
+}
+
+.diwans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: var(--sp-4);
+}
+
+/* A shelf as a spine: the whole card is the link, and the three layers that
+   only exist on hover are the poets grid's (lift, hairline sweep, «افتحه ←»). */
+/* A COLUMN, not four grid rows, and the reason is the foot.
+   The cards in a row stretch to the tallest of them, and a card with no وصف is
+   two lines shorter than one that has a وصف — so with `auto` rows the slack
+   piled up UNDER the foot and the hairline over «28 آب 2026» sat 19px higher on
+   the two short cards than on the third. Three feet at three heights across one
+   row is exactly the alignment §8 asks for and does not get. In a flex column
+   `margin-block-start: auto` on the foot eats the slack above it instead, so
+   the rule and the date land on the same baseline in every card of a row —
+   which is also what makes the count band read as the card's middle rather than
+   as something floating over a gap. */
+.dwcard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  min-block-size: 11rem;
+  padding: var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    transform var(--dur-2) var(--ease),
+    border-color var(--dur-2) var(--ease),
+    background-color var(--dur-2) var(--ease);
+}
+
+.dwcard:hover,
+.dwcard:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--accent-hair);
+  background: var(--bg-2);
+}
+
+.dwcard__sweep {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-line), transparent);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.dwcard:hover .dwcard__sweep,
+.dwcard:focus-visible .dwcard__sweep {
+  opacity: 1;
+}
+
+.dwcard--ghost {
+  background: var(--bg-1);
+  border-style: dashed;
+  opacity: 0.45;
+}
+
+.dwcard__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.dwcard__desc {
+  color: var(--text-2);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.dwcard__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: var(--meta-band);
+  flex-wrap: wrap;
+}
+
+.dwcard__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+.dwcard__foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-block-start: auto;
+  border-block-start: 1px solid var(--line-1);
+  padding-block-start: var(--sp-2);
+}
+
+.dwcard__when {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.dwcard__go {
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.dwcard:hover .dwcard__go,
+.dwcard:focus-visible .dwcard__go {
+  opacity: 1;
+}
+
+/* ── «من مكتبتك» — shelves other readers compiled ─────────────────────── */
+
+/* A SECTION of «دواويني», set apart by a heading and a rule rather than by a
+   second card shape: they are the same object (a ديوان), and the one thing
+   that differs — whose it is — is a line inside the card, not a frame around
+   it. */
+.diwans-shelf {
+  display: grid;
+  gap: var(--sp-3);
+  margin-block-start: var(--sp-7);
+}
+
+.diwans-shelf__head {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+.diwans-shelf__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.diwans-shelf__note {
+  color: var(--text-2);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  max-inline-size: var(--col-text);
+}
+
+.diwans-shelf__rule {
+  margin-block-end: var(--sp-1);
+}
+
+/* The kept shelf whose curator has closed it. It keeps the card's geometry —
+   the row is still there, and that IS the point — and loses everything that
+   would have been the shelf: no sweep, no «افتحه ←», no link at all. The
+   dashed edge is `--ghost`'s, because both mean «nothing behind this yet». */
+.dwcard--gone {
+  border-style: dashed;
+  background: var(--bg-1);
+  cursor: default;
+}
+
+.dwcard--gone:hover {
+  transform: none;
+  border-color: var(--line-1);
+  background: var(--bg-1);
+}
+
+.dwcard__title--gone {
+  color: var(--text-2);
+}
+
+.dwcard__drop {
+  font-size: var(--fs-ui-0);
+  padding-inline: var(--sp-2);
+  block-size: 1.9rem;
+}
+
+/* The same grid on a profile: the cards sit under a section heading that is
+   already spaced, so the grid brings no margin of its own. */
+.diwans-grid.dwgrid--profile {
+  margin-block-start: var(--sp-3);
+}
+
+/* ── the visibility mark ──────────────────────────────────────────────── */
+
+/* One small pill, three states, and the wording is `albums/visibility.ts`'s.
+   Only the OPEN one is gold: a shelf nobody else can see is not an achievement
+   to illuminate, and making «لك وحدك» the loud state would push readers to
+   publish for the colour. */
+.dwbadge {
+  display: inline-flex;
+  align-items: center;
+  block-size: 1.5rem;
+  padding-inline: var(--sp-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-0);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.dwbadge[data-v="public"] {
+  border-color: var(--accent-hair);
+  color: var(--accent-soft);
+  background: var(--accent-wash);
+}
+
+.dwbadge[data-v="unlisted"] {
+  border-color: var(--line-2);
+  color: var(--text-2);
+}
+
+/* ── #/diwan/<CODE> — one shelf ───────────────────────────────────────── */
+
+.view.diwan-view {
+  max-inline-size: var(--col-home);
+  margin-inline: auto;
+}
+
+/* `.view__head` is a `justify-items: start` grid with its own gap, so a panel
+   built on it needs both overridden: without `stretch` the rule and the meta
+   row shrink to their content and the frame reads as a half-empty box, and
+   without `gap: 0` every margin below is added to sp-2. */
+.view__head.diwan-head {
+  position: relative;
+  justify-items: stretch;
+  gap: 0;
+  padding: var(--sp-4) var(--sp-5) var(--sp-4);
+  background: var(--panel);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-3);
+}
+
+.diwan-head__mark {
+  position: absolute;
+  inset-block-start: var(--sp-4);
+  inset-inline-end: var(--sp-5);
+  color: var(--accent-line);
+}
+
+/* Aref Ruqaa's 2.2 line-height is right over a bare page and too airy inside a
+   framed head; the ascenders still clear at 1.7 because the شمسة sits in the
+   padding beside it, not above it. */
+/* The shelf's NAME, and it is deliberately not a `.view__title`.
+   chrome.css puts every `.view__title` in `.sr-only` on a phone — right, when
+   the title is furniture the app bar repeats. Here it is the object itself, the
+   way a قصيدة's `.poem-title` is, and the app bar only lends a title once the
+   reader has SCROLLED past the hero — so as a `.view__title` the ديوان's name
+   was on no part of a 390 screen at rest. (The same rule also hides a head whose
+   only direct child is a `.view__title`, which took this head's curator, count
+   and every one of its buttons off the phone with it.) */
+.diwan-head__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  color: var(--text-1);
+  line-height: 1.7;
+  padding-inline-end: var(--sp-6);
+}
+
+.diwan-head__by {
+  color: var(--text-2);
+  font-size: var(--fs-ui-2);
+  margin-block-start: var(--sp-1);
+}
+
+.diwan-head__curator {
+  color: var(--accent-soft);
+}
+
+.view__lede.diwan-head__desc {
+  margin-block-start: var(--sp-3);
+  max-inline-size: var(--col-text);
+}
+
+.diwan-head__rule {
+  margin-block: var(--sp-4) var(--sp-3);
+  inline-size: 100%;
+}
+
+.diwan-head__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  min-block-size: var(--meta-band);
+}
+
+.diwan-head__meta > :last-child {
+  margin-inline-start: auto;
+}
+
+.diwan-head__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-2);
+  color: var(--accent-soft);
+}
+
+.diwan-head__when {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.diwan-head__acts {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-block-start: var(--sp-3);
+}
+
+.diwan-head__danger:hover {
+  color: rgb(var(--danger-rgb));
+  border-color: rgba(var(--danger-rgb), 0.4);
+}
+
+/* A destructive act must LOOK destructive before it is touched, not on hover:
+   on a phone «احذفه» sat as bare low-contrast text at the foot of the header
+   card, indistinguishable from the caption above it, and was reported as
+   missing rather than as unclear. There is no hover on a touch screen to
+   reveal what a control is. */
+@media (hover: none), (pointer: coarse) {
+  .diwan-head__danger {
+    color: rgb(var(--danger-rgb));
+    border-color: rgba(var(--danger-rgb), 0.35);
+  }
+}
+
+.diwan-error,
+.diwan-empty {
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+  margin-inline: auto;
+  line-height: var(--lh-ui);
+}
+
+/* ── the rows ─────────────────────────────────────────────────────────── */
+
+.diwan-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  margin-block-start: var(--sp-5);
+}
+
+/* ONE column, and the curator's number is `BaytPlate`'s own `number` prop.
+   Two things were wrong with a column of my own. A rail in a third column took
+   7rem of a 58rem measure and the شطر started wrapping — «أُراعي بُلوغَ الشَيبِ»
+   over two lines beside a عجز on one, which is not a بيت any more. And an
+   ordinal in a first column stood next to `BaytPlate`'s own (reserved, empty)
+   number margin, so every row carried two number columns and the verse sat
+   140px off its own measure. The rail moved into the meta band; the number
+   moved into the component that already draws one. */
+.diwan-row {
+  padding-block: var(--sp-3);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.diwan-row:last-child {
+  border-block-end: 0;
+}
+
+/* Aligned with the بيت's own صدر, not with the row's edge: `BaytPlate` reserves
+   a number margin on the inline-start and an action rail on the inline-end, and
+   a meta band that ignored both would hang under nothing. */
+.diwan-row__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  min-block-size: var(--meta-band);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  padding-inline: var(--bayt-num-col, 2rem) var(--bayt-rail-col, 4.9rem);
+}
+
+.diwan-row__poet {
+  color: var(--text-1);
+}
+
+.diwan-row__go {
+  color: var(--accent-soft);
+  font-size: var(--fs-ui-1);
+  margin-inline-start: auto;
+}
+
+/* The owner's rail: up · down · remove, at the far end of the meta band. It is
+   revealed on hover like `BaytPlate`'s own rail — a page of أبيات each carrying
+   three permanent grey buttons reads as a form, not as a ديوان — and it is
+   always there for a keyboard, and always visible on a touch screen, where
+   there is no hover to reveal it with. */
+.diwan-row__rail {
+  display: grid;
+  grid-auto-flow: column;
+  gap: var(--sp-1);
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.diwan-row:hover .diwan-row__rail,
+.diwan-row:focus-within .diwan-row__rail {
+  opacity: 1;
+}
+
+/* A بيت today's artefact cannot answer. It is still a بيت — set in the verse
+   face, in the curator's own order — and only its links are gone, because
+   there is nothing behind them to reach. */
+.diwan-row--absent {
+  opacity: 0.72;
+}
+
+.diwan-missing {
+  display: inline-flex;
+  align-items: center;
+  block-size: 1.5rem;
+  padding-inline: var(--sp-2);
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.diwan-move {
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-1);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  font-size: var(--fs-ui-2);
+  transition:
+    color var(--dur-1) var(--ease),
+    border-color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.diwan-move:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-hair);
+  background: var(--accent-dim);
+}
+
+.diwan-move:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.diwan-move--drop:hover:not(:disabled) {
+  color: rgb(var(--danger-rgb));
+  border-color: rgba(var(--danger-rgb), 0.4);
+  background: rgba(var(--danger-rgb), 0.1);
+}
+
+/* «⋯» opens the قصيدة's own acts, so it answers in the accent rather than in
+   danger red — it is the one control on this rail that is not destructive. */
+.diwan-move--more:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+/* The 44px touch floor, and no hover to reveal the rail with. */
+@media (hover: none), (pointer: coarse) {
+  .diwan-move {
+    inline-size: 2.75rem;
+    block-size: 2.75rem;
+  }
+
+  /* Four identical outlined squares are four controls a reader cannot tell
+     apart, and one of them deletes. The ✕ carries its danger tint standing,
+     and «⋯» its accent, so the rail reads as "move, move, REMOVE, more"
+     without a tooltip nobody on a phone can summon. */
+  .diwan-move--drop {
+    color: rgb(var(--danger-rgb));
+    border-color: rgba(var(--danger-rgb), 0.3);
+  }
+
+  .diwan-move--more {
+    color: var(--accent);
+    border-color: var(--accent-line);
+  }
+
+  .diwan-row__rail {
+    opacity: 1;
+  }
+
+  /* phone.css takes `BaytPlate`'s rail out of the inline-end gutter and puts it
+     UNDER the بيت, so the gutter this band was aligning to is not there any
+     more — reserved, it left 4.9rem of dead margin beside «القصيدة ←» on a
+     390px screen. */
+  .diwan-row__meta {
+    padding-inline: 0;
+  }
+
+  /* The touch floor, named one element at a time the way phone.css names its
+     own. «القصيدة ←» is the ONE door off a shelf row on a phone — the بيت's
+     rail is icons and the poet's name is the other link — and both were 21px
+     tall, measured on `#/diwan/<CODE>` at 390. The band already declares
+     `--meta-band`, so the cells grow into height the row has and the rhythm
+     does not move. */
+  .diwan-row__poet,
+  .diwan-row__go {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 2.75rem;
+  }
+}
+
+/* ── the modal shell (desktop half; the phone half is `Sheet`) ─────────── */
+
+.dwmodal {
+  position: relative;
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.dwmodal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.dwmodal__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  color: var(--text-1);
+}
+
+.dwmodal__note {
+  margin-block-start: var(--sp-1);
+  color: var(--text-2);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  max-inline-size: 34rem;
+}
+
+.dwmodal__close {
+  flex: none;
+}
+
+.dwmodal__foot {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-start;
+  border-block-start: 1px solid var(--line-1);
+  padding-block-start: var(--sp-4);
+}
+
+.dwmodal--pick {
+  inline-size: min(30rem, 100%);
+}
+
+/* The one text field these surfaces use. It is its own class rather than a
+   shared `.field` because there is no shared one: `auth.css` owns
+   `.auth-field__input` and reaching it from here would make this sheet a second
+   owner of the دخول form. Same measures, so the two read as one hand. */
+.dwfield {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-2);
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-ui-3);
+  transition:
+    border-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+.dwfield::placeholder {
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
+.dwfield:focus {
+  outline: none;
+  border-color: var(--accent-line);
+  box-shadow: var(--accent-glow);
+}
+
+/* ── the picker ───────────────────────────────────────────────────────── */
+
+.dwpick {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.dwpick__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--sp-1);
+  max-block-size: 18rem;
+  overflow-y: auto;
+}
+
+.dwpick__row {
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+  transition:
+    border-color var(--dur-1) var(--ease),
+    background-color var(--dur-1) var(--ease);
+}
+
+.dwpick__row:hover:not(:disabled) {
+  border-color: var(--accent-hair);
+  background: var(--accent-dim);
+}
+
+.dwpick__row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dwpick__name {
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dwpick__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+.dwpick__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.dwpick__quiet {
+  color: var(--text-2);
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+}
+
+/* «ديوانٌ جديد» is inline, under a dissolving rule rather than behind a second
+   screen: naming a shelf and putting the بيت on it is one intention, and a
+   picker that sends the reader elsewhere to make one loses the بيت they were
+   looking at. */
+.dwpick__new {
+  display: grid;
+  gap: var(--sp-2);
+  padding-block-start: var(--sp-3);
+  border-block-start: 1px solid var(--line-1);
+}
+
+.dwpick__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.dwpick__newrow {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+
+/* «أنشئه وأضِف» is three words and must not become two lines: a wrapping button
+   beside a one-line field makes the whole row 4rem tall and the field look
+   short. */
+.dwpick__newrow > .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.dwpick__field {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.dwpick__error {
+  color: rgb(var(--danger-rgb));
+  font-size: var(--fs-ui-1);
+}
+
+/* ── «حرّر الديوان» ────────────────────────────────────────────────────── */
+
+.diwan-edit {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.diwan-edit__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.diwan-edit__area {
+  resize: vertical;
+  min-block-size: 4.5rem;
+  font-family: var(--font-ui);
+  line-height: var(--lh-ui);
+}
+
+.diwan-edit__vis {
+  display: grid;
+  gap: var(--sp-1);
+  border: 0;
+  padding: 0;
+  margin-block-start: var(--sp-2);
+}
+
+.diwan-edit__opt {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: 2.75rem;
+  padding-inline: var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  cursor: pointer;
+}
+
+.diwan-edit__opt:hover {
+  border-color: var(--line-1);
+  background: var(--bg-2);
+}
+
+/* The radio is the one control here the browser paints itself, and its default
+   is the OS blue — which is the lapis this app reserves for exactly three
+   things, none of them a form control. */
+.diwan-edit__opt input[type="radio"] {
+  accent-color: var(--accent);
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.diwan-edit__optname {
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+}
+
+.diwan-edit__optnote {
+  color: var(--text-3);
+  font-size: var(--fs-ui-0);
+}
+
+.diwan-edit__cap {
+  margin-block-start: var(--sp-2);
+  color: var(--text-3);
+  font-size: var(--fs-ui-0);
+}
+
+.diwan-edit__error {
+  color: rgb(var(--danger-rgb));
+  font-size: var(--fs-ui-1);
+}
+
+/* The publish confirmation — the one edit that says something to other people,
+   so it is the one that reads as prose rather than as a form. */
+.diwan-publish {
+  color: var(--text-1);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  max-inline-size: var(--col-text);
+}
+
+.diwan-publish--quiet {
+  margin-block-start: var(--sp-3);
+  color: var(--text-3);
+  font-size: var(--fs-ui-1);
+}
+
+
+/* ── the three doors: «هذا الديوان يُلعب ويُحفظ» ────────────────────────── */
+
+/* A panel and not a toolbar. It is the last thing on the page — the shelf is
+   read first — so it is set as a closed block: the corner pieces `PanelCorners`
+   draws, a gold hairline over it that dissolves at both ends, and the ink of a
+   note rather than of a heading. */
+/* CENTRED, and that is the §8 measurement rather than a taste.
+   The panel is the full 58rem measure of the ديوان (928px at 1440), and every
+   child of it is short: the title is 158px, the count 161px, the three doors
+   477px and the note 608px. Set against the inline start — `justify-items:
+   start` — they left 320px of the panel empty beside a frame whose four corner
+   pieces promise a symmetric block, which is `#/buhur`'s card defect one page
+   over («set against the inline edge they left two thirds of the card empty
+   around an optically-centred بيت»). A closing colophon is centred; the text
+   inside `.dwplay__floor` still reads from its own start, because a quoted rule
+   with a hairline down its edge is not a colophon. */
+.dwplay {
+  position: relative;
+  display: grid;
+  gap: var(--sp-3);
+  justify-items: center;
+  text-align: center;
+  margin-block-start: var(--sp-6);
+  padding: var(--sp-5);
+  /* `.panel--illuminated`'s own frame, in this sheet's own class: the gold
+     hairline is what the four corner pieces are drawn on, and a panel that
+     carries them under a plain `--line-1` reads as a card with decorations
+     stuck to it rather than as an illuminated block. */
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+.dwplay__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-1);
+  margin: 0;
+}
+
+/* The honest number, in the game's own face — it IS an instrument reading. */
+.dwplay__count {
+  font-size: var(--fs-ui-2);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.dwplay__of {
+  color: var(--text-3);
+}
+
+.dwplay__floor {
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+  line-height: var(--lh-ui);
+  padding-inline-start: var(--sp-3);
+  border-inline-start: 2px solid var(--line-2);
+  /* The one child that keeps its own reading edge: the hairline down its
+     inline start is a quotation mark, and a centred line beside it would leave
+     the mark pointing at nothing. */
+  text-align: start;
+}
+
+.dwplay__acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-1);
+}
+
+.dwplay__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  line-height: var(--lh-ui);
+  max-inline-size: var(--col-text);
+}
+
+/* On a phone the three doors are a LADDER, not a wrapped row. Left to wrap,
+   «ساجِل في هذا الديوان» took a line of its own and the other two shared the
+   next one — one of them pinned to the far edge, which reads as two unrelated
+   groups. Full-width rows also put every one of them over the 44px floor. */
+@media (max-width: 560px) {
+  .dwplay__acts {
+    flex-direction: column;
+    align-items: stretch;
+    inline-size: 100%;
+  }
+
+  .dwplay__acts .btn {
+    inline-size: 100%;
+  }
+}
+
+/* The room's three rules, inside the modal — the SAME row «غرفة مساجلة» uses
+   (`.friend-row` in room.css): the name holds a fixed column at the inline
+   start and the control sits beside it. Stacked instead, all three controls
+   hugged the inline start of a 32rem dialog and left its other half empty,
+   while the app's own room dialog — the surface this one is a short form of —
+   put them on one line. The label's column is `.friend-row__label`'s 6.5rem so
+   the three controls start on one axis however wide their words are. */
+.dwplay__rules {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.dwplay__rule {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.dwplay__rulename {
+  min-inline-size: 6.5rem;
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+/* On a phone the sheet is 390px and the الوقت control alone is four options
+   wide, so the name takes its own line and the control gets the width. */
+@media (max-width: 560px) {
+  .dwplay__rulename {
+    min-inline-size: 100%;
+  }
+}
+
+.dwplay__error {
+  color: var(--danger);
+  font-size: var(--fs-ui-1);
+}
+
+.dwmodal--play {
+  inline-size: min(32rem, 100%);
+}

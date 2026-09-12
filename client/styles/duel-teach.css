@@ -1,0 +1,592 @@
+/* قريض — the teaching layer of المساجلة (v2.md §1/§2).
+ *
+ * Everything a player is TOLD rather than played: the setup screen's
+ * explanations and its live chain example, the answer field's helper line, وضع
+ * التدريب's suggestion rail, and the five-step walkthrough.
+ *
+ * A separate stylesheet on purpose. `duel.css` describes the GAME — the letter
+ * well, the recitation mask, the exchange log — and this file describes the
+ * prose around it; keeping them apart is also what lets the letter-well rebuild
+ * and this pass land in the same sprint without touching the same lines.
+ * Loaded after duel.css, so it may lean on `.answer`, `.btn`, `.switch`,
+ * `.segmented` and `.overlay` as they stand, and on the motion vocabulary
+ * (`data-enter`) from motion.css.
+ *
+ * Two rules hold everywhere below: spacing comes from the --sp-* scale only,
+ * and every explanation is TEXT at --fs-ui-1/2 in --text-2/3 — never a tooltip,
+ * never an icon a reader has to decode.
+ */
+
+/* ═════════════════════ setup: the explanations ═══════════════════════ */
+
+/* «كيف تتم المساجلة؟» — the way into the walkthrough, on #/duel and #/rules. */
+.setup-teach {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin-block-start: var(--sp-3);
+}
+
+.setup-teach__btn {
+  border-color: var(--accent-line);
+  color: var(--accent);
+  padding-inline: var(--sp-4);
+}
+
+.setup-teach__btn:hover {
+  background: var(--accent-dim);
+  box-shadow: var(--accent-glow);
+}
+
+.setup-teach__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+/* One line under a section head saying what the section decides. */
+.setup-sect__lede {
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+  margin-block-start: calc(-1 * var(--sp-1));
+}
+
+/* «العدد المتاح» counts something specific; the gloss says what. */
+.setup-pool__gloss {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  margin-block-start: calc(-1 * var(--sp-2));
+}
+
+/* The رتبة is empty and the duel is not: `pickBait` relaxes one رتبة before it
+ * concedes, and with a شاعر named that is the ordinary case rather than a
+ * corner (فحل is `fame <= 2`; fame belongs to the شاعر). Said in gold, because
+ * it is a promise about what WILL happen — not in --warn, which on this screen
+ * means «قليل؛ قد ينقطع الخصم سريعًا». */
+.setup-pool__relax,
+.setup-pool__why {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+  margin-block-start: calc(-1 * var(--sp-2));
+  padding-inline-start: var(--sp-3);
+  border-inline-start: 2px solid var(--accent-hair);
+}
+
+/* …and why a ديوان of 443 قصيدة can still count zero: this one is a dead end,
+ * not a promise, so its rule is the warning's. */
+.setup-pool__why {
+  border-inline-start-color: rgba(var(--warn-rgb), 0.4);
+}
+
+/* ── one control + its explanation, side by side ─────────────────────── */
+/* The control sits at the inline-start (right) in a fixed column and its
+ * explanation runs beside it, so four option blocks share one edge down the
+ * page and the prose never starts in a different place from block to block. */
+.setup-opt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-3) var(--sp-5);
+  align-items: start;
+  padding: var(--sp-4);
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+}
+
+@media (min-width: 861px) {
+  .setup-opt {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  /* the example spans both columns — it is about the whole control */
+  .setup-opt > .chain-ex {
+    grid-column: 1 / -1;
+  }
+}
+
+.setup-opt__control {
+  display: grid;
+  gap: var(--sp-2);
+  justify-items: start;
+}
+
+.setup-opt__label {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.setup-opt__body {
+  display: grid;
+  gap: var(--sp-2);
+  min-inline-size: 0;
+}
+
+.setup-opt__note {
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+  max-inline-size: var(--col-text);
+}
+
+.setup-opt__price {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.setup-opt__price[data-on="1"] {
+  color: var(--accent-soft);
+}
+
+/* The switches section stacks its option blocks instead of racing them
+ * across a row: each one now carries two lines of prose. */
+.setup-sect--switches {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+/* ── both halves of a two-way choice, explained at once ──────────────── */
+.opt-notes {
+  display: grid;
+  gap: var(--sp-1);
+  inline-size: 100%;
+}
+
+.opt-notes__row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-3);
+  align-items: baseline;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-1);
+  border-inline-start: 2px solid transparent;
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+}
+
+.opt-notes__row[data-active="1"] {
+  background: var(--accent-wash);
+  border-inline-start-color: var(--accent-line);
+}
+
+.opt-notes dt {
+  font-size: var(--fs-ui-2);
+  color: var(--text-3);
+}
+
+.opt-notes__row[data-active="1"] dt {
+  color: var(--accent-soft);
+}
+
+.opt-notes dd {
+  margin: 0;
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+@media (max-width: 560px) {
+  .opt-notes__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── the live chain example ──────────────────────────────────────────── */
+.chain-ex {
+  inline-size: 100%;
+  margin: 0;
+  padding: var(--sp-4);
+  display: grid;
+  gap: var(--sp-3);
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+}
+
+.chain-ex__bayt {
+  margin: 0;
+  display: grid;
+  gap: var(--sp-1) var(--sp-6);
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: var(--lh-bayt);
+  color: var(--text-1);
+}
+
+.chain-ex__read {
+  display: grid;
+  gap: var(--sp-1);
+  font-size: var(--fs-ui-2);
+  line-height: var(--lh-ui);
+  color: var(--text-2);
+}
+
+.chain-ex__who {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+.chain-ex__eyebrow {
+  font-size: var(--fs-ui-0);
+  color: var(--accent-soft);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-pill);
+  padding: 0.1em var(--sp-2);
+  white-space: nowrap;
+}
+
+.chain-ex__word {
+  font-family: var(--font-verse);
+  color: var(--text-1);
+}
+
+.chain-ex__letter {
+  font-family: var(--font-verse);
+  font-style: normal;
+  font-size: 1.15em;
+  color: var(--accent);
+  padding-inline: 0.15em;
+}
+
+.chain-ex__verdict {
+  color: var(--text-1);
+}
+
+/* ═════════════════════ the answer field's helper ═════════════════════ */
+
+.answer-block {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+/* v2.md §1: this line is the one that was missing. It sits under the field on
+ * every device — never behind a hover, never in a tooltip. */
+.answer__help {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  padding-inline-start: var(--sp-1);
+}
+
+/* ═════════════════════ وضع التدريب — the rail ════════════════════════ */
+
+.assist {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-2);
+  background: linear-gradient(rgba(var(--accent-rgb), 0.05), rgba(var(--accent-rgb), 0.015));
+  transition: opacity var(--dur-2) var(--ease);
+}
+
+.assist[data-busy="1"] .assist__list {
+  opacity: 0.55;
+}
+
+.assist__head {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-areas: "badge lede price";
+  align-items: baseline;
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-ui-1);
+  color: var(--text-2);
+}
+
+/* On a phone the three parts cannot share a line, and the price is the one
+ * that must not be left floating on a line of its own: it pairs with the badge
+ * (what this is / what it costs) and the sentence runs underneath. */
+@media (max-width: 620px) {
+  .assist__head {
+    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-areas:
+      "badge price"
+      "lede lede";
+  }
+}
+
+.assist__badge {
+  grid-area: badge;
+  font-size: var(--fs-ui-0);
+  color: var(--accent);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-pill);
+  padding: 0.1em var(--sp-2);
+  white-space: nowrap;
+}
+
+.assist__lede {
+  grid-area: lede;
+  min-inline-size: 0;
+}
+
+.assist__letter {
+  font-family: var(--font-verse);
+  font-size: 1.2em;
+  color: var(--accent);
+  padding-inline: 0.15em;
+}
+
+.assist__price {
+  grid-area: price;
+  justify-self: end;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+/* Five suggestions is the rail's default (`ASSIST.defaultLimit`) and five is
+ * what fits here without scrolling; the cap is what keeps a `limit=8` request
+ * from pushing «هَمْس» off the fold. */
+.assist__list {
+  display: grid;
+  gap: var(--sp-1);
+  list-style: none;
+  max-block-size: 21rem;
+  overflow-y: auto;
+}
+
+/* ONE INDEX LINE per suggestion, the way the palette sets one: the بيت on the
+ * reading edge, who said it and in which بحر at the far edge. Stacked, the two
+ * lines huddled in the right third of a 900px rail and left a dead field beside
+ * them; side by side they use the measure and the eye can scan either column. */
+.assist__item {
+  inline-size: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sp-4);
+  row-gap: var(--sp-1);
+  text-align: start;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+  animation: qr-fade var(--dur-enter) var(--ease-enter) both;
+}
+
+.assist__item:hover,
+.assist__item:focus-visible {
+  background: var(--accent-dim);
+  border-color: var(--accent-line);
+  outline: none;
+}
+
+.assist__sadr {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 1.55;
+  color: var(--text-1);
+  /* one line per suggestion: the whole بيت goes into the field on click, and a
+     rail that wraps to three lines pushes the field off a phone screen */
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assist__by {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  white-space: nowrap;
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* Below the width where a بيت and its attribution can share a line, the
+   attribution goes back under it — the same fold the head takes. */
+@media (max-width: 620px) {
+  .assist__item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.assist__poet {
+  color: var(--text-2);
+}
+
+.assist__note {
+  font-size: var(--fs-ui-1);
+  line-height: var(--lh-ui);
+  color: var(--text-3);
+  padding-inline: var(--sp-1);
+}
+
+/* ═════════════════════ the walkthrough ═══════════════════════════════ */
+
+.wt {
+  inline-size: min(46rem, 100%);
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+}
+
+.wt__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.wt__eyebrow {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.wt__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-6);
+  font-weight: 400;
+  color: var(--accent);
+  line-height: 1.7;
+}
+
+.wt__body {
+  display: grid;
+  gap: var(--sp-4);
+  animation: qr-rise var(--dur-enter) var(--ease-enter) both;
+}
+
+.wt__copy {
+  font-size: var(--fs-ui-3);
+  line-height: var(--lh-ui);
+  color: var(--text-1);
+  max-inline-size: var(--col-text);
+}
+
+.wt__demo {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-2);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.wt__word,
+.wt__letter {
+  font-family: var(--font-verse);
+  font-style: normal;
+  color: var(--accent);
+}
+
+.wt__letter {
+  font-size: 1.2em;
+  padding-inline: 0.12em;
+}
+
+/* step 3 — the field, rendered as chrome rather than as a live control */
+.wt__field {
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.wt__typed {
+  margin: 0;
+  min-block-size: 3rem;
+}
+
+.wt__verdict {
+  font-size: var(--fs-ui-0);
+  color: var(--ok);
+  border: 1px solid rgba(var(--ok-rgb), 0.4);
+  border-radius: var(--r-pill);
+  padding: 0.1em var(--sp-2);
+}
+
+.wt__caption {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+}
+
+.wt__score {
+  display: grid;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.wt__score li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.wt__score-n {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-3);
+  color: var(--accent);
+  min-inline-size: 3.5rem;
+  /* start, not end: these are LTR runs in an RTL column, and aligning them on
+     the inline-start edge is what puts every «+» on one line */
+  text-align: start;
+}
+
+.wt__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  border-block-start: 1px solid var(--line-1);
+  padding-block-start: var(--sp-4);
+}
+
+.wt__dots {
+  display: flex;
+  gap: var(--sp-2);
+  list-style: none;
+}
+
+.wt__dot {
+  inline-size: 10px;
+  block-size: 10px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--dur-2) var(--ease), border-color var(--dur-2) var(--ease);
+}
+
+.wt__dot[data-done="1"] {
+  background: var(--accent-hair);
+  border-color: var(--accent-hair);
+}
+
+.wt__dot[data-active="1"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.wt__nav {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 560px) {
+  .wt__foot {
+    justify-content: center;
+  }
+
+  .wt__nav {
+    inline-size: 100%;
+  }
+
+  .wt__nav .btn {
+    flex: 1;
+  }
+}

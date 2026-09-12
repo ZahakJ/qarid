@@ -1,0 +1,969 @@
+/**
+ * `#/room/<code>` — a مساجلة against a person (v2.md §5).
+ *
+ * The screen is the duel's, rebuilt around the one thing that is different:
+ * there are two people in it. So the HUD is not lives-and-score but two seats
+ * side by side — name, نِيب strikes, أبيات said, whether the socket is live —
+ * with the gold turn marker on whoever owes a بيت. Everything below it is the
+ * play screen the reader already knows: the same transcript plates, the same
+ * `LetterIndicator` with the timer arc around the required letter, the same
+ * `AnswerInput` (صدر alone still works), the same `RejectionCard`.
+ *
+ * FOUR STATES, and each says what to do next rather than what it is:
+ *   • في الانتظار — the code, big, with the link to hand over. A visitor who is
+ *     not the host sees «ادخل المساجلة» instead.
+ *   • جارية — the play screen. Only the seat that owes a بيت has a live field;
+ *     the other side is told, in words, whose turn it is.
+ *   • انتهت — who won and why, «رجعة» (which swaps the seats), and the way back.
+ *   • مشاهدة — a spectator gets all of it except the field.
+ *
+ * NOTHING here decides anything about the game. Whose turn, which letter, how
+ * many strikes are left, how long is left: all of it is read off the snapshot
+ * (`client/store/roomStore.ts`). The one number this file computes is the
+ * countdown, and it computes it from the server's deadline and the server's
+ * clock offset.
+ */
+import { useEffect, useMemo, useReducer, useRef, useState } from "react"
+import { BaytPlate } from "../bayt/BaytPlate.tsx"
+import { Avatar } from "../components/Avatar.tsx"
+import { Chip } from "../components/Chip.tsx"
+import { EmptyState } from "../components/EmptyState.tsx"
+import { ModerationActions } from "../components/Moderation.tsx"
+import { Sheet } from "../components/Sheet.tsx"
+import { Nib, Rule } from "../components/Ornaments.tsx"
+import { Panel } from "../components/Panel.tsx"
+import { AnswerInput } from "../duel/AnswerInput.tsx"
+import { useFollowNewest } from "../duel/ExchangeLog.tsx"
+import { LetterIndicator } from "../duel/LetterIndicator.tsx"
+import { ANSWER_PLACEHOLDER_NARROW } from "../duel/placeholders.ts"
+import { RejectionCard } from "../duel/RejectionCard.tsx"
+import { navigate, routeHash } from "../router.ts"
+import { useChromeTitle } from "../components/AppBar.tsx"
+import { useNativeChrome } from "../hooks/useNativeChrome.ts"
+import { useAuth } from "../store/authStore.ts"
+import { useImmersive } from "../store/immersiveStore.ts"
+import { rematchIsNew as isNewRematch, roomTimeLeft, useRoom } from "../store/roomStore.ts"
+import { motionReduced, useSettings } from "../store/settingsStore.ts"
+import { toast } from "../store/toastStore.ts"
+import {
+  BAYT_FORMS,
+  DARBA_FORMS,
+  copyableBayt,
+  countedNoun,
+  formatClock,
+  formatNumber,
+  lamPrefix,
+} from "../../shared/format.ts"
+import type { RoomKnockView, RoomPlayer, RoomSeat, RoomState, RoomTurn } from "../../shared/schema.ts"
+
+/** How often the countdown redraws. The remaining time itself is read live. */
+const TICK_MS = 200
+
+const MODE_LABEL = { rhyme: "على الرويّ", literal: "على الحرف الأخير" } as const
+
+/**
+ * WHY it ended, said about the player it happened to.
+ *
+ * The first pass printed the reason and then the WINNER's name («انسحاب —
+ * لبيد»), which reads as if the winner resigned. A reason is always something
+ * one side did, so it is written as a sentence about that side.
+ */
+function endReasonLine(reason: string | null, loser: string | null): string {
+  const who = loser ?? "خصمك"
+  switch (reason) {
+    case "strikes":
+      return `نفدت ضربات ${who}`
+    case "timeout":
+      return `انقضى وقت ${who}`
+    case "resign":
+      return `انسحب ${who}`
+    default:
+      return "توقّفت المساجلة"
+  }
+}
+
+/** A username off the wire → the name the rest of the screen calls that player. */
+function displayNameOf(state: RoomState, username: string | null): string | null {
+  if (username === null) return null
+  if (state.host?.username === username) return state.host.displayName
+  if (state.guest?.username === username) return state.guest.displayName
+  return username
+}
+
+/** «BADIRU» — one letter per cell, so a code read aloud is read correctly. */
+function CodeBlock({ code }: { code: string }) {
+  return (
+    <p className="room-code" dir="ltr" aria-label={`رمز الغرفة ${code.split("").join(" ")}`}>
+      {code.split("").map((ch, i) => (
+        <span className="room-code__ch" key={`${ch}${i}`}>
+          {ch}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+/**
+ * The door, for a guest who reached the room by VOICE — the code, no key.
+ *
+ * The old dead-end said «هذه الغرفة بدعوة» and stopped there, which made
+ * dictating the code a lie. Now he KNOCKS: the host is told (it rides in the
+ * host's snapshot) and lets him in or refuses. He is not a player until accepted,
+ * so this screen never shows the transcript — only the four states of the door.
+ */
+function KnockGate({
+  knock,
+  knocking,
+  notice,
+  badKey,
+  onKnock,
+}: {
+  knock: RoomKnockView | null
+  knocking: boolean
+  notice: string | null
+  /**
+   * The reader ARRIVED with a `?k=` and the server refused it — a link a chat
+   * app truncated, or an expired one. A wrong key used to be indistinguishable
+   * from no key: both landed on «بلغتَ الغرفة بالرمز», telling a reader who
+   * followed a LINK that they had arrived by code (which they had not) and
+   * silently demoting them to knocking, while the host who sent the link
+   * wondered why their friend was at the door.
+   */
+  badKey: boolean
+  onKnock: () => void
+}) {
+  const status = knock?.status ?? "none"
+  const host = knock?.hostName
+  return (
+    <div className="view room-view">
+      <div className="view__head">
+        <h1 className="view__title">مساجلة الأصدقاء</h1>
+        <p className="view__lede">
+          {badKey
+            ? "رابطك لا يفتح هذه الغرفة — لعلّه بُتر في النقل. اطرق الباب، أو اطلب الرابط ثانيةً."
+            : "بلغتَ الغرفة بالرمز — واستئذانُ صاحبها هو الباب."}
+        </p>
+      </div>
+      <Rule />
+      <Panel illuminated className="room-knock">
+        {status === "rejected" ? (
+          <>
+            <p className="room-knock__line">لم يأذن لك صاحب الغرفة بالدخول.</p>
+            <p className="room-knock__note">لعلّ الغرفة امتلأت، أو لم يكن مستعدًّا. اطلب الرابط منه، أو افتح غرفتك.</p>
+            <a className="btn btn--primary btn--lg" href={routeHash({ view: "duel" })}>
+              افتح غرفة جديدة
+            </a>
+          </>
+        ) : status === "pending" || status === "accepted" ? (
+          <>
+            <p className="room-knock__line">طرقتَ الباب…</p>
+            <p className="room-knock__note">
+              {host ? (
+                <>
+                  بانتظار أن يأذن لك <bdi>{host}</bdi> —{" "}
+                </>
+              ) : (
+                "بانتظار قبول صاحب الغرفة — "
+              )}
+              يظهر لك المجلس حين يقبل. اترك الصفحة مفتوحة.
+            </p>
+            <span className="room-knock__spin" aria-label="بانتظار الإذن" role="status" />
+          </>
+        ) : (
+          <>
+            <p className="room-knock__line">هذه الغرفة تُدخَل بإذن صاحبها.</p>
+            <p className="room-knock__note">
+              الرمز يدلّ على الغرفة، والإذن هو الذي يفتحها. اطرق الباب، فيصلُ صاحبَها أنك تريد الدخول.
+            </p>
+            <button type="button" className="btn btn--primary btn--lg" onClick={onKnock} disabled={knocking}>
+              {knocking ? "…يُطرق الباب" : "اطرق الباب"}
+            </button>
+          </>
+        )}
+        {notice ? (
+          <p className="room-knock__alert" role="alert">
+            {notice}
+          </p>
+        ) : null}
+      </Panel>
+    </div>
+  )
+}
+
+/** One seat. The نِيب row is the strike budget: a spent strike dims, never goes. */
+function Seat({
+  player,
+  seat,
+  strikes,
+  active,
+  you,
+}: {
+  player: RoomPlayer | null
+  seat: RoomSeat
+  strikes: number
+  active: boolean
+  you: boolean
+}) {
+  const label = seat === "host" ? "صاحب المطلع" : "المجيب"
+  if (!player) {
+    return (
+      <div className="seat seat--empty" data-seat={seat}>
+        <span className="seat__disc seat__disc--empty" aria-hidden="true">
+          ؟
+        </span>
+        <span className="seat__name">بانتظار خصم</span>
+        <span className="seat__role">{label}</span>
+      </div>
+    )
+  }
+  const left = Math.max(0, strikes - player.strikes)
+  return (
+    <div className="seat" data-seat={seat} data-active={active ? "1" : undefined} data-you={you ? "1" : undefined}>
+      <a className="seat__disc" href={routeHash({ view: "profile", username: player.username })} aria-hidden="true">
+        <Avatar name={player.displayName} src={player.avatar} />
+      </a>
+      <a className="seat__name" href={routeHash({ view: "profile", username: player.username })}>
+        {player.displayName}
+      </a>
+      <span className="seat__role">
+        {label}
+        {you ? " — أنت" : ""}
+      </span>
+      <span
+        className="seat__strikes"
+        role="img"
+        aria-label={`بقيت له ${countedNoun(left, DARBA_FORMS)} من ${formatNumber(strikes)}`}
+      >
+        {Array.from({ length: strikes }, (_, i) => (
+          <span className="seat__nib" key={i} data-spent={i >= left ? "1" : undefined}>
+            <Nib size={16} />
+          </span>
+        ))}
+      </span>
+      <span className="seat__turns">{countedNoun(player.turns, BAYT_FORMS)}</span>
+      <span className="seat__live" data-on={player.connected ? "1" : undefined} title={player.connected ? "متّصل" : "غير متّصل"} />
+    </div>
+  )
+}
+
+/**
+ * The transcript. Every بيت is a `BaytPlate` on the duel's own `.exchange`
+ * furniture — same lapis hairline for the other side, same gold for yours — and
+ * a strike is a line of its own, because a مساجلة where the misses are
+ * invisible reads as if the clock simply skipped a turn.
+ */
+function RoomLog({
+  state,
+  mySeat,
+  tashkeel,
+  showRawiyy,
+  docked,
+  reduced,
+}: {
+  state: RoomState
+  mySeat: RoomSeat | null
+  tashkeel: boolean
+  showRawiyy: boolean
+  /** the phone's game screen: this log is its own scroller */
+  docked: boolean
+  reduced: boolean
+}) {
+  const lens: RoomSeat = mySeat ?? "guest"
+  const listRef = useRef<HTMLOListElement | null>(null)
+  // A room's transcript follows its newest بيت on the game screen, exactly as
+  // the solo duel's does — a مساجلة you open on its first turn is a chat that
+  // opens on its oldest message. On the web the page is the scroller and the
+  // room screen has never auto-scrolled; `docked` keeps it that way.
+  useFollowNewest(listRef, [state.turns.length], { enabled: docked, docked, reduced })
+  return (
+    <ol className="exchange-log room-log" data-variant="summary" ref={listRef}>
+      {state.turns.map((turn: RoomTurn) => {
+        const mine = turn.seat === lens
+        const who = turn.seat === "host" ? state.host : state.guest
+        const name = who?.displayName ?? "لاعب"
+        if (turn.bait === null) {
+          return (
+            <li className="exchange room-miss" key={turn.turnNo} data-side={mine ? "player" : "opponent"}>
+              <p className="room-miss__line">
+                <span className="room-miss__who">{name}</span>
+                <span className="room-miss__what">
+                  {turn.verdict === "wrong_letter" ? "أجاب بغير الحرف المطلوب" : "لم أجد بيته في الديوان"}
+                </span>
+                <span className="room-miss__mark" aria-hidden="true">
+                  ✗
+                </span>
+              </p>
+              {turn.text ? <p className="room-miss__text">{turn.text}</p> : null}
+            </li>
+          )
+        }
+        // TWO names belong on this line — who recited it and who wrote it — and
+        // set side by side they were indistinguishable («لبيد بن ربيعة  أمين
+        // تقي الدين»). The لام of attribution is how Arabic has always told
+        // them apart: «أنشده لبيد» · «لأمين تقي الدين».
+        const meta = (
+          <>
+            <span className="exchange__who">{name}</span>
+            {turn.verdict === "opening" ? <span className="room-opening">المطلع</span> : null}
+            {turn.bait.poet ? (
+              <a className="exchange__poet" href={routeHash({ view: "poet", slug: turn.bait.poet.slug })}>
+                {/* «للأرجاني», not «لـالأرجاني» — the لام elides into ال,
+                    and most of this corpus's شعراء carry it. */}
+                <bdi>{lamPrefix(turn.bait.poet.name)}</bdi>
+              </a>
+            ) : null}
+            {turn.bait.meter ? <Chip variant="bahr" slug={turn.bait.meter.slug} label={turn.bait.meter.name} /> : null}
+            <a className="exchange__link" href={routeHash({ view: "poem", id: turn.bait.poem.id })}>
+              القصيدة
+            </a>
+          </>
+        )
+        return (
+          <li className="exchange" key={turn.turnNo} data-side={mine ? "player" : "opponent"} data-exchange-key={turn.bait.baytKey}>
+            <BaytPlate
+              variant="plate"
+              sadr={turn.bait.sadr}
+              ajuz={turn.bait.ajuz}
+              side={mine ? "you" : "them"}
+              meta={meta}
+              tashkeel={tashkeel}
+              showRawiyy={showRawiyy}
+              rawiyy={turn.bait.rawiyy}
+              copyText={copyableBayt(turn.bait.sadr, turn.bait.ajuz)}
+            />
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/**
+ * The docked game screen's «⋯» — أبلغ / احظر / انسحب, on one sheet.
+ *
+ * It exists because phone.css stands the moderation rail down mid-play, and
+ * Play policy (and plain sense) expects the report affordance to be reachable
+ * IN the surface that shows the content. `ModerationActions` is reused whole
+ * rather than re-implemented, so «أبلغ» opens the same six-reason dialog and
+ * «احظر» the same confirmation everywhere in the app.
+ */
+function RoomMoreSheet({
+  username,
+  displayName,
+  blocked,
+  code,
+  onBlockChange,
+  onResign,
+  onClose,
+}: {
+  username: string
+  displayName: string
+  blocked: boolean
+  code: string
+  onBlockChange: (b: boolean) => void
+  onResign: () => void
+  onClose: () => void
+}) {
+  return (
+    <Sheet title="خيارات المساجلة" note={`عن ${displayName || username}`} onClose={onClose} className="sheet--roommore">
+      <div className="roommore">
+        <ModerationActions
+          username={username}
+          displayName={displayName}
+          blocked={blocked}
+          context={`room:${code}`}
+          onBlockChange={(b) => {
+            onBlockChange(b)
+            onClose()
+          }}
+          className="roommore__mod"
+        />
+        <button
+          type="button"
+          className="btn btn--ghost roommore__resign"
+          onClick={() => {
+            onClose()
+            onResign()
+          }}
+        >
+          انسحب من المساجلة
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) {
+  const state = useRoom((s) => s.state)
+  const error = useRoom((s) => s.error)
+  const errorCode = useRoom((s) => s.errorCode)
+  const notice = useRoom((s) => s.notice)
+  const loading = useRoom((s) => s.loading)
+  const busy = useRoom((s) => s.busy)
+  const draft = useRoom((s) => s.draft)
+  const rejection = useRoom((s) => s.rejection)
+  const strikesLeft = useRoom((s) => s.strikesLeft)
+  const transport = useRoom((s) => s.transport)
+  const skew = useRoom((s) => s.skew)
+  const knock = useRoom((s) => s.knock)
+  const knocking = useRoom((s) => s.knocking)
+  const open = useRoom((s) => s.open)
+  const close = useRoom((s) => s.close)
+  const setDraft = useRoom((s) => s.setDraft)
+  const submit = useRoom((s) => s.submit)
+  const join = useRoom((s) => s.join)
+  const resign = useRoom((s) => s.resign)
+  const rematch = useRoom((s) => s.rematch)
+  const dismissRejection = useRoom((s) => s.dismissRejection)
+  const sendKnock = useRoom((s) => s.sendKnock)
+  const acceptKnock = useRoom((s) => s.acceptKnock)
+  const rejectKnock = useRoom((s) => s.rejectKnock)
+
+  const settings = useSettings()
+  const native = useNativeChrome()
+  // Mid-play on a phone the room's whole head stands down (phone.css), so the
+  // app bar is where the ديوان both players are answering from is named. It is
+  // a rule of the match, and a rule nobody can see is not a rule.
+  useChromeTitle(state?.album ? `ديوان «${state.album.title}»` : undefined)
+  const authStatus = useAuth((s) => s.status)
+  const user = useAuth((s) => s.user)
+  const openAuth = useAuth((s) => s.openDialog)
+  const [, tock] = useReducer((n: number) => n + 1, 0)
+  const [precheck, setPrecheck] = useState<string | null>(null)
+  // Whether YOU have blocked your opponent (Track 3). Starts false — a block
+  // would have kept the two of you from ever being seated together — and flips
+  // when you block them mid-room (which does not end this match, only bars a
+  // future join/knock/رجعة).
+  const [oppBlocked, setOppBlocked] = useState(false)
+  /** the docked game screen's «⋯» sheet — أبلغ / احظر / انسحب */
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  useEffect(() => {
+    if (authStatus !== "ready" || !user) return
+    open(code, joinKey ?? null)
+    return () => close()
+  }, [code, joinKey, authStatus, user, open, close])
+
+  // The countdown redraws on a tick; the time itself is read at render off the
+  // server's deadline, so a slow frame can never show more time than is left.
+  const running = state?.status === "active" && state.deadlineAt !== null
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(tock, TICK_MS)
+    return () => clearInterval(id)
+  }, [running])
+
+  const msLeft = roomTimeLeft(state ?? null, skew)
+  const turnMs = (state?.timerS ?? 0) * 1000
+
+  /**
+   * A رجعة that OPENS while you are looking at the room is somewhere to go.
+   * One that was already there is just history.
+   *
+   * `rooms.rematch_code` is permanent once written and rides on every later
+   * snapshot of the old room, so redirecting on its mere presence bounced every
+   * viewer — a spectator included — out of any old room they opened. From the
+   * profile's match list that chained: match 1 → 2 → 3 → the newest room, 900 ms
+   * apart, and no older transcript was reachable through the UI at all. So the
+   * code seen on the FIRST snapshot is remembered and only a NEW one navigates;
+   * for the rest there is a link, below.
+   */
+  const rematchCode = state?.rematchCode ?? null
+  const rematchAtMount = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (state === null) return
+    if (rematchAtMount.current === undefined) rematchAtMount.current = rematchCode
+  }, [state, rematchCode])
+  const rematchIsNew = isNewRematch(rematchAtMount.current, rematchCode)
+  useEffect(() => {
+    if (!rematchIsNew || !rematchCode) return
+    const t = setTimeout(() => navigate({ view: "room", code: rematchCode }), 900)
+    return () => clearTimeout(t)
+  }, [rematchIsNew, rematchCode])
+
+  // THE GAME SCREEN, on the same terms as the solo duel: a LIVE room, on a
+  // phone, with you in one of the two seats. A spectator is reading, not
+  // playing, and must be able to leave with one press.
+  const playing = state?.status === "active" && state.you.role !== "spectator" && state.you.seat !== null
+  useImmersive(Boolean(native && playing), () => void resign())
+
+  const shareLink = useMemo(() => state?.shareUrl ?? "", [state])
+
+  const copyLink = async () => {
+    if (!shareLink) return
+    try {
+      await navigator.clipboard.writeText(shareLink)
+      toast("نُسخ الرابط", "ok")
+    } catch {
+      toast("تعذّر النسخ — انسخ الرابط من شريط العنوان", "warn")
+    }
+  }
+
+  // ── the two doors before the room ────────────────────────────────────────
+
+  if (authStatus !== "ready") return <div className="view room-view" aria-busy="true" />
+
+  if (!user) {
+    return (
+      <div className="view room-view">
+        <div className="view__head">
+          <h1 className="view__title">مساجلة الأصدقاء</h1>
+          <p className="view__lede">مساجلة بين اثنين، بيتًا ببيت، على رويّ واحد.</p>
+        </div>
+        <Rule />
+        <Panel quiet className="room-gate">
+          <div className="room-gate__text">
+            <p className="room-gate__line">هذه الغرفة تحتاج إلى حساب.</p>
+            <p className="room-gate__note">
+              المساجلة بين اثنين، فلا بدّ أن يُعرف كلٌّ منكما باسمه. الدخول لحظة، والاسم يبقى لك.
+            </p>
+          </div>
+          <button type="button" className="btn btn--primary btn--lg" onClick={() => openAuth("login")}>
+            ادخل بحسابك
+          </button>
+        </Panel>
+      </div>
+    )
+  }
+
+  // A PRESENT snapshot always wins over a transport error. The old code showed
+  // «لا غرفة بهذا الرمز» the instant a socket blipped, hiding a room the poller
+  // had already loaded — so the not-found / knock gate is reachable ONLY while
+  // there is no state at all (a genuine 404 or needs_key on the FIRST load).
+  if (!state) {
+    // Reached a room by voice — the code, no key. Instead of the old dead-end,
+    // knock: the host is told and lets you in (restores «أملِ عليه الرمز»).
+    if (errorCode === "needs_key" || knock) {
+      return (
+        <KnockGate
+          knock={knock}
+          knocking={knocking}
+          notice={notice}
+          badKey={Boolean(joinKey) && errorCode === "needs_key"}
+          onKnock={() => void sendKnock()}
+        />
+      )
+    }
+    if (error) {
+      return (
+        <div className="view room-view">
+          <div className="view__head">
+            <h1 className="view__title">مساجلة الأصدقاء</h1>
+          </div>
+          <EmptyState flavor="search-none" title="لا غرفة بهذا الرمز">
+            <p className="empty__note">{error}</p>
+            <a className="btn" href={routeHash({ view: "duel" })}>
+              افتح غرفة جديدة
+            </a>
+          </EmptyState>
+        </div>
+      )
+    }
+    return (
+      <div className="view room-view" aria-busy="true">
+        <div className="view__head">
+          <h1 className="view__title">مساجلة الأصدقاء</h1>
+        </div>
+        <span className="skeleton" style={{ blockSize: "6rem" }} />
+        <span className="skeleton" style={{ blockSize: "12rem" }} />
+      </div>
+    )
+  }
+
+  const mySeat = state.you.seat
+
+  /* The OPPONENT, when there is a real one to act on: a seated player only, and
+     only when the other seat holds an account that is not deleted and is not
+     you. Read once — the docked strip's «⋯» sheet and the full rail below both
+     answer to it, so the two can never disagree about who is being reported. */
+  const opponent = mySeat === "host" ? state.guest : mySeat === "guest" ? state.host : null
+  const oppUsername =
+    mySeat && opponent?.username && opponent.username !== user.username ? opponent.username : null
+  const oppDisplayName = opponent?.displayName ?? ""
+
+  /* Written once and placed twice — see the note at its first use. */
+  const transcript = (
+    <RoomLog
+      state={state}
+      mySeat={mySeat}
+      tashkeel={settings.tashkeel}
+      showRawiyy={settings.showRawiyy}
+      docked={Boolean(native && playing)}
+      reduced={motionReduced(settings)}
+    />
+  )
+  const spectating = state.you.role === "spectator"
+  const myTurn = state.you.canPlay
+  const waitingSeat = state.turnSeat === "host" ? state.host : state.guest
+  const won = state.winner !== null && state.winner === user.username
+  const winnerName = displayNameOf(state, state.winner)
+  const loserName =
+    state.winner === null
+      ? null
+      : displayNameOf(state, state.host?.username === state.winner ? (state.guest?.username ?? null) : (state.host?.username ?? null))
+
+  return (
+    <div className="view room-view" data-status={state.status}>
+      <header className="view__head room-head">
+        <div className="room-head__id">
+          <h1 className="view__title">مساجلة الأصدقاء</h1>
+          <p className="room-head__chips">
+            <span className="room-chip">{MODE_LABEL[state.mode]}</span>
+            <span className="room-chip">
+              {state.timerS === null ? "بلا وقت" : `${formatNumber(state.timerS)} ثانية للبيت`}
+            </span>
+            <span className="room-chip">{countedNoun(state.strikes, DARBA_FORMS)}</span>
+            {/* THE ديوان both players are answering from. A chip, because it is
+                one of the room's RULES and belongs beside the other three — and
+                a link, because the shelf is the thing being memorised and the
+                loser's first question is «ما الذي فاتني؟». Mid-play on a phone
+                this whole head stands down (phone.css), so there the app bar
+                carries the name instead — see `useChromeTitle` above. */}
+            {state.album ? (
+              <a className="room-chip room-chip--diwan" href={routeHash({ view: "diwan", code: state.album.code })}>
+                <bdi>ديوان «{state.album.title}»</bdi>
+              </a>
+            ) : null}
+            <span className="room-chip room-chip--live" data-transport={transport}>
+              {transport === "socket" ? "متّصل" : "يُحدَّث كل ثانيتين"}
+            </span>
+          </p>
+        </div>
+        <div className="room-head__code">
+          <span className="room-head__code-label">رمز الغرفة</span>
+          <CodeBlock code={state.code} />
+        </div>
+      </header>
+
+      <Rule />
+
+      <div className="room-seats">
+        <Seat
+          player={state.host}
+          seat="host"
+          strikes={state.strikes}
+          active={state.turnSeat === "host"}
+          you={mySeat === "host"}
+        />
+        {/* Between the two seats: the «×» of a fixture — and, once the phone's
+            game screen is running, the countdown itself. The middle of that row
+            is where both players are already looking, and it is the one place
+            the slim strip has room for a clock without a fourth column. */}
+        {native && playing && msLeft !== null ? (
+          <span
+            className="room-seats__vs room-seats__clock"
+            data-tone={msLeft <= 2000 ? "danger" : msLeft <= 5000 ? "warn" : undefined}
+            role="timer"
+            aria-label="ما بقي من وقت الدور"
+          >
+            {formatClock(msLeft)}
+          </span>
+        ) : (
+          <span className="room-seats__vs" aria-hidden="true">
+            ×
+          </span>
+        )}
+        <Seat
+          player={state.guest}
+          seat="guest"
+          strikes={state.strikes}
+          active={state.turnSeat === "guest"}
+          you={mySeat === "guest"}
+        />
+        {/* THE ONE CONTROL THE DOCKED GAME SCREEN MUST NOT LOSE.
+            phone.css stands `.room-opponent-mod` down mid-play for vertical
+            economy, which took «أبلغ» and «احظر» to 0×0 at exactly the moment
+            UGC risk is highest — a stranger's chosen بيت and free-text display
+            name on your screen and nothing to act on. (The only surviving route
+            was the opponent's own `.seat__name`, a 95×21 profile link: not a
+            safety affordance, and under the touch floor besides.) So one 44px
+            «⋯» rides in the strip beside the clock and opens a sheet. It costs
+            no vertical space until it is pressed, and it exists only where the
+            rail was taken away. */}
+        {native && playing && oppUsername ? (
+          <button
+            type="button"
+            className="room-seats__more"
+            onClick={() => setMoreOpen(true)}
+            aria-label="خيارات المساجلة"
+          >
+            ⋯
+          </button>
+        ) : null}
+      </div>
+
+      {moreOpen && oppUsername ? (
+        <RoomMoreSheet
+          username={oppUsername}
+          displayName={oppDisplayName}
+          blocked={oppBlocked}
+          code={state.code}
+          onBlockChange={setOppBlocked}
+          onResign={() => void resign()}
+          onClose={() => setMoreOpen(false)}
+        />
+      ) : null}
+
+      {/* Report / block the OPPONENT (Track 3): only a seated player, only when
+          the other seat holds a real (not deleted) account that is not you. A
+          spectator vets nobody, and blocking is private.
+          Mid-play on a phone this rail is stood down for vertical economy —
+          the «⋯» in the strip above is the same two actions there. */}
+      {oppUsername ? (
+        <div className="room-opponent-mod">
+          <ModerationActions
+            username={oppUsername}
+            displayName={oppDisplayName}
+            blocked={oppBlocked}
+            context={`room:${state.code}`}
+            onBlockChange={setOppBlocked}
+          />
+        </div>
+      ) : null}
+
+      {/* THE مطلع COMES FIRST WHILE THE ROOM IS WAITING.
+          The host's copy says «وهو الذي يُجيب أوّلًا عن مطلعك», and the مطلع it
+          refers to was rendered by the transcript BELOW «أغلق الغرفة» — off the
+          fold, under the sentence that points at it. Once the مساجلة is running
+          the transcript is the page and it goes back under the panels. */}
+      {state.status === "waiting" ? transcript : null}
+
+      {/* ── في الانتظار ────────────────────────────────────────────────── */}
+      {state.status === "waiting" ? (
+        <Panel illuminated className="room-wait">
+          {state.you.canJoin ? (
+            <>
+              <p className="room-wait__line">دُعيتَ إلى مساجلة.</p>
+              <p className="room-wait__note">
+                يُنشد صاحبُ الغرفة المطلع، وأنت تُجيب أوّلًا ببيتٍ يبدأ بحرف رويّه. ادخل حين تكون مستعدًّا — الوقت
+                يبدأ بدخولك.
+              </p>
+              <button type="button" className="btn btn--primary btn--lg" onClick={() => void join()} disabled={busy}>
+                ادخل المساجلة
+              </button>
+            </>
+          ) : mySeat === "host" ? (
+            <>
+              {state.knock ? (
+                <div className="room-door" role="alert">
+                  <p className="room-door__line">
+                    <bdi>{state.knock.displayName}</bdi> يطرق الباب — يريد الدخول.
+                  </p>
+                  <div className="room-door__acts">
+                    <button
+                      type="button"
+                      className="btn btn--primary"
+                      onClick={() => void acceptKnock()}
+                      disabled={busy}
+                    >
+                      اقبل
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void rejectKnock()}
+                      disabled={busy}
+                    >
+                      ارفض
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {/* «تبدأ المساجلة لحظة دخوله» stopped being true when entering
+                  became a button the guest presses. And a guest who has the
+                  link open but has not pressed it used to be INVISIBLE here, so
+                  both sides sat waiting for the other — the knock path surfaced
+                  its guest and the keyed link, the normal path, did not. */}
+              {state.atDoor ? (
+                <p className="room-door__line" role="status">
+                  الضيف على الباب — فتح رابطك ولم يدخل بعد.
+                </p>
+              ) : null}
+              <p className="room-wait__line">غرفتك مفتوحة — ابعث الرابط إلى صاحبك.</p>
+              <p className="room-wait__note">
+                {state.atDoor
+                  ? "تبدأ المساجلة حين يضغط «ادخل المساجلة»، وهو الذي يُجيب أوّلًا عن مطلعك."
+                  : "تبدأ المساجلة حين يفتح رابطك ويدخل، وهو الذي يُجيب أوّلًا عن مطلعك."}
+              </p>
+              {/* The link WRAPS. As a single-line input it showed
+                  «https://qarid.example.com/» and clipped the code and the
+                  key — the reader could not see what they were about to send,
+                  and only «انسخ الرابط» actually worked. */}
+              <div className="room-share">
+                <code className="room-share__link" dir="ltr">
+                  {shareLink}
+                </code>
+                <button type="button" className="btn btn--primary" onClick={() => void copyLink()}>
+                  انسخ الرابط
+                </button>
+              </div>
+              {/* «أملِ عليه الرمز» is a real path now: he opens the code with no
+                  key, knocks, and you accept above — not the old dead-end. */}
+              <p className="room-wait__hint">
+                أو أملِ عليه الرمز — <span className="room-wait__code" dir="ltr">{state.code.split("").join(" ")}</span> — يفتحه
+                ويطرق الباب، فتأذن له من هنا.
+              </p>
+              {notice ? (
+                <p className="room-notice" role="alert">
+                  {notice}
+                </p>
+              ) : null}
+              <div className="room-wait__acts">
+                <button type="button" className="btn btn--ghost" onClick={() => void resign()} disabled={busy}>
+                  أغلق الغرفة
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="room-wait__line">هذه الغرفة محجوزة للاعبَيها.</p>
+              <p className="room-wait__note">إن بدأت المساجلة رأيتَها من هنا، بيتًا ببيت.</p>
+            </>
+          )}
+        </Panel>
+      ) : null}
+
+
+      {state.status === "waiting" ? null : transcript}
+
+      {/* ── جارية ──────────────────────────────────────────────────────── */}
+      {state.status === "active" ? (
+        <section className="duel-desk room-desk" aria-label="جوابك">
+          <LetterIndicator
+            required={state.required?.requiredLetter ?? null}
+            source={state.required?.requiredLetterSource ?? null}
+            alsoAccepted={state.required?.alsoAccepted ?? []}
+            mode={state.mode}
+            draft={myTurn ? draft : ""}
+            msLeft={msLeft}
+            turnMs={turnMs}
+          />
+
+          {/* …so the desk carries it only where the seats row is not a HUD. */}
+          {msLeft !== null && !(native && playing) ? (
+            <p className="duel-clock" data-tone={msLeft <= 2000 ? "danger" : msLeft <= 5000 ? "warn" : undefined}>
+              {formatClock(msLeft)}
+            </p>
+          ) : null}
+
+          {rejection && myTurn ? (
+            <RejectionCard
+              rejection={rejection}
+              livesLeft={strikesLeft}
+              strike={rejection.kind === "wrong_letter" || rejection.kind === "not_found"}
+              // «بقيت ضربتان», never «بقي 2» — the معدود is not optional
+              // (CLAUDE.md, العدد والمعدود live in shared/format.ts)
+              costLabel={`‎−ضربة · ${strikesLeft === 0 ? "ولا ضربة بعدها" : `بقيت ${countedNoun(strikesLeft, DARBA_FORMS)}`}`}
+              onFill={(text) => setDraft(text)}
+              onCommit={(bait) => void submit(copyableBayt(bait.sadr, bait.ajuz))}
+              onDismiss={dismissRejection}
+              onRetry={() => void submit()}
+            />
+          ) : null}
+
+          {precheck !== null ? (
+            <p className="duel-precheck" role="status">
+              جوابك يبدأ بـ<span className="reject__letter">{precheck ?? "؟"}</span>، والمطلوب{" "}
+              <span className="reject__letter reject__letter--want">{state.required?.requiredLetter}</span> — لم أسأل
+              الديوان بعد.
+            </p>
+          ) : null}
+
+          {myTurn ? (
+            <AnswerInput
+              value={draft}
+              onChange={(v) => {
+                setPrecheck(null)
+                setDraft(v)
+              }}
+              onSubmit={() => void submit()}
+              disabled={busy}
+              placeholder={native && playing ? ANSWER_PLACEHOLDER_NARROW : "أجب ببيتٍ يبدأ بالحرف المطلوب — ويكفي صدره"}
+              required={state.required?.requiredLetter ?? null}
+              alsoAccepted={state.required?.alsoAccepted ?? []}
+              invalid={precheck !== null}
+              onPrecheckFail={(typed) => setPrecheck(typed)}
+            />
+          ) : (
+            <p className="room-turnline" role="status">
+              {spectating
+                ? `الدور على ${waitingSeat?.displayName ?? "اللاعب"}`
+                : `الدور على ${waitingSeat?.displayName ?? "خصمك"} — انتظر بيته`}
+            </p>
+          )}
+
+          {notice ? (
+            <p className="room-notice" role="alert">
+              {notice}
+            </p>
+          ) : null}
+
+          {!spectating ? (
+            <div className="duel-acts room-acts">
+              <button type="button" className="btn btn--ghost" onClick={() => void resign()} disabled={busy}>
+                انسحب
+              </button>
+              <span className="duel-acts__note keys-only">
+  {/* A keycap is read off the cap's own legend (client/data/shortcuts.ts) —
+      «أدخِل» translated one cap and left the next in Latin in the same line. */}
+  <kbd>Enter</kbd> ليُرسَل · <kbd>Shift</kbd>+<kbd>Enter</kbd> لسطر جديد
+</span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* ── انتهت ──────────────────────────────────────────────────────── */}
+      {state.status === "done" ? (
+        <Panel
+          illuminated
+          className="room-end"
+          title={
+            state.winner === null
+              ? "انتهت المساجلة"
+              : won
+                ? "لك الغلبة"
+                : spectating
+                  ? `الغلبة ${lamPrefix(winnerName ?? "")}`
+                  : "الغلبة لخصمك"
+          }
+        >
+          <p className="room-end__why">{endReasonLine(state.endReason, loserName)}.</p>
+          <p className="room-end__count">
+            {countedNoun(state.turns.filter((t) => t.bait !== null).length, BAYT_FORMS)} في هذه المساجلة.
+          </p>
+          <div className="room-end__acts">
+            {/* A رجعة that was already open when this room loaded is a place to
+                go, not a place to be sent: the reader may have come here to
+                re-read this transcript. */}
+            {rematchCode !== null && !rematchIsNew ? (
+              <a className="btn btn--primary" href={routeHash({ view: "room", code: rematchCode })}>
+                إلى الرجعة
+              </a>
+            ) : null}
+            {!spectating ? (
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={busy}
+                onClick={() => {
+                  void rematch().then((next) => {
+                    if (next) navigate({ view: "room", code: next })
+                  })
+                }}
+              >
+                رجعة — وتُبدَّل الأدوار
+              </button>
+            ) : null}
+            <a className="btn" href={routeHash({ view: "profile", username: user.username })}>
+              سجلّك
+            </a>
+            <a className="btn btn--ghost" href={routeHash({ view: "duel" })}>
+              غرفة جديدة
+            </a>
+          </div>
+        </Panel>
+      ) : null}
+    </div>
+  )
+}

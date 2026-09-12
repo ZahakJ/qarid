@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>قريض — an Arabic poetry diwan, and a duel on the rhyme</title>
+<meta name="description" content="3,369,701 verses by 6,941 Arabic poets in one read-only artefact: browsable by era, metre, theme and rhyme, searchable, and playable as a مساجلة you answer on the rhyme letter.">
+<meta property="og:title" content="قريض — an Arabic poetry diwan, and a duel on the rhyme">
+<meta property="og:description" content="Three and a third million verses, browsable and searchable — and a مساجلة the machine judges by the rule the قدماء used.">
+<meta property="og:image" content="media/social-preview.png">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2307080c'/%3E%3Cpath d='M6 21c5.4-1.8 9.4-6.4 11.4-13.2L21 11c-2 7.4-6.8 10.9-15 12Z' fill='%23d6ad60'/%3E%3C/svg%3E">
+<style>
+/* Everything is same-origin: two font files and the screenshots, nothing else.
+   No CDN, no analytics, no third party. A page about an app that ships its own
+   corpus does not get to phone home to render a headline. */
+@font-face{font-family:Amiri;src:url(assets/amiri.woff2) format('woff2');font-weight:400;font-display:swap}
+@font-face{font-family:'Aref Ruqaa';src:url(assets/aref-ruqaa.woff2) format('woff2');font-weight:400;font-display:swap}
+
+:root{
+  --ink:#07080c; --ink2:#0b0d12; --panel:#11141b; --line:#1e222c;
+  --fg:#e7e3dc; --muted:#9aa0ab; --gold:#d6ad60; --lapis:#5c7cc8;
+  --verse:Amiri,'Times New Roman',serif;
+  --display:'Aref Ruqaa',Amiri,serif;
+  --ui:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--ink);color:var(--fg);font:400 17px/1.7 var(--ui);
+  -webkit-font-smoothing:antialiased;
+}
+/* The same two washes the app itself lays down, dithered for the same reason:
+   an 8-bit ramp this shallow bands into visible slanted bars without it. */
+body::before{
+  content:"";position:fixed;inset:-20%;z-index:-1;pointer-events:none;opacity:.09;
+  background:
+    radial-gradient(60% 48% at 22% 14%, var(--gold) 0%, transparent 68%),
+    radial-gradient(58% 52% at 78% 86%, var(--lapis) 0%, transparent 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E") repeat;
+}
+.wrap{max-width:52rem;margin:0 auto;padding:0 1.25rem}
+a{color:var(--gold);text-decoration-color:rgba(214,173,96,.4);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--gold)}
+code,kbd{font-family:var(--mono);font-size:.88em;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:.1em .4em}
+pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;overflow-x:auto}
+pre code{background:none;border:0;padding:0}
+
+header.hero{text-align:center;padding:3.5rem 0 1rem}
+header.hero img{width:100%;max-width:820px;height:auto;border-radius:12px}
+.tagline{color:var(--muted);margin:1.4rem auto 0;max-width:40rem}
+.cta{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap;margin:2rem 0 0}
+.btn{
+  display:inline-block;padding:.62rem 1.15rem;border-radius:8px;
+  border:1px solid var(--line);color:var(--fg);text-decoration:none;font-size:.95rem;
+}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.btn--gold{background:rgba(214,173,96,.12);border-color:rgba(214,173,96,.45);color:var(--gold)}
+
+.counts{display:flex;gap:0 2.2rem;justify-content:center;flex-wrap:wrap;margin:2.4rem 0 0;color:var(--muted);font-size:.9rem}
+.counts b{display:block;color:var(--gold);font-family:var(--mono);font-size:1.5rem;font-weight:400;letter-spacing:-.02em}
+.counts span{text-align:center;padding:.3rem 0}
+
+h2{font-family:var(--display);font-size:1.85rem;font-weight:400;color:var(--gold);margin:3.4rem 0 .2rem;line-height:1.35}
+h2+.sub{color:var(--muted);margin:0 0 1.2rem;font-size:.95rem}
+h3{font-size:1.05rem;margin:1.8rem 0 .3rem}
+hr{border:0;height:1px;background:linear-gradient(90deg,transparent,var(--line) 18%,var(--line) 82%,transparent);margin:3.2rem 0 0}
+
+.bayt{
+  font-family:var(--verse);font-size:1.5rem;line-height:2.1;direction:rtl;text-align:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:1.6rem 1.2rem;margin:1.6rem 0;
+}
+.bayt .by{display:block;font-family:var(--ui);font-size:.82rem;color:var(--muted);margin-top:.7rem;direction:rtl}
+.rawiyy{color:var(--lapis);border-bottom:2px solid var(--lapis)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,15rem),1fr));gap:1rem;margin:1.4rem 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:1.1rem 1.2rem}
+.card h3{margin:0 0 .35rem;color:var(--fg);font-size:1rem}
+.card p{margin:0;color:var(--muted);font-size:.92rem;line-height:1.6}
+
+figure{margin:1.6rem 0}
+figure img{width:100%;height:auto;border-radius:10px;border:1px solid var(--line);display:block}
+figcaption{color:var(--muted);font-size:.86rem;margin-top:.6rem;text-align:center}
+.shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:1.1rem}
+.phones{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
+.phones img{width:min(30%,210px);height:auto;border-radius:12px;border:1px solid var(--line)}
+
+table{width:100%;border-collapse:collapse;margin:1.2rem 0;font-size:.93rem;display:block;overflow-x:auto}
+th,td{text-align:left;padding:.55rem .7rem;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:500}
+td code{white-space:nowrap}
+
+footer{color:var(--muted);font-size:.88rem;padding:3rem 0 4rem;text-align:center}
+.ar{direction:rtl;unicode-bidi:isolate}
+@media (max-width:640px){
+  body{font-size:16px}
+  h2{font-size:1.5rem}
+  .bayt{font-size:1.2rem}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <img src="media/banner.png" alt="قريض — an Arabic poetry diwan, and a duel on the rhyme">
+    <p class="tagline">
+      <b class="ar">قَريض</b> is the old Arabic word for verse itself. It is also a
+      browsable ديوان of the classical corpus — and a duel played against it, on
+      the rhyme.
+    </p>
+    <div class="counts">
+      <span><b>238,733</b> قصائد</span>
+      <span><b>3,369,701</b> أبيات</span>
+      <span><b>6,941</b> شعراء</span>
+      <span><b>1,713,459</b> playable</span>
+    </div>
+    <div class="cta">
+      <a class="btn btn--gold" href="https://github.com/ZahakJ/qarid">Source on GitHub</a>
+      <a class="btn" href="#run">Run your own</a>
+      <a class="btn" href="#corpus">What is in the corpus</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<hr>
+
+<h2>The rule the whole thing turns on</h2>
+<p class="sub">A مساجلة is not trivia. It has one rule, and it is old.</p>
+
+<p>
+  The machine recites a بيت. You must answer with another بيت — a real one, from
+  the corpus — that <b>starts on the روي</b> of the one you were given: the
+  consonant its rhyme runs on. Not the last letter as written. The روي, peeled
+  of what the قافية hangs off it.
+</p>
+
+<div class="bayt">
+  أنا ابنُ القَوافي أنا ابنُ الرِعا<span class="rawiyy">نِ</span>
+  <span class="by">— المتنبي · answer on the <b class="rawiyy">ن</b></span>
+</div>
+
+<p>
+  It judges the way the قدماء did and it does not take a near miss. Of the
+  3.37 million أبيات, 1,713,459 can actually be used this way — a بيت needs both
+  hemistichs and a resolvable روي before the game may ask you to answer it, and
+  the corpus is a scrape, so a great many do not qualify.
+</p>
+
+<h2>What it does</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Read</h3>
+    <p>Browse by عصر, بحر, غرض or روي. Open a شاعر's ديوان. Read a قصيدة laid
+    out like a printed page, or in a reading mode where every bar stands down
+    and the أبيات alone run down one measure.</p>
+  </div>
+  <div class="card">
+    <h3>Search</h3>
+    <p>FTS5 across three million أبيات, poets and titles, folded through one
+    Arabic normalizer so a query matches however it was typed — with or without
+    تشكيل, with any of the alif forms.</p>
+  </div>
+  <div class="card">
+    <h3>Duel</h3>
+    <p>A مساجلة against the corpus, scored and timed, narrowed by عصر, بحر or a
+    single شاعر. Or against a friend in a room — the match is decided
+    server-side, so neither client can lie about a بيت.</p>
+  </div>
+  <div class="card">
+    <h3>Keep</h3>
+    <p>المختارات is a ♥ list in your browser, no account needed. دواوين are
+    named, ordered, shareable shelves on an account — and you can play a
+    مساجلة inside one.</p>
+  </div>
+  <div class="card">
+    <h3>Memorise</h3>
+    <p>التحفيظ drills a قصيدة until you hold it, tracking which letters you can
+    reliably answer on and building an arsenal out of them.</p>
+  </div>
+  <div class="card">
+    <h3>On a phone</h3>
+    <p>An Android build from the same codebase — bundled assets, so it opens
+    offline-fast, with the OS share sheet and hardware back wired through.</p>
+  </div>
+</div>
+
+<h2>What it looks like</h2>
+<p class="sub">Dark by design, gold on blue-black ink, the way a ديوان is illuminated.</p>
+
+<figure>
+  <img src="media/home.png" alt="The home page: one بيت for the day, the corpus counts, and the curated anthologies">
+  <figcaption>The first screen is one بيت — the same one for everybody, that day. Nothing here asks you to sign in.</figcaption>
+</figure>
+
+<div class="shots">
+  <figure>
+    <img src="media/poem.png" alt="A قصيدة laid out as a printed diwan page">
+    <figcaption>A قصيدة, set as a ديوان page</figcaption>
+  </figure>
+  <figure>
+    <img src="media/duel.png" alt="A مساجلة in progress">
+    <figcaption>A مساجلة, scored on the chain of letters</figcaption>
+  </figure>
+  <figure>
+    <img src="media/poets.png" alt="The poets index folded by letter">
+    <figcaption>6,941 شعراء, folded by the letter each is known by</figcaption>
+  </figure>
+  <figure>
+    <img src="media/buhur.png" alt="The sixteen metres with their feet">
+    <figcaption>The sixteen بحور, each with a شاهد</figcaption>
+  </figure>
+</div>
+
+<div class="phones">
+  <img src="media/home-phone.png" alt="The home page on a phone">
+  <img src="media/poem-phone.png" alt="A قصيدة on a phone">
+  <img src="media/duel-phone.png" alt="A مساجلة on a phone">
+</div>
+<p class="sub" style="text-align:center">The same app on a real phone build, not a narrowed window.</p>
+
+<h2 id="corpus">What is in the corpus — and what is wrong with it</h2>
+<p class="sub">Honest version, because it changes what you can build on it.</p>
+
+<p>
+  The verses come from
+  <a href="https://huggingface.co/datasets/arbml/ashaar">arbml/ashaar</a>.
+  قريض ingests, normalizes and indexes it into one read-only SQLite artefact;
+  it does not redistribute it. You build the artefact yourself, and it takes
+  about three minutes.
+</p>
+
+<table>
+  <tr><th>Rows read</th><td>254,630</td></tr>
+  <tr><th>Dropped</th><td>15,891 duplicate قصائد, 6 with no verse at all</td></tr>
+  <tr><th>Kept</th><td>238,733 قصائد · 3,369,701 أبيات · 6,941 شعراء</td></tr>
+  <tr><th>Playable</th><td>1,713,459 أبيات — both halves, and a روي that resolves</td></tr>
+  <tr><th>No metre</th><td>39.8% of قصائد carry no بحر at all</td></tr>
+</table>
+
+<p>
+  It is a scrape and it shows. Many titles are simply the مطلع with the تشكيل
+  stripped, so a قصيدة's "name" and its first line are the same words twice.
+  Some أبيات lost a hemistich on the way in. قريض works around these rather than
+  pretending otherwise — and the ones worth knowing <em>before</em> you try to
+  fix them are written down in the repository's <code>CLAUDE.md</code>.
+</p>
+
+<h2 id="run">Run your own</h2>
+<p class="sub">One npm package. Three server dependencies. No server build step.</p>
+
+<pre><code>git clone https://github.com/ZahakJ/qarid &amp;&amp; cd qarid
+npm install
+cp .env.example .env          # then set PUBLIC_ORIGIN
+
+# Put arbml/ashaar's parquet files in data/raw/, then:
+npm run ingest                # ~3 min, ~700 MB peak, 1.6 GB out
+
+npm run dev:server &amp; npm run dev</code></pre>
+
+<p>
+  No corpus to hand? <code>npm run ingest:fixture</code> builds a small one from
+  the test fixtures in seconds, and everything runs against it.
+</p>
+
+<p>
+  In production the server binds loopback only and serves the built client
+  itself, so put a reverse proxy or a tunnel in front for TLS.
+  <code>deploy/qarid.service</code> is a systemd <em>user</em> unit for exactly
+  that — no root anywhere.
+</p>
+
+<h3>How it is put together</h3>
+<table>
+  <tr><th>Corpus</th><td>One read-only SQLite artefact, built in two passes, FTS5-indexed. Opened <code>readOnly</code> so a stray write throws instead of corrupting it.</td></tr>
+  <tr><th>Server</th><td>Hono on Node's own <code>node:sqlite</code>. TypeScript run directly — no build. Listen-free app, so tests drive it in-process.</td></tr>
+  <tr><th>Client</th><td>Vite + React, hash-routed, right-to-left. Amiri for verse, Aref Ruqaa for display.</td></tr>
+  <tr><th>Shared</th><td>One Arabic normalizer, one number formatter, one seeded RNG, and zod schemas that are the single source of truth for everything on the wire.</td></tr>
+  <tr><th>Tested</th><td>1,583 unit and route tests, plus a smoke walk that starts the real server and crosses 29 routes at desktop and phone widths, failing on any console error.</td></tr>
+</table>
+
+<h2>Licence</h2>
+<p>
+  <a href="https://github.com/ZahakJ/qarid/blob/main/LICENSE">AGPL-3.0-or-later</a>.
+  Run a modified قريض as a network service and the licence asks you to offer
+  your users its source. The corpus is the dataset's own, under its own terms;
+  the fonts are OFL.
+</p>
+
+</main>
+
+<footer>
+  <p>
+    <a href="https://github.com/ZahakJ/qarid">github.com/ZahakJ/qarid</a> ·
+    <a href="https://github.com/ZahakJ/qarid/blob/main/SECURITY.md">Security</a> ·
+    <a href="https://github.com/ZahakJ/qarid/blob/main/CONTRIBUTING.md">Contributing</a>
+  </p>
+  <p class="ar" style="font-family:var(--display);color:var(--gold);font-size:1.1rem">قَريض</p>
+</footer>
+
+</body>
+</html>

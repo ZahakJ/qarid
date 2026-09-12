@@ -1,0 +1,101 @@
+apply plugin: 'com.android.application'
+
+// Release signing (docs/roadmap-mobile.md §M1). The keystore and its passwords
+// live OUTSIDE the repo — android/keystore.properties is gitignored and points
+// at ~/keystores/qarid-release.keystore. When it is absent (a fresh clone, a
+// contributor with no key) the release simply builds UNSIGNED rather than
+// failing, and `assembleDebug` is unaffected. Passwords never enter git.
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystoreProps.load(new FileInputStream(keystorePropsFile))
+}
+
+// App IDENTITY, on the same principle as the signing block above: the package
+// id, the App-Links host and the signing fingerprint describe WHOSE app this
+// is, not how it is built, so they do not belong in a public checkout either.
+// android/identity.properties is gitignored; identity.properties.example shows
+// the three keys. Absent, the placeholders below build a perfectly working app
+// that simply is not anybody's — `com.example.qarid` will not install beside a
+// real one and Play refuses it, which is the right kind of loud.
+def identityPropsFile = rootProject.file("identity.properties")
+def identityProps = new Properties()
+if (identityPropsFile.exists()) {
+    identityProps.load(new FileInputStream(identityPropsFile))
+}
+def qaridAppId = identityProps.getProperty("applicationId") ?: "com.example.qarid"
+def qaridLinkHost = identityProps.getProperty("appLinkHost") ?: "qarid.example.com"
+
+android {
+    namespace = qaridAppId
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId qaridAppId
+        // The App-Links host the manifest's intent-filter verifies against.
+        manifestPlaceholders = [appLinkHost: qaridLinkHost]
+        // Capacitor's plugin machinery reads these two as string resources and
+        // they must equal applicationId, so they are DERIVED from it rather
+        // than repeated in strings.xml where they would drift.
+        resValue "string", "package_name", qaridAppId
+        resValue "string", "custom_url_scheme", qaridAppId
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (keystoreProps.getProperty("storeFile")) {
+                storeFile file(keystoreProps.getProperty("storeFile"))
+                storePassword keystoreProps.getProperty("storePassword")
+                keyAlias keystoreProps.getProperty("keyAlias")
+                keyPassword keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Sign only when the keystore is configured; otherwise stay unsigned.
+            if (keystoreProps.getProperty("storeFile")) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

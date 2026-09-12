@@ -1,0 +1,308 @@
+/* قريض — the motion layer (v2.md §6 «ANIMATION pass app-wide», §8 timings).
+ *
+ * ONE easing family and TWO durations, declared here and nowhere else:
+ *   --dur-micro  180ms  hover / press / chip states
+ *   --dur-enter  360ms  something arriving on screen
+ *   --ease-enter cubic-bezier(0.22, 1, 0.36, 1)  — decelerating, never bouncing
+ *
+ * Three rules this file holds itself to:
+ *
+ *  • NOTHING THAT IS BEING READ MOVES. Entrances animate a card, a row, a
+ *    section — the box — and they run once, as it arrives. A بيت, a ترجمة or a
+ *    heading already on screen is never re-animated, and no transition ever
+ *    changes the size of a line of text.
+ *
+ *  • A STAGGER IS AT MOST EIGHT STEPS. `--enter-i` is the step index and the
+ *    caller clamps it (`min(i, 7)`); at 60ms that is 420ms from the first card
+ *    to the last, which is the longest wait §8 allows for an entrance.
+ *
+ *  • MOTION IS OPTIONAL. base.css already collapses every duration under
+ *    `prefers-reduced-motion` AND under `body[data-reduce-motion="1"]`, but a
+ *    collapsed DURATION with a live DELAY is worse than no animation at all —
+ *    the element sits at `opacity: 0` for the delay and then snaps in. So the
+ *    stagger is a custom property, and reduced motion sets it to zero; hover
+ *    transforms are dropped in the same place.
+ *
+ * Loaded LAST (client/main.tsx), so a micro-interaction added here wins over
+ * the same property in views/components without editing those files.
+ */
+
+:root {
+  --dur-micro: 180ms;
+  --dur-enter: 360ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --stagger: 60ms;
+}
+
+/* ── the four keyframes everything else is built from ────────────────── */
+
+/* the entrance: 8px up + fade, per §6 */
+@keyframes qr-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes qr-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* a dissolving rule that draws itself from the inline-start (right) edge */
+@keyframes qr-draw {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
+/* an illuminated letter settling onto the page: it arrives slightly small and
+ * dim, never large — nothing in قريض overshoots and springs back */
+@keyframes qr-illuminate {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── entrance utilities ──────────────────────────────────────────────── */
+
+/* `data-enter` + `--enter-i` is the whole vocabulary: the attribute picks the
+ * gesture, the property picks the step in the stagger. */
+[data-enter] {
+  animation-duration: var(--dur-enter);
+  animation-timing-function: var(--ease-enter);
+  animation-fill-mode: both;
+  animation-delay: calc(var(--enter-i, 0) * var(--stagger));
+}
+
+[data-enter="rise"] {
+  animation-name: qr-rise;
+}
+
+[data-enter="fade"] {
+  animation-name: qr-fade;
+}
+
+[data-enter="draw"] {
+  animation-name: qr-draw;
+  transform-origin: right center;
+}
+
+[data-enter="illuminate"] {
+  animation-name: qr-illuminate;
+}
+
+/* The route change (App.tsx wraps the view switch, keyed on the route's view).
+ * Slightly shorter than a card entrance so the page is settled before its own
+ * contents finish arriving. */
+.route-swap {
+  animation: qr-rise 300ms var(--ease-enter) both;
+}
+
+/* A number that counts up must not change width while it does — otherwise the
+ * layout twitches under a HUD the player is watching. */
+.countup {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── the three card grids that stagger without a line of JSX ─────────── */
+
+/* home's أبواب, the إحصاءات tiles (and the شاعر page's, which reuse them), and
+ * the شعراء met in a مساجلة. The step index comes from `:nth-child`, so these
+ * need no `--enter-i` from React — and it is capped at eight, after which
+ * everything lands together (§6). */
+.doors > .door,
+.stat-tiles > .stat-tile,
+.met-grid > .met-cell {
+  animation: qr-rise var(--dur-enter) var(--ease-enter) both;
+  animation-delay: calc(var(--enter-i, 0) * var(--stagger));
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(1) {
+  --enter-i: 0;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(2) {
+  --enter-i: 1;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(3) {
+  --enter-i: 2;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(4) {
+  --enter-i: 3;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(5) {
+  --enter-i: 4;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(6) {
+  --enter-i: 5;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(7) {
+  --enter-i: 6;
+}
+
+:where(.doors, .stat-tiles, .met-grid) > *:nth-child(n + 8) {
+  --enter-i: 7;
+}
+
+/* ── app-wide micro-interactions ─────────────────────────────────────── */
+
+/* Chips: the colour transitions are components.css's; what is added here is
+ * the 1px lift and the press, which every chip in the app now shares. */
+.chip {
+  transition:
+    border-color var(--dur-micro) var(--ease-enter),
+    background-color var(--dur-micro) var(--ease-enter),
+    color var(--dur-micro) var(--ease-enter),
+    box-shadow var(--dur-micro) var(--ease-enter),
+    transform var(--dur-micro) var(--ease-enter);
+}
+
+button.chip:hover:not([disabled]):not([data-zero="1"]) {
+  transform: translateY(-1px);
+}
+
+button.chip:active:not([disabled]):not([data-zero="1"]) {
+  transform: translateY(0);
+}
+
+/* The 28 روي / حرف البداية wells: the circle pops, the count stays put. */
+.letter-well__ch {
+  transition:
+    border-color var(--dur-micro) var(--ease-enter),
+    background-color var(--dur-micro) var(--ease-enter),
+    color var(--dur-micro) var(--ease-enter),
+    box-shadow var(--dur-micro) var(--ease-enter),
+    transform var(--dur-micro) var(--ease-enter);
+}
+
+.letter-well:hover:not([disabled]) .letter-well__ch {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.letter-well:active:not([disabled]) .letter-well__ch {
+  transform: translateY(0) scale(1);
+}
+
+.btn {
+  transition:
+    border-color var(--dur-micro) var(--ease-enter),
+    background-color var(--dur-micro) var(--ease-enter),
+    color var(--dur-micro) var(--ease-enter),
+    transform var(--dur-micro) var(--ease-enter);
+}
+
+.btn:hover:not([disabled]):not([aria-disabled="true"]) {
+  transform: translateY(-1px);
+}
+
+.btn:active:not([disabled]):not([aria-disabled="true"]) {
+  transform: translateY(0);
+}
+
+/* The phone chrome (chrome.css). A tab has no hover — the pointer that reaches
+ * it is a finger — so the whole of its motion is the PRESS: a brief 0.95, the
+ * one gesture a native bar answers a touch with. The colour crossfade is the
+ * same micro duration every other control in the app uses, so lighting a tab
+ * and lighting a chip are visibly the same event.
+ *
+ * The indicator does not slide between tabs on purpose: it is a mark on the tab
+ * you are standing on, not an object travelling across the bar, and a 200ms
+ * journey under the thumb is exactly the kind of motion §6 forbids over
+ * something being read. */
+.tabbar__tab,
+.appbar__back,
+.appbar__act,
+.morerow {
+  transition:
+    color var(--dur-micro) var(--ease-enter),
+    background-color var(--dur-micro) var(--ease-enter),
+    transform var(--dur-micro) var(--ease-enter);
+}
+
+.tabbar__ind {
+  transition:
+    background-color var(--dur-micro) var(--ease-enter),
+    box-shadow var(--dur-micro) var(--ease-enter);
+}
+
+.tabbar__tab:active {
+  transform: scale(0.95);
+}
+
+.appbar__back:active,
+.appbar__act:active {
+  transform: scale(0.92);
+}
+
+/* A settings row is a row: it tints under the thumb, it does not move (the
+ * same rule `.prow` follows below). */
+.morerow:active {
+  background: rgba(var(--accent-rgb), 0.07);
+}
+
+/* A list row is a box, not a paragraph: it may tint and it may take a gold
+ * hairline, but it never moves — rows sit on a shared grid and a lifting row
+ * breaks the column of titles the eye is running down. */
+.prow,
+.bcard {
+  transition:
+    background-color var(--dur-micro) var(--ease-enter),
+    border-color var(--dur-micro) var(--ease-enter);
+}
+
+/* ── reduced motion ──────────────────────────────────────────────────── */
+
+/* base.css collapses the durations; these two blocks are what keeps a
+ * collapsed animation from waiting out its stagger first, and what drops the
+ * transforms that a duration of 0.001ms would otherwise apply instantly. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --stagger: 0ms;
+  }
+
+  button.chip:hover:not([disabled]),
+  .btn:hover:not([disabled]),
+  .letter-well:hover:not([disabled]) .letter-well__ch,
+  .tabbar__tab:active,
+  .appbar__back:active,
+  .appbar__act:active {
+    transform: none;
+  }
+}
+
+body[data-reduce-motion="1"] {
+  --stagger: 0ms;
+}
+
+body[data-reduce-motion="1"] button.chip:hover:not([disabled]),
+body[data-reduce-motion="1"] .btn:hover:not([disabled]),
+body[data-reduce-motion="1"] .letter-well:hover:not([disabled]) .letter-well__ch,
+body[data-reduce-motion="1"] .tabbar__tab:active,
+body[data-reduce-motion="1"] .appbar__back:active,
+body[data-reduce-motion="1"] .appbar__act:active {
+  transform: none;
+}

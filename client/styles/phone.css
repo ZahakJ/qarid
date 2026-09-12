@@ -1,0 +1,950 @@
+/* قريض — the PHONE's SCREEN PATTERNS (phase 2 of docs/roadmap-mobile.md).
+ *
+ * chrome.css is the two BARS. This sheet is what the screens between them do
+ * when the reader is holding a phone rather than sitting at a desk: the docked
+ * game screen, the full-screen search, and the 44px touch floor.
+ *
+ * It holds itself to chrome.css's two rules, and `client/styles/styles.test.ts`
+ * fails if either is broken:
+ *
+ *  1. ONE SIGNAL. Two, now, and both are written by App.tsx onto `body`:
+ *     `data-chrome="native"` (a coarse pointer AND ≤860px) and, over the top of
+ *     it, `data-immersive="game"` — «a مساجلة is being PLAYED on this screen»
+ *     (client/store/immersiveStore.ts). Nothing here re-derives either.
+ *     The attribute has a SECOND value, `read`, which is وضع القراءة
+ *     (client/styles/reader.css) — a whole-screen surface too, and one that
+ *     must not inherit a single one of the docked game screen's measures. That
+ *     is why every selector below names the value and not the attribute.
+ *  2. IT NEVER NAMES A BARE CLASS ANOTHER SHEET OWNS. It loads after every view
+ *     sheet, so every selector is either scoped under `body[data-chrome=…]` or
+ *     leads with one of its own new classes (`.fsearch*`).
+ */
+
+/* ══ THE GAME SCREEN ══════════════════════════════════════════════════════
+ *
+ * A مساجلة is a chat with the ديوان: something is said to you, you answer, the
+ * exchange is kept. So it is laid out like one — a pinned instrument strip, a
+ * scrolling transcript, and the composer at the bottom edge under the thumb.
+ *
+ * The whole thing is a FLEX COLUMN of a fixed height rather than a page with a
+ * `position: fixed` bar stuck to it. That buys three things a fixed dock does
+ * not: the document itself never scrolls (so nothing can hide behind the dock,
+ * and no padding has to be kept in step with the dock's height as the answer
+ * field grows or a rejection card appears); the log keeps its own scroll
+ * position instead of the window's; and the keyboard is handled by the ONE
+ * measure below rather than by a transform on every pinned element.
+ *
+ * `--app-height` is `visualViewport.height` (client/hooks/useAppHeight.ts) and
+ * `100dvh` is the fallback for a browser that has no visual viewport. On
+ * Android — which is the Capacitor WebView — the layout viewport resizes with
+ * the keyboard and both agree; on iOS only `--app-height` moves, which is
+ * exactly why it is preferred here.
+ */
+
+body[data-chrome="native"][data-immersive="game"] .main {
+  /* everything below the app bar, and not one pixel more */
+  block-size: calc(var(--app-height, 100dvh) - var(--appbar-h) - var(--safe-top));
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* the tab bar is gone, so its clearance goes with it */
+  padding-block: 0;
+}
+
+/* The two wrappers between `.main` and the view have to pass the height down or
+   the flex column stops at the first one. `.route-swap` is App.tsx's animation
+   box; the view is the game. */
+body[data-chrome="native"][data-immersive="game"] .route-swap {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-chrome="native"][data-immersive="game"] .view {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* THE TRANSCRIPT is the only thing that scrolls, and it stops at its own ends:
+   a flick that reaches the first بيت must not start dragging the page behind
+   the game (there is no page behind the game, and it must stay that way). */
+body[data-chrome="native"][data-immersive="game"] .exchange-log {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-block-end: var(--sp-3);
+  /* the last exchange sits ON the dock's edge otherwise */
+  scroll-padding-block-end: var(--sp-3);
+  /* a COLUMN, so the rule below has something to push against */
+  display: flex;
+  flex-direction: column;
+}
+
+/* A مساجلة one بيت old left 600px of ink between the opening and the composer,
+   with the بيت pinned to the top of it — the transcript reading as a page with
+   a lot of nothing rather than as an exchange that has just begun. An `auto`
+   margin on the FIRST child settles a short transcript onto the dock, the way
+   every message app does, and resolves to zero the moment the log overflows —
+   which is why it is this and not `justify-content: flex-end`, whose overflow
+   is unreachable off the top of the scroller. */
+body[data-chrome="native"][data-immersive="game"] .exchange-log > :first-child {
+  margin-block-start: auto;
+}
+
+/* …and nothing in a flex column may be squeezed to make room: a بيت is as tall
+   as it is. (The 1px end sentinel ExchangeLog follows would go first.) */
+body[data-chrome="native"][data-immersive="game"] .exchange-log > * {
+  flex: none;
+}
+
+/* ── the slim HUD ─────────────────────────────────────────────────────────
+ *
+ * The duel's card became a strip: nibs · السلسلة · النقاط · the clock, on one
+ * line under the app bar. The labels stay — «320» alone is not a score, it is a
+ * number — but at the smallest UI step, so the instruments read and the words
+ * do not compete with them.
+ */
+body[data-chrome="native"][data-immersive="game"] .duel-hud--slim {
+  flex: none;
+  position: static;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-2);
+  font-size: var(--fs-ui-0);
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-hud--slim .duel-hud__lives {
+  gap: 2px;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-hud--slim .duel-hud__stat {
+  gap: var(--sp-1);
+  font-size: var(--fs-ui-0);
+  /* «السلسلة ×2» is one phrase; it may not break across two lines in a strip
+     whose height is the strip's whole reason for existing */
+  white-space: nowrap;
+}
+
+/* The clock is the strip's own instrument: mono, tabular, at the inline-end
+   edge, and it takes the tone every clock in the app takes. */
+body[data-chrome="native"][data-immersive="game"] .duel-hud__clock {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-hud__clock[data-tone="warn"] {
+  color: var(--warn);
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-hud__clock[data-tone="danger"] {
+  color: var(--danger);
+}
+
+/* ── the dock ─────────────────────────────────────────────────────────────
+ *
+ * The answer field and the required-letter indicator, at the bottom edge, with
+ * the safe-area inset under them and the keyboard inset under that. It is the
+ * last flex item, so it is pinned by the layout and not by `position` — see the
+ * header note for why that matters.
+ */
+body[data-chrome="native"][data-immersive="game"] .duel-desk {
+  flex: none;
+  /* The dock may take at most this much of the screen, and it never scrolls
+     itself — see the rejection-card rows below for what shrinks instead. */
+  max-block-size: 70%;
+  overflow: hidden;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-radius: var(--r-3) var(--r-3) 0 0;
+  border-block-end: 0;
+  margin-block-start: auto;
+  /* the gesture bar, and then the keyboard on a platform that does not resize
+     the layout viewport (iOS). On Android both are already accounted for by
+     `--app-height`, and `--kb-inset` is 0. */
+  padding-block-end: calc(var(--sp-3) + var(--safe-bottom) + var(--kb-inset, 0px));
+  /* FOUR NAMED ROWS, every one of them explicit, because auto-flow cannot be
+     told which of the five possible children is the one allowed to shrink:
+       1  the letter cluster · «هَمْس»
+       2  the rejection card, when there is one
+       3  the pre-check line, when there is one
+       4  the field — always last, always nearest the thumb.
+     Row 2 is the only flexible one, and it is flexible because the card itself
+     is `overflow-y: auto` below: a scroll container's automatic minimum is 0,
+     which is what lets an `auto` track shrink past its content instead of
+     pushing the field off the bottom of the screen. Measured before this: a
+     «لم أجد بيتك» card with three «هل تقصد؟» suggestions took the whole dock,
+     and with the keyboard up the answer field was not on the screen at all. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, auto) auto auto;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > * {
+  grid-column: 1 / -1;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > .letter-ind {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > .duel-acts {
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: end;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > .reject {
+  grid-row: 2;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-3);
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > .duel-precheck {
+  grid-row: 3;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk > .answer-block {
+  grid-row: 4;
+}
+
+/* THE INSTRUMENT, at composer scale. «المطلوب → عندك» is a whole panel on the
+   web — two 68px discs, their captions, the accepted-letter ghosts and a live
+   verdict line, about 190px of screen. Docked it is the two discs and the arrow
+   between them and nothing else: the discs still carry the timer ring and still
+   colour themselves as you type, which is the part that is playing the game.
+   The words around them were teaching a first turn, and the placeholder in the
+   field says the same thing (client/duel/placeholders.ts). */
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind {
+  --well: 2.5rem;
+  --well-gap: 5px;
+  --well-foot: 0;
+  gap: 0;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind__row {
+  column-gap: var(--sp-2);
+  row-gap: 0;
+  grid-template-rows: var(--well);
+}
+
+/* The caption («المطلوب») and the verdict footnote are the panel's teaching
+   furniture. In the dock the disc IS the instruction and the field is one
+   thumb-width away from it. */
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind__label,
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind__verdict,
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind__ghosts {
+  display: none;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk .letter-ind .letter-well__glyph {
+  font-size: 1.5rem;
+}
+
+/* The field's own help line and the keyboard note are for a first turn, not for
+   every one of them: on the web they sit under a field with 500px of room, and
+   in a dock they are two lines of grey between the thumb and the verse. The
+   placeholder still says «ويكفي صدره» (client/duel/placeholders.ts). */
+body[data-chrome="native"][data-immersive="game"] .duel-desk .answer__help {
+  display: none;
+}
+
+/* «هَمْس» keeps its 44px, opposite the discs, and its popover already opens
+   upward (`.hint-pop`, duel.css) — which is the right direction over a dock. */
+body[data-chrome="native"][data-immersive="game"] .duel-desk .duel-acts {
+  gap: var(--sp-2);
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk .duel-acts__hint-btn {
+  min-block-size: 2.75rem;
+  padding-inline: var(--sp-4);
+}
+
+/* The field: as tall as one بيت and no taller. `--fs-bayt-sm` is already the
+   composer's size; what changes is that it may not eat the screen while the
+   keyboard is up. */
+body[data-chrome="native"][data-immersive="game"] .duel-desk .answer__field {
+  max-block-size: 7.5rem;
+}
+
+body[data-chrome="native"][data-immersive="game"] .duel-desk .answer__send {
+  min-block-size: 2.75rem;
+}
+
+/* ── the room's own head ──────────────────────────────────────────────────
+ *
+ * Two seat cards, three chips, a رمز الغرفة and a rule is a screen's worth of
+ * identity — right while you are waiting for someone to arrive, and 40 % of the
+ * viewport once the مساجلة is actually running. Mid-play the seats compress to
+ * one strip (the same instrument the solo duel gets) and everything that
+ * identifies the ROOM rather than the TURN stands down until it ends.
+ */
+body[data-chrome="native"][data-immersive="game"] .room-head,
+body[data-chrome="native"][data-immersive="game"] .room-view > .rule,
+body[data-chrome="native"][data-immersive="game"] .room-opponent-mod {
+  display: none;
+}
+
+/* Side by side again. room.css stacks the two seats below 640px, and it is
+   right to: as CARDS they carry a name, a role, a نِيب row, a بيت count and a
+   socket lamp, and two of those across a phone ellipsise the name to three
+   letters. As a slim HUD the seat is a disc, a name and the strikes — and the
+   two of them side by side with the clock between is what says «a match»,
+   which is the one thing the strip is for. */
+body[data-chrome="native"][data-immersive="game"] .room-seats {
+  flex: none;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+body[data-chrome="native"][data-immersive="game"] .seat {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "disc name"
+    "disc nibs";
+  gap: 0 var(--sp-2);
+  padding: var(--sp-2);
+}
+
+body[data-chrome="native"][data-immersive="game"] .seat__disc {
+  inline-size: 2rem;
+  font-size: var(--fs-ui-3);
+}
+
+body[data-chrome="native"][data-immersive="game"] .seat__name {
+  font-size: var(--fs-ui-1);
+}
+
+body[data-chrome="native"][data-immersive="game"] .seat__strikes {
+  gap: 2px;
+}
+
+/* room.css centres the «×» when the seats stack; here it is a column again. */
+body[data-chrome="native"][data-immersive="game"] .room-seats__vs {
+  justify-self: auto;
+}
+
+/* The role and the بيت count are what the seat says while it is a CARD; in a
+   strip the name and the strikes are the whole of it. The socket lamp goes too:
+   its own transport chip is in the head that just stood down, and a dot with
+   nothing beside it is a light nobody can read. */
+body[data-chrome="native"][data-immersive="game"] .seat__role,
+body[data-chrome="native"][data-immersive="game"] .seat__turns,
+body[data-chrome="native"][data-immersive="game"] .seat__live {
+  display: none;
+}
+
+/* The «×» between the seats, become the countdown. */
+body[data-chrome="native"][data-immersive="game"] .room-seats__clock {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+body[data-chrome="native"][data-immersive="game"] .room-seats__clock[data-tone="warn"] {
+  color: var(--warn);
+}
+
+body[data-chrome="native"][data-immersive="game"] .room-seats__clock[data-tone="danger"] {
+  color: var(--danger);
+}
+
+/* «⋯» — the ONE control the docked game screen must not lose.
+ *
+ * The moderation rail stands down mid-play (see `.room-opponent-mod` above),
+ * which took «أبلغ» and «احظر» to 0×0 at the moment a stranger's chosen بيت and
+ * free-text display name are on the screen. This is a fourth column in the
+ * strip, 44px, beside the clock — the sheet it opens costs no vertical space
+ * until it is pressed. It exists ONLY here, which is why the whole rule set,
+ * including the geometry, lives under this scope.
+ */
+body[data-chrome="native"][data-immersive="game"] .room-seats {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+}
+
+body[data-chrome="native"][data-immersive="game"] .room-seats__more {
+  align-self: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-3);
+  font-size: var(--fs-ui-3);
+  line-height: 1;
+  cursor: pointer;
+}
+
+body[data-chrome="native"][data-immersive="game"] .room-seats__more:hover,
+body[data-chrome="native"][data-immersive="game"] .room-seats__more:focus-visible {
+  color: var(--text-1);
+}
+
+/* «الدور على فلان» belongs beside the transcript it is waiting on, not below
+   the dock; and the resign button is the app bar's chevron here. */
+body[data-chrome="native"][data-immersive="game"] .room-acts {
+  display: none;
+}
+
+/* ══ البحث, FULL-SCREEN ═══════════════════════════════════════════════════
+ *
+ * The ⌕ in the app bar opens the same palette a desktop reader gets from
+ * Ctrl+K — one query, one request, one set of rows (client/components/
+ * Palette.tsx) — but a floating panel over a dimmed page is a desktop shape.
+ * It exists so you can still see what was behind it, which is worth nothing on
+ * a 390px screen, and it spends a third of that screen on a scrim, a border and
+ * a footer of key names a thumb cannot press.
+ *
+ * So on a phone it is a SCREEN: it comes up from the bottom, the field is
+ * already focused (a search you must tap twice to start typing into is a search
+ * you do not use), and «إلغاء» beside the field is the way out.
+ */
+
+.fsearch {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: grid;
+  /* `minmax(0, 1fr)` on the COLUMN, and not just `inset: 0` on the box: a grid
+     track's automatic minimum is its items' min-content, and a بيت of Amiri set
+     in a row is wide. Measured without it: the single implicit `auto` column
+     came out 453px inside a 390px screen, and under RTL that pushed the whole
+     screen 63px off the inline-end edge — «إلغاء» was at x = −47. Same family as
+     `.letter-well` and `.masthead__nav` (CLAUDE.md §Invariants). */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--bg-0);
+  animation: qr-fsearch-rise var(--dur-3) var(--ease-out) both;
+  overscroll-behavior: contain;
+}
+
+/* the search hit is a lapis UNDERLINE, never a fill (amendment 14). palette.css
+   scopes that under `.palette`, and these rows are not inside one — without it
+   the browser's own `mark` painted every hit in a yellow block. */
+.fsearch mark {
+  background: none;
+  color: inherit;
+  font-weight: inherit;
+  border-block-end: 1.5px solid var(--lapis);
+  padding-block-end: 0.06em;
+}
+
+/* The field row, under the status bar. It is the app bar's own measure, so the
+   screen it replaces and the screen it opens over are the same height at the
+   top edge — nothing jumps when it arrives. */
+.fsearch__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
+  padding-block-start: calc(var(--sp-2) + max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
+  border-block-end: 1px solid var(--line-1);
+}
+
+.fsearch__field {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-block-size: 2.75rem;
+  padding-inline: var(--sp-3);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-pill);
+  background: var(--bg-1);
+  color: var(--accent-soft);
+}
+
+.fsearch__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  /* 1rem exactly: iOS zooms the page for any field under 16px, and a search
+     that zooms the viewport on focus is the loudest possible tell. */
+  font-size: 1rem;
+  outline: none;
+  /* Chromium draws its own ✕ inside a `type=search`; ours is «إلغاء». */
+  appearance: none;
+}
+
+.fsearch__input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.fsearch__spinner {
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  border: 2px solid var(--accent-hair);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  animation: qr-fsearch-spin 700ms linear infinite;
+}
+
+.fsearch__cancel {
+  flex: none;
+  min-block-size: 2.75rem;
+  padding-inline: var(--sp-2);
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: var(--fs-ui-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fsearch__body {
+  min-inline-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-3) var(--sp-4) var(--sp-5);
+}
+
+.fsearch__group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-1);
+  margin-block-end: var(--sp-4);
+}
+
+.fsearch__label {
+  margin-block-end: var(--sp-1);
+}
+
+/* A ROW IS THE TARGET. palette.css already sets the بيت inside an entry — the
+   two hemistichs, the شمسة channel, the شاعر line — and there is no second way
+   to set a بيت in this app. All this adds is the measure a thumb needs. */
+.fsearch__row {
+  min-block-size: 3.25rem;
+  padding: var(--sp-3);
+  border-radius: var(--r-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fsearch__row:active {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.fsearch__idle {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-6) var(--sp-2);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--fs-ui-2);
+  line-height: 1.8;
+}
+
+.fsearch__wild {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  opacity: 0.8;
+}
+
+.fsearch__foot {
+  padding: var(--sp-3) var(--sp-4);
+  padding-block-end: calc(var(--sp-3) + max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px)));
+  border-block-start: 1px solid var(--line-1);
+  background: var(--bg-0);
+}
+
+.fsearch__all {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  justify-content: center;
+}
+
+@keyframes qr-fsearch-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes qr-fsearch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ══ THE TOUCH FLOOR ══════════════════════════════════════════════════════
+ *
+ * 44px of effective target on everything a finger can press. Not «looks big
+ * enough»: the numbers below were read off the phone (`getBoundingClientRect`
+ * over every interactive element at 390) and the ones that failed are the ones
+ * this block fixes. Nothing here changes a SIZE that is being read — a chip's
+ * type stays 13px, its box grows around it.
+ */
+
+/* ── the بيت's own actions ────────────────────────────────────────────────
+ *
+ * ♥ · نسخ · بطاقة · ساجِلني were a 2×2 quad of 21.6px cells in a 2.2rem gutter
+ * column beside the verse — a mouse affordance, drawn for a hover that a phone
+ * does not have, at half the size a thumb needs and in the one part of the row
+ * a right hand covers. On a phone they come out from beside the بيت and sit
+ * UNDER it as one inline row of four 44px cells, permanently visible.
+ *
+ * The gutter column goes with them, which gives the verse 2.2rem more measure
+ * on every row of every قصيدة — the reason this is worth doing twice over.
+ */
+body[data-chrome="native"] .bayt-row {
+  grid-template-columns: var(--bayt-num-col) minmax(0, 1fr);
+}
+
+body[data-chrome="native"] .bayt-row .bayt-rail {
+  grid-column: 1 / -1;
+  block-size: auto;
+  justify-items: start;
+  /* clear of the بيت number's column, so the row of marks lines up with the
+     verse above it rather than with the digit beside it */
+  padding-inline-start: var(--bayt-num-col);
+  padding-block-start: var(--sp-1);
+}
+
+/* Still `data-layout="quad"` in the DOM — the component's two layouts are a
+   desktop fact — but laid out as a row here, and never faded: `@media (hover:
+   none)` already knew to keep it visible at 55%; a target you can press is a
+   target you can see. */
+body[data-chrome="native"] .bayt-row .bayt-acts[data-layout="quad"] {
+  grid-auto-flow: column;
+  grid-template-columns: none;
+  grid-auto-columns: 2.75rem;
+  grid-auto-rows: 2.75rem;
+  gap: var(--sp-1);
+  opacity: 1;
+  transform: none;
+}
+
+body[data-chrome="native"] .bayt-plate__actions {
+  opacity: 1;
+}
+
+body[data-chrome="native"] .bayt-acts[data-layout="row"] {
+  grid-auto-columns: 2.75rem;
+  grid-template-rows: 2.75rem;
+}
+
+/* A row of four marks under every بيت of a 951-بيت قصيدة has to stay QUIET or
+   it becomes the rhythm of the page instead of the verse. `--text-3` is the
+   quietest ink in the palette that still clears 3:1 for a non-text mark on
+   every surface here (tokens.css) — dimming `--text-2` with opacity instead
+   would have taken it to ~3.2:1 and made the target look disabled. */
+body[data-chrome="native"] .bayt-act {
+  border-radius: var(--r-2);
+  font-size: 1.15rem;
+  color: var(--text-3);
+}
+
+/* Touch has no hover, so the press IS the feedback. */
+body[data-chrome="native"] .bayt-act:active {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ── chips, wells and segments ────────────────────────────────────────────
+ *
+ * Only the ones that DO something: `Chip` renders a `<span>` when it has no
+ * handler (a قصيدة's بحر badge is a label, not a control), and growing those
+ * would push every list row's meta band past `--meta-band` and stagger the
+ * windowed lists — the exact geometry CLAUDE.md's meta-band invariant is about.
+ */
+body[data-chrome="native"] button.chip,
+body[data-chrome="native"] .era-chip,
+body[data-chrome="native"] .applied__chip,
+body[data-chrome="native"] .applied__clear,
+body[data-chrome="native"] .segmented__opt,
+body[data-chrome="native"] .facet-toggle {
+  min-block-size: 2.75rem;
+}
+
+body[data-chrome="native"] button.chip,
+body[data-chrome="native"] .era-chip {
+  padding-inline: 0.85em;
+}
+
+/* The 28 روي / حرف البداية wells: the disc is 2.4rem, and the CELL around it
+   carries the rest of the target. */
+body[data-chrome="native"] .letter-well {
+  min-block-size: 2.75rem;
+  padding-block: var(--sp-1);
+}
+
+/* ── buttons, rows and the rest of the audit ──────────────────────────────
+ *
+ * Every one of these was measured under 44px at 390 and is named here rather
+ * than swept up by a `button { min-block-size }`, so what changed is legible
+ * and so nothing that is not a target grows.
+ *
+ * The two deliberate EXEMPTIONS, both WCAG 2.5.8's own: `.skip-link`, which no
+ * finger can reach (it appears on focus, from a keyboard), and a link inside a
+ * running line of text — «أمين الجندي» in the hero's byline, the شاعر's name in
+ * an exchange — where growing the box would open the paragraph's leading around
+ * one word.
+ */
+body[data-chrome="native"] .btn,
+body[data-chrome="native"] .fav-tab,
+body[data-chrome="native"] .fav-new__input,
+body[data-chrome="native"] .door__name,
+body[data-chrome="native"] .door__line,
+body[data-chrome="native"] .door__more,
+body[data-chrome="native"] .appbar__signin,
+body[data-chrome="native"] .linkish,
+body[data-chrome="native"] .switch {
+  min-block-size: 2.75rem;
+}
+
+/* …and 44px the OTHER way too, which is what an icon-only button needs: the
+   walkthrough's ✕ was 31px wide inside a 44px-tall box. */
+body[data-chrome="native"] .btn {
+  min-inline-size: 2.75rem;
+}
+
+body[data-chrome="native"] .appbar__act,
+body[data-chrome="native"] .appbar__account {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+}
+
+/* «القصيدة ←» under the hero بيت is a standalone door, not a word inside a
+   sentence — so it takes the floor rather than the inline exemption. So is
+   «33,994 قصيدة في الديوان ←» under a بحر's name on #/buhur: it is the card's
+   only way into التصفح and it stands on a line of its own. The شاعر and
+   «القصيدة ←» in that same card's byline are NOT — they are the `.bcard__*`
+   shape, a running meta line, and they keep the inline exemption the browse
+   list already gives them. */
+body[data-chrome="native"] .hero__poem,
+body[data-chrome="native"] .buhur-card__n {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.75rem;
+}
+
+/* ── the meta band: a TARGET that grows without the box growing ───────────
+ *
+ * `--meta-band` is a contract (CLAUDE.md): a `.prow`/`.bcard` lives in a
+ * fixed-height slot with `overflow: hidden`, and the moment a chip in its meta
+ * band is taller than the band the row is clipped and the whole list staggers.
+ * So these targets CANNOT take `min-block-size` — and they were the ones most
+ * in need of it. Measured on #/search?q=الخيل at 390: «القصيدة ←» 57×21, the
+ * شاعر 81×21 (28×21 for «اللواح»), the قصيدة 42×21, twenty-odd of them packed
+ * into one line — the primary navigation of the search results screen at half
+ * the floor.
+ *
+ * A pseudo-element takes the press instead. The box keeps its 21px, the target
+ * is 45px, and the horizontal reach is +4px a side — exactly half the 8px gap,
+ * so two neighbours MEET and never overlap. (An overlap would be worse than the
+ * small target: the wrong link would silently win the tap.)
+ *
+ * The exemption above still stands and is not contradicted: a link inside a
+ * running line of text keeps its leading. These are not that — they are a band
+ * of standalone doors that happens to be one line tall.
+ */
+body[data-chrome="native"] .bcard__go,
+body[data-chrome="native"] .bcard__poet,
+body[data-chrome="native"] .bcard__poem,
+body[data-chrome="native"] .exchange__link,
+body[data-chrome="native"] .match-row__result,
+body[data-chrome="native"] .badge-link,
+body[data-chrome="native"] .ribbon__letter,
+body[data-chrome="native"] .seat__disc {
+  position: relative;
+}
+
+body[data-chrome="native"] .bcard__go::after,
+body[data-chrome="native"] .bcard__poet::after,
+body[data-chrome="native"] .bcard__poem::after,
+body[data-chrome="native"] .exchange__link::after,
+body[data-chrome="native"] .match-row__result::after,
+body[data-chrome="native"] .badge-link::after,
+body[data-chrome="native"] .ribbon__letter::after,
+body[data-chrome="native"] .seat__disc::after {
+  content: "";
+  position: absolute;
+  /* enough to clear 44px from a 21px line, and half a gap on each side */
+  inset: -12px -4px;
+  /* it is a target, not a mark: nothing is painted and nothing is announced */
+  border-radius: inherit;
+}
+
+/* The two DISCS in that list are already square and only a few pixels short, so
+   they reach the floor evenly rather than growing taller than they are wide. */
+body[data-chrome="native"] .ribbon__letter::after,
+body[data-chrome="native"] .seat__disc::after {
+  inset: -6px;
+}
+
+/* #/poet's letter rail and the room sheet's «الضربات» 1/2/3 were narrow, not
+   short — 34px and 24px of INLINE size — so those two take the floor the other
+   way. Neither is in a `--meta-band` row, so the box itself may grow. */
+body[data-chrome="native"] .letter-rail .chip,
+body[data-chrome="native"] .sheet .segmented__opt {
+  min-inline-size: 2.75rem;
+  min-block-size: 2.75rem;
+}
+
+/* الترسانة's 28-letter heatmap: 7 columns of 37px inside a panel whose own
+   24px padding was most of what was missing. Narrower padding and a 4px gutter
+   put the cells at 44.3 — they are `aspect-ratio: 1`, so that is both measures
+   at once. */
+body[data-chrome="native"] .arsenal-grid-panel {
+  padding-inline: var(--sp-3);
+}
+
+body[data-chrome="native"] .heatmap__row {
+  gap: var(--sp-1);
+}
+
+/* A door's rows are a list on a phone: full width, and the count still at the
+   far edge. `align-items: center` because the box is now taller than the line
+   inside it. */
+body[data-chrome="native"] .door__line,
+body[data-chrome="native"] .door__name,
+body[data-chrome="native"] .door__more {
+  display: flex;
+  align-items: center;
+}
+
+/* الإحصاءات' bars are LINKS. At 21px they were a chart you could look at and
+   not a list you could use; at 44 they are both. */
+body[data-chrome="native"] .bar {
+  min-block-size: 2.75rem;
+  align-items: center;
+}
+
+/* The walkthrough's page dots: the dot stays 10px — it is a mark, not a button
+   — and the target grows around it. `background-clip: content-box` is what
+   keeps the padding transparent while the dot itself is filled.
+
+   The RING cannot come along, and neither can an inset shadow: a border is
+   drawn on the border box and `inset` shadows on the padding box, so both land
+   at the TARGET's edge, not the mark's — five progress dots read as five empty
+   44px buttons under the lesson (measured at 390 in the sheet). Only
+   `background` respects `content-box`, so on a phone the un-reached step is a
+   FILLED hairline-toned dot rather than an outlined one. Three tones, all 10px:
+   line-2 not yet, accent-hair done, accent here. */
+body[data-chrome="native"] .wt__dot {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: calc((2.75rem - 10px) / 2);
+  background: var(--line-2);
+  background-clip: content-box;
+  border-color: transparent;
+  border-radius: 50%;
+}
+
+/* The two state rules have to be re-stated under the same scope, and as the
+   LONGHAND: `background: …` is a shorthand, so duel-teach.css's version resets
+   `background-clip` to the border box and paints the whole 44px target gold. */
+body[data-chrome="native"] .wt__dot[data-done="1"] {
+  background-color: var(--accent-hair);
+}
+
+body[data-chrome="native"] .wt__dot[data-active="1"] {
+  background-color: var(--accent);
+}
+
+/* A checkbox is ~17px in every engine and cannot be resized honestly. Its
+   `<label>` — «الوقت», «وضع التدريب» in the duel setup — is the target, and the
+   box rides inside it. */
+body[data-chrome="native"] .switch {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── the شعراء rail: a real scroller ──────────────────────────────────────
+ *
+ * It already scrolled and already dissolved at both edges (poets.css). What it
+ * did not have was a target: 2.5rem keys are 40px, and the alphabet is the
+ * primary way into a 6,941-شاعر index. It also gains momentum and a snap, so a
+ * flick lands ON a letter rather than between two.
+ */
+body[data-chrome="native"] .letter-rail {
+  grid-auto-columns: 2.75rem;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline proximity;
+}
+
+body[data-chrome="native"] .letter-rail__key {
+  scroll-snap-align: center;
+}
+
+body[data-chrome="native"] .era-strip {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-inline: contain;
+}
+
+/* ── the small native things ──────────────────────────────────────────────
+ *
+ * A grey flash 300ms after a tap is the loudest single tell that a page is a
+ * page. It goes everywhere, and every control that loses it is given a press
+ * state of its own — above, and in motion.css for the two bars.
+ */
+body[data-chrome="native"] a,
+body[data-chrome="native"] button,
+body[data-chrome="native"] input,
+body[data-chrome="native"] textarea,
+body[data-chrome="native"] [role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* No rubber-band behind the app: a flick past the end of a list must not drag
+   the whole document, and on a WebView it must not trigger pull-to-refresh. */
+body[data-chrome="native"] {
+  overscroll-behavior-y: contain;
+}
+
+/* CHROME IS NOT TEXT. A long-press on the tab bar, the app bar, a HUD or a
+   sheet's furniture should do nothing — selecting «المساجلة» out of a tab is
+   never what was meant, and on Android the selection handles that follow are
+   worse than the selection.
+   VERSE IS TEXT, and stays selectable: people copy poetry, and نسخ is not the
+   only way they are allowed to. Everything under `.bayt`, a plate's meta line
+   and the room's transcript keep `user-select: text` explicitly, because this
+   rule sits above them in the cascade. */
+body[data-chrome="native"] .appbar,
+body[data-chrome="native"] .tabbar,
+body[data-chrome="native"] .duel-hud,
+body[data-chrome="native"] .room-seats,
+body[data-chrome="native"] .sheet__head,
+body[data-chrome="native"] .sheet__foot,
+body[data-chrome="native"] .sheet__grab,
+body[data-chrome="native"] .fsearch__bar,
+body[data-chrome="native"] .fsearch__foot,
+body[data-chrome="native"] .segmented,
+body[data-chrome="native"] .morelist {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body[data-chrome="native"] .bayt,
+body[data-chrome="native"] .bayt-plate__meta,
+body[data-chrome="native"] .room-miss__text {
+  user-select: text;
+  -webkit-user-select: text;
+}

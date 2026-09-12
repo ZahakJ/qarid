@@ -1,0 +1,162 @@
+/* قريض — design tokens (design-ux.md §2).
+ *
+ * Two layers on purpose:
+ *   :root   → raw, app-agnostic values (surfaces, type scales, spacing).
+ *   body    → the DERIVED accent family. It MUST live on body, not :root:
+ *             a derived custom property substitutes its var() at the element
+ *             that DECLARES it, so `--accent: rgb(var(--accent-rgb))` on :root
+ *             would freeze the default triple and ignore the
+ *             `[data-app='qarid']` override that also lands on body.
+ *             (Family pitfall, hit before in macroscope.)
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── inks ─────────────────────────────────────────────────────────── */
+  --accent-rgb: 214, 173, 96;   /* illumination gold #d6ad60 */
+  --lapis-rgb: 92, 124, 200;    /* second ink — three uses only */
+  --ok-rgb: 111, 174, 125;
+  --warn-rgb: 224, 145, 58;
+  /* raised from 210,86,75: that red was 4.24:1 on the composited --bg-2,
+     just under AA for the small text the duel's «−روح» is set in */
+  --danger-rgb: 221, 106, 94;
+
+  /* ── surfaces ─────────────────────────────────────────────────────── */
+  --bg-0: #07080c;
+  --bg-1: rgba(17, 19, 27, 0.82);
+  --bg-2: rgba(26, 30, 42, 0.86);
+  --panel: rgba(11, 13, 19, 0.78);
+  --line-1: rgba(255, 255, 255, 0.08);
+  --line-2: rgba(255, 255, 255, 0.15);
+  --text-1: #ece6da;
+  --text-2: #9d9689;
+  /* #6a6459 measured 3.41:1 on --bg-0 and 2.93:1 on the composited --bg-2 —
+     below even the large-text floor, and --text-3 is used in ~70 places at
+     12–13px (counts, captions, notes). #8a8478 clears 4.5:1 on every surface
+     in this palette (bg-0 5.39, bg-1 5.08, bg-2 4.63, panel 5.26) and still
+     sits a clear step below --text-2's 6.82. */
+  --text-3: #8a8478;
+
+  /* ── type families ────────────────────────────────────────────────── */
+  --font-ui: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
+  --font-verse: "Amiri", "Noto Naskh Arabic", "Times New Roman", serif;
+  --font-display: "Aref Ruqaa", "Amiri", "Noto Naskh Arabic", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
+  /* RTL catch-all: any Arabic that escapes an explicit family lands here. */
+  --naskh: var(--font-ui);
+
+  /* ── UI type scale: 12 / 13 / 14.5 / 16 / 18 / 22 / 28 ────────────── */
+  --fs-ui-0: 0.75rem;
+  --fs-ui-1: 0.8125rem;
+  --fs-ui-2: 0.90625rem;
+  --fs-ui-3: 1rem;
+  --fs-ui-4: 1.125rem;
+  --fs-ui-5: 1.375rem;
+  --fs-ui-6: 1.75rem;
+
+  /* ── VERSE type scale (fluid; Amiri runs small for its em) ─────────── */
+  --fs-bayt-sm: clamp(1.05rem, 1rem + 0.5vw, 1.25rem);
+  --fs-bayt-md: clamp(1.25rem, 1.1rem + 1.1vw, 1.75rem);
+  --fs-bayt-lg: clamp(1.5rem, 1.2rem + 2.2vw, 2.4rem);
+  --lh-bayt: 2.05;
+  --lh-bayt-tashkeel: 2.3;
+  --lh-ui: 1.6;
+
+  /* ── space / shape / motion ───────────────────────────────────────── */
+  /* ONE 4/8 scale, v2 §8: 4 8 12 16 24 32 48 64 96. Every margin, padding and
+   * gap a VIEW sets comes from here — a component may still carry an intrinsic
+   * size (a chip's 0.22em, a 1px rule, the scrollbar's own width), because that
+   * is a property of the thing and not of the rhythm around it.
+   * `--sp-8` was 4.5rem and is 4rem now, so the scale doubles cleanly at every
+   * other step; it had exactly one caller (`.main`'s bottom padding). */
+  --sp-1: 0.25rem;  /*  4px */
+  --sp-2: 0.5rem;   /*  8px */
+  --sp-3: 0.75rem;  /* 12px */
+  --sp-4: 1rem;     /* 16px */
+  --sp-5: 1.5rem;   /* 24px */
+  --sp-6: 2rem;     /* 32px */
+  --sp-7: 3rem;     /* 48px */
+  --sp-8: 4rem;     /* 64px */
+  --sp-9: 6rem;     /* 96px */
+
+  /* The band a list row's metadata occupies. Chips are intrinsically sized and
+   * the قافية well is the tallest of them, so a row that kept its قافية used to
+   * sit 6px taller than its neighbour inside the same fixed slot and the list
+   * staggered. Every meta band is this tall, chips included. */
+  --meta-band: 2rem;
+
+  --r-1: 4px;
+  --r-2: 8px;
+  --r-3: 14px;
+  --r-pill: 999px;
+
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 320ms;
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  /* v2 §8's single easing family for entrances and micro-transitions. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── scrollbars (v2 §6) — thin gold on ink, app-wide ──────────────── */
+  /* Only the SIZES are app-agnostic; the two thumb inks are derived from the
+   * accent triple and therefore live on `body` with the rest of the family. */
+  --scroll-size: 10px;
+  --scroll-pad: 2px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  --col-narrow: 46rem;   /* reading column: a قصيدة, the قواعد */
+  --col-home: 58rem;     /* home — بيت اليوم is set at `lg` and needs the room */
+  --col-text: 38rem;     /* prose (bio) measure */
+  --col-wide: 78rem;     /* browse two-pane shell */
+
+  --z-sticky: 20;
+  --z-toast: 60;
+  --z-overlay: 70;
+}
+
+/* The app override and the derived family share one element — see header. */
+[data-app="qarid"] {
+  --accent-rgb: 214, 173, 96;
+  --lapis-rgb: 92, 124, 200;
+}
+
+body {
+  /* gold */
+  --accent: rgb(var(--accent-rgb));
+  --accent-soft: rgba(var(--accent-rgb), 0.72);
+  --accent-line: rgba(var(--accent-rgb), 0.34);
+  --accent-hair: rgba(var(--accent-rgb), 0.2);
+  --accent-dim: rgba(var(--accent-rgb), 0.14);
+  --accent-wash: rgba(var(--accent-rgb), 0.045);
+  --accent-glow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), 0 0 18px rgba(var(--accent-rgb), 0.16);
+
+  /* scrollbars — derived, so a re-themed accent re-themes the gutters too */
+  --scroll-track: rgba(0, 0, 0, 0.24);
+  --scroll-thumb: rgba(var(--accent-rgb), 0.26);
+  --scroll-thumb-hover: rgba(var(--accent-rgb), 0.55);
+
+  /* lapis — opponent bayt card, rawiyy underline, search »« markers. Nothing else. */
+  --lapis: rgb(var(--lapis-rgb));
+  --lapis-line: rgba(var(--lapis-rgb), 0.42);
+  --lapis-dim: rgba(var(--lapis-rgb), 0.16);
+
+  /* semantics */
+  --ok: rgb(var(--ok-rgb));
+  --ok-dim: rgba(var(--ok-rgb), 0.16);
+  --warn: rgb(var(--warn-rgb));
+  --warn-dim: rgba(var(--warn-rgb), 0.16);
+  --danger: rgb(var(--danger-rgb));
+  --danger-dim: rgba(var(--danger-rgb), 0.16);
+
+  /* the dissolving gold hairline used under the wordmark and section heads */
+  --rule-gold: linear-gradient(
+    90deg,
+    transparent,
+    rgba(var(--accent-rgb), 0.34) 18%,
+    rgba(var(--accent-rgb), 0.34) 82%,
+    transparent
+  );
+}

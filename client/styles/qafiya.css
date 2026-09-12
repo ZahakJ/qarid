@@ -1,0 +1,245 @@
+/* ══════════════════════════════════════════════════════════════════════════
+ * qafiya.css — باحث القافية (#/qafiya, client/views/QafiyaView.tsx).
+ *
+ * It loads AFTER views.css, poets.css, app.css, duel.css and room.css, which
+ * is the position that once let duel.css's `.letter-well` reach into the browse
+ * rail (CLAUDE.md §Invariants). So every selector here LEADS with one of its
+ * own new `.qaf-*` classes, and `styles.test.ts` fails the build if one does
+ * not. In particular it never names `.letter-well`, `.letter-grid` or `.chip`
+ * bare: the 28-cell well and the four chips on this page are the SAME
+ * components the browse rail uses, and the whole point is that they are.
+ *
+ * The shape of the screen is the shape of the question. One illuminated well
+ * holds the choosing — the روي across the top at full width, the two narrowings
+ * under a dissolving rule — and the answer runs below it in the app's own
+ * بيت list. Nothing is in a column beside anything: a poet hunting a قافية is
+ * doing one thing at a time.
+ * ═════════════════════════════════════════════════════════════════════════ */
+
+.view.qaf-view {
+  gap: var(--sp-5);
+}
+
+/* ══ the well ══════════════════════════════════════════════════════════ */
+
+.qaf-well {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5) var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+/* The head is CENTRED over the grid, not set against the well's inline edge.
+   The circles are a fixed em size, so the grid cannot stretch to fill a wide
+   well — and a heading pinned to the far edge of a block whose content sits in
+   the middle is the «canyon» design-ux.md §3 measured on the قصيدة page. One
+   centred column of head-over-grid is what a folio does with an illuminated
+   table anyway. */
+.qaf-well__head {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  text-align: center;
+  color: var(--accent);
+}
+
+.qaf-well__title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 2.1;
+  color: var(--text-1);
+}
+
+.qaf-well__title > svg {
+  flex: none;
+  opacity: 0.75;
+}
+
+.qaf-well__note {
+  font-size: var(--fs-ui-1);
+  line-height: 1.9;
+  color: var(--text-3);
+  max-inline-size: 26rem;
+}
+
+/* `.qaf-picker` is the picker itself — head, grid and the two narrowings —
+   and it exists as its own class because it is rendered in TWO surfaces: inside
+   `.qaf-well` on a desktop and inside a bottom sheet on a phone. Every rule
+   that has to reach the shared `LetterGrid` hangs off it, so both surfaces get
+   the same picker and neither can drift from the other. */
+.qaf-picker {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+/* This is not the 15.5rem browse rail: the container query resolves to seven
+   columns and the 28 letters read as the alphabet they are. */
+.qaf-picker .letter-grid-shell {
+  justify-self: center;
+  inline-size: min(100%, 38rem);
+}
+
+/* The one page where the letter IS the subject, so the well is a step larger
+   than the browse rail's. `.letter-well__ch` sizes its circle in `em`
+   (`min(2.05em, 100%)`), so moving the font size moves the disc with it —
+   which is exactly why the grid is capped above rather than stretched. */
+.qaf-picker .letter-well__ch {
+  font-size: var(--fs-ui-4);
+}
+
+/* ══ the folded bar (phone, once a رويّ is chosen) ═════════════════════ */
+
+/* One line standing in for the whole well. The letter is set large in the verse
+   face inside its own disc — the same disc the grid uses, so the reader sees
+   the thing they picked, not a label about it — and «غيِّر» says the choice is
+   still open. The whole bar is the button: a 44px row with one small target in
+   it is the shape phone.css spent a pass removing everywhere else. */
+.qaf-chosen {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-2);
+  background: var(--panel);
+  text-align: start;
+  cursor: pointer;
+}
+
+.qaf-chosen__letter {
+  display: grid;
+  place-items: center;
+  inline-size: 2.4rem;
+  aspect-ratio: 1;
+  padding-block-end: 0.18em;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--accent-dim);
+  font-family: var(--font-verse);
+  font-size: var(--fs-ui-4);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.qaf-chosen__text {
+  display: grid;
+  gap: 0.1rem;
+  min-inline-size: 0;
+}
+
+.qaf-chosen__name {
+  font-size: var(--fs-ui-3);
+  color: var(--text-1);
+}
+
+.qaf-chosen__note {
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+.qaf-chosen__change {
+  flex: none;
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+.qaf-well__rule {
+  margin: 0;
+}
+
+/* ══ the two narrowings ════════════════════════════════════════════════ */
+
+.qaf-narrow {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+/* label · cloud. The label is a fixed track so البحر and العصر start their
+   chips on the same inline edge — v2 §8's alignment rule, and the reason the
+   two rows read as one control rather than two lists. */
+.qaf-narrow__row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  align-items: start;
+  gap: var(--sp-3);
+}
+
+.qaf-narrow__label {
+  font-size: var(--fs-ui-1);
+  line-height: var(--meta-band);
+  color: var(--text-3);
+}
+
+@media (max-width: 560px) {
+  .qaf-narrow__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-2);
+  }
+
+  .qaf-narrow__label {
+    line-height: 1.6;
+  }
+}
+
+/* ══ before a روي is chosen ════════════════════════════════════════════ */
+
+/* Not an EmptyState: nothing has failed and nothing is missing. It is the
+   page waiting, so it is one شمسة and one sentence, centred on the measure the
+   prose everywhere else in the app is set to. */
+.qaf-invite {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4) var(--sp-6);
+  color: var(--accent);
+}
+
+.qaf-invite__line {
+  max-inline-size: 30rem;
+  font-size: var(--fs-ui-3);
+  line-height: 2.05;
+  text-align: center;
+  text-wrap: balance;
+  color: var(--text-2);
+}
+
+/* ══ the count line ════════════════════════════════════════════════════ */
+
+.qaf-count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  min-block-size: var(--meta-band);
+  padding-block-end: var(--sp-1);
+  border-block-end: 1px solid var(--line-1);
+}
+
+.qaf-count__line {
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+.qaf-count__clear {
+  flex: none;
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.qaf-count__clear:hover {
+  color: var(--accent);
+}

@@ -1,0 +1,524 @@
+/* قريض — the PHONE chrome (docs/roadmap-mobile.md).
+ *
+ * Everything the app looks like when it is an app: the bottom tab bar, the
+ * compact top app bar, the «المزيد» settings list, and the handful of
+ * adjustments the existing views need to sit under them.
+ *
+ * ── two rules this sheet holds itself to ────────────────────────────────
+ *
+ * 1. ONE SIGNAL. It never re-derives «is this a phone». `App.tsx` writes the
+ *    single decision (`useNativeChrome`: a coarse pointer AND ≤860px, which the
+ *    Capacitor shell satisfies by construction) onto `body[data-chrome]`, and
+ *    every adjustment here is scoped under `body[data-chrome="native"]`. A
+ *    media query here could drift from the JS that mounts the components; an
+ *    attribute cannot.
+ *
+ * 2. IT NEVER NAMES A BARE CLASS ANOTHER SHEET OWNS. This file loads after
+ *    views.css, poets.css, app.css, duel.css and room.css, so an un-scoped
+ *    `.view__title` here would be exactly the `.letter-well` accident again
+ *    (CLAUDE.md §Invariants). Its own components carry NEW names — `.appbar*`,
+ *    `.tabbar*`, `.morelist`, `.moregroup*`, `.morerow*`, `.moreabout*` — and
+ *    every rule that touches an existing class is scoped under the body
+ *    attribute, which is also what makes desktop pixel-identical: with no
+ *    attribute set, none of it matches. `client/styles/styles.test.ts` fails if
+ *    a bare selector ever appears here.
+ *
+ * Loaded before motion.css (client/main.tsx), which keeps its place as the last
+ * word on micro-interactions — the tab bar's press state is declared there,
+ * with the rest of the app's motion vocabulary.
+ */
+
+/* ── the two bars' measures ───────────────────────────────────────────────
+ *
+ * Declared on `body`, never `:root` — `--safe-*` is DERIVED from a var the
+ * Capacitor SystemBars plugin injects at runtime, and a derived property
+ * substitutes at the element that declares it (tokens.css's header note).
+ *
+ * The safe-area pair is `max()` of the injected var and the CSS `env()`: the
+ * WebView in passthrough mode has the first and not the second, an iOS PWA has
+ * the second and not the first, and a browser has neither and gets 0. */
+body[data-chrome="native"] {
+  --appbar-h: 52px;
+  --tabbar-h: 56px;
+  --safe-top: max(var(--safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-bottom: max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px));
+}
+
+/* ══ the bottom tab bar ═══════════════════════════════════════════════════ */
+
+.tabbar {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: var(--z-sticky);
+  /* Opaque, not translucent: a بيت scrolling under a see-through bar is the
+     one thing that would make the verse hard to read at the fold. The blur is
+     for the pixel row the border sits on. */
+  background: linear-gradient(rgba(12, 14, 20, 0.96), rgba(7, 8, 12, 0.99));
+  backdrop-filter: blur(14px);
+  border-block-start: 1px solid var(--accent-hair);
+  /* clear the gesture bar (see the measures above) */
+  padding-block-end: var(--safe-bottom, 0px);
+}
+
+.tabbar__row {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  block-size: var(--tabbar-h, 56px);
+}
+
+/* An equal share each, and `min-inline-size: 0` because a flex item's automatic
+   minimum is its min-content width — «المساجلة» is the widest label and would
+   otherwise take more than its fifth (CLAUDE.md §Invariants). */
+.tabbar__cell {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+/* The whole cell is the target — 56px tall, well past the 48px floor. */
+.tabbar__tab {
+  display: grid;
+  grid-template-rows: 3px auto auto;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  inline-size: 100%;
+  block-size: 100%;
+  color: var(--text-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The indicator: a 3px gold bar above the icon. It is always in the layout —
+   transparent when the tab is off — so lighting a tab moves nothing. */
+.tabbar__ind {
+  inline-size: 1.5rem;
+  block-size: 3px;
+  border-radius: var(--r-pill);
+  background: transparent;
+}
+
+.tabbar__icon {
+  display: grid;
+  place-items: center;
+  block-size: 24px;
+}
+
+.tabbar__label {
+  /* an intrinsic component size, not a step of the UI scale: 11px is the
+     largest a five-up tab label can be at 390px without «المساجلة» clipping */
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* A tap leaves `:hover` STUCK on the element it landed on — Chromium keeps it
+   until the next tap somewhere else — and base.css's bare `a:hover` is gold at
+   a higher specificity than `.tabbar__tab`. So the tab you just left stayed lit
+   beside the one you arrived at, and the bar reported two places at once
+   (measured: pressing «التصفح» then «التحفيظ» left both gold). A tab's colour
+   is decided by `data-on` and by nothing else. */
+.tabbar__tab:hover {
+  color: var(--text-2);
+}
+
+.tabbar__tab[data-on="1"],
+.tabbar__tab[data-on="1"]:hover {
+  color: var(--accent);
+}
+
+.tabbar__tab[data-on="1"] .tabbar__ind {
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.45);
+}
+
+/* ══ the top app bar ══════════════════════════════════════════════════════ */
+
+.appbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: var(--z-sticky);
+  background: linear-gradient(var(--bg-0) 74%, rgba(7, 8, 12, 0));
+  backdrop-filter: blur(10px);
+  /* the status-bar inset, on the same terms as .masthead's (app.css) */
+  padding-block-start: var(--safe-top, 0px);
+  transition:
+    background-color var(--dur-2) var(--ease),
+    box-shadow var(--dur-2) var(--ease);
+}
+
+/* Elevation on scroll. At the top of a page the bar dissolves into it; the
+   moment a بيت starts passing BEHIND the bar it goes solid and takes a
+   hairline, because half-legible verse showing through a title is the one
+   thing this app cannot let a blur do. `data-scrolled` is the same boolean the
+   title handover reads (AppBar.tsx) — one measurement, two uses. */
+.appbar[data-scrolled="1"] {
+  background: var(--bg-0);
+  box-shadow: 0 1px 0 var(--line-1);
+}
+
+.appbar__row {
+  inline-size: min(var(--col-wide), 100% - 2 * var(--sp-4));
+  margin-inline: auto;
+  block-size: var(--appbar-h, 52px);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.appbar__title {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  /* Aref Ruqaa's tails run far outside the em box; the line box has to hold
+     them or an ellipsised title reads as clipped rather than truncated. */
+  line-height: 1.8;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appbar[data-root="1"] .appbar__title {
+  color: var(--accent);
+}
+
+/* 44px of target for a 22px chevron, pulled half into the gutter so the GLYPH
+   lands on the page's inline-start edge rather than the button's box. */
+.appbar__back {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  margin-inline-start: -0.6rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--accent);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appbar__tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-inline-start: auto;
+}
+
+.appbar__act {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-2);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.appbar__account {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+}
+
+/* «أأ» — the type-size mark a view lends the bar (useChromeAction). Two ألفات
+   on ONE baseline: `align-items: baseline` on the flex row is what stops the
+   small one from floating in the middle of the large one's em box. */
+.appbar__aa {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-family: var(--font-display);
+  line-height: 1;
+  color: var(--accent);
+}
+
+.appbar__aa-lg {
+  font-size: 1.45rem;
+}
+
+.appbar__aa-sm {
+  font-size: 0.9rem;
+}
+
+/* The نِيب disc at bar scale — a true circle by `aspect-ratio`, the way every
+   other disc in the app is (the letter-well lesson). `position: relative` is
+   what an uploaded `.avatar__img` fills. */
+.appbar__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 1.9rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 28%, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.12));
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-2);
+  line-height: 1;
+  padding-block-start: 0.1em;
+}
+
+.appbar__signin {
+  min-block-size: 2.25rem;
+  padding-inline: 0.85rem;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-pill);
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-size: var(--fs-ui-1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ══ «المزيد» — the settings list ═════════════════════════════════════════ */
+
+/* One illuminated panel around the whole list: the four manuscript corners are
+   what keep this OURS rather than a borrowed platform table. */
+.morelist {
+  position: relative;
+  display: grid;
+  gap: var(--sp-5);
+  /* A settings list is a column, not a page: on the desktop, where `#/more`
+     renders but nothing links to it, the wide shell would otherwise stretch a
+     48px row across 78rem and put its chevron a hand's width from its label.
+     46rem is wider than any phone, so this is inert where it matters. */
+  max-inline-size: var(--col-narrow);
+  margin-inline: auto;
+  inline-size: 100%;
+  padding: var(--sp-4) var(--sp-3) var(--sp-5);
+  border: 1px solid var(--accent-hair);
+  border-radius: var(--r-3);
+  background: var(--panel);
+}
+
+.moregroup {
+  display: grid;
+  gap: var(--sp-1);
+}
+
+/* Aref Ruqaa's ascenders run outside the em box — the line box has to hold them
+   or the group heading reads as clipped (the `.view__title` note in app.css). */
+.moregroup__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-3);
+  line-height: 2;
+  padding-block-start: 0.15em;
+  color: var(--accent-soft);
+  padding-inline: var(--sp-2);
+}
+
+.moregroup__rule {
+  margin-block-end: var(--sp-1);
+}
+
+.moregroup__rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A hairline BETWEEN rows, never under the last one — the group's own rule
+   already closes it. */
+.morerow-slot + .morerow-slot {
+  border-block-start: 1px solid var(--line-1);
+}
+
+.morerow {
+  inline-size: 100%;
+  min-block-size: 3rem;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2);
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--fs-ui-3);
+  text-align: start;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.morerow__icon {
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.morerow__icon svg {
+  inline-size: 1.35rem;
+  block-size: 1.35rem;
+}
+
+/* the account row's own avatar, the same disc the app bar wears */
+.morerow__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 28%, rgba(var(--accent-rgb), 0.42), rgba(var(--accent-rgb), 0.12));
+  border: 1px solid var(--accent-line);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-1);
+  line-height: 1;
+}
+
+.morerow__text {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.morerow__label {
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.morerow__note {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+.morerow__go {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+}
+
+.morerow[data-tone="quiet"] .morerow__label {
+  color: var(--text-2);
+}
+
+/* ── the «عن التطبيق» block: a row that is prose, not a door ─────────── */
+.morerow-slot--about {
+  border-block-start: 1px solid var(--line-1);
+}
+
+.moreabout {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-2);
+}
+
+/* A flex row, so the ASCII version is separated from the Arabic by a real gap
+   rather than by a space the bidi algorithm is free to reorder away. */
+.moreabout__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-ui-2);
+  color: var(--text-2);
+}
+
+/* An ASCII version string inside an RTL line: its own run, or the dots and the
+   digits change sides (CLAUDE.md §Western digits). */
+.moreabout__v {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--accent-soft);
+}
+
+.moreabout__line {
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  line-height: 1.7;
+}
+
+.moreabout__face {
+  white-space: nowrap;
+}
+
+.moreabout__install {
+  padding-block-start: var(--sp-1);
+}
+
+/* The install pill was drawn for the masthead's row; in a settings list it is
+   a full-width control like every other row. Scoped, so the masthead's own
+   copy is untouched. */
+.moreabout__install .masthead__install {
+  inline-size: 100%;
+  justify-content: center;
+  min-block-size: 2.75rem;
+}
+
+/* ══ what the existing views need under the two bars ══════════════════════ */
+
+/* Nothing hides behind the tab bar. */
+body[data-chrome="native"] .main {
+  padding-block: var(--sp-4) calc(var(--tabbar-h) + var(--safe-bottom) + var(--sp-6));
+}
+
+/* The breadcrumb trail is replaced by the back chevron — one way back, not two,
+   and a wrapping four-crumb trail cost 60px of every sub-screen. */
+body[data-chrome="native"] .crumbs {
+  display: none;
+}
+
+/* CONTENT FIRST: the screen's name is in the app bar now, so the display-size
+   `<h1>` goes — but it goes the `.sr-only` way, never `display: none`, because
+   the document still needs exactly one heading at level 1 and the app bar's own
+   title is deliberately not a heading (client/components/AppBar.tsx). */
+body[data-chrome="native"] .view__head .view__title,
+body[data-chrome="native"] .poets-hero__title {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* What survives of a view's head is its lede, demoted to ONE quiet line under
+   the bar — «238,733 قصيدة على هذه القيود», «محاولة واحدة في اليوم». That is
+   information; the title above it was furniture. */
+body[data-chrome="native"] .view__head {
+  gap: var(--sp-2);
+}
+
+body[data-chrome="native"] .view__head .view__lede,
+body[data-chrome="native"] .poets-hero__text .view__lede {
+  font-size: var(--fs-ui-1);
+  line-height: 1.5;
+  color: var(--text-3);
+  max-inline-size: none;
+}
+
+/* A head whose only direct child was the title is now an empty box carrying the
+   view's own 24px gap. `> .view__title` on purpose: the room's head keeps its
+   chips and its رمز الغرفة, and its title is nested. */
+body[data-chrome="native"] .view__head:has(> .view__title):not(:has(.view__lede)) {
+  display: none;
+}
+
+/* The duel HUD pins under the masthead on the web; here it pins under the app
+   bar. Same shape, one measure swapped. */
+body[data-chrome="native"] .duel-hud {
+  inset-block-start: calc(var(--appbar-h) + var(--safe-top));
+}
+
+/* A toast belongs above the tab bar, not behind it. */
+body[data-chrome="native"] .toasts {
+  inset-block-end: calc(var(--tabbar-h) + var(--safe-bottom) + var(--sp-3));
+}
