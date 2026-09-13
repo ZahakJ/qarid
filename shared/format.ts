@@ -245,6 +245,38 @@ export function formatPoems(n: number): string {
   return countedNoun(n, QASIDA_FORMS)
 }
 
+/**
+ * «قصيدة واحدة مفقودة» · «قصيدتان مفقودتان» · «5 قصائد مفقودة» · «12 قصيدة
+ * مفقودة» — the قصائد on a ديوان that today's artefact can no longer answer,
+ * `formatMissingBaits`'s sister for the other kind of entry. The caller
+ * appends «من الديوان اليوم».
+ */
+export function formatMissingPoems(n: number): string {
+  return countedNounWithAdjective(n, QASIDA_FORMS, {
+    one: "مفقودة",
+    two: "مفقودتان",
+    few: "مفقودة",
+    many: "مفقودة",
+  })
+}
+
+/**
+ * What a ديوان holds, in one phrase — «7 قصائد و12 بيتًا», «قصيدة واحدة»,
+ * «بيتان», and «لا شيء بعد» for an empty one.
+ *
+ * A ديوان is a playlist of قصائد with the odd single بيت on it, and the two are
+ * counted separately because they are two different things: «19 مدخلًا» would
+ * be honest and meaningless. Each half goes through its own counted noun, so
+ * every shape a real shelf produces (one, two, 3–10, 11+) agrees; and an empty
+ * shelf is said in words rather than as a zero glued to a noun.
+ */
+export function formatAlbumContents(poems: number, baits: number): string {
+  if (poems > 0 && baits > 0) return `${formatPoems(poems)} و${formatBaits(baits)}`
+  if (poems > 0) return formatPoems(poems)
+  if (baits > 0) return formatBaits(baits)
+  return "لا شيء بعد"
+}
+
 export function formatPoets(n: number): string {
   return countedNoun(n, SHAIR_FORMS)
 }

@@ -10,6 +10,7 @@
  * server's own listening line, and the child PID is the only thing killed.
  */
 import { spawn } from "node:child_process"
+import fs from "node:fs"
 import path from "node:path"
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
@@ -81,6 +82,13 @@ describe("warmFacets", () => {
 
 describe("booting with no corpus", () => {
   it("still listens, still serves /healthz, and answers /api/* with 503", async () => {
+    // A SCRATCH users database, never the default. `server/index.ts` opens
+    // `USERS_DB_PATH` and MIGRATES it, and the default is the LIVE
+    // `data/qarid-users.db` — so this spawn, run on a branch that added a
+    // migration, pushed the production database to a schema the deployed
+    // build could not read while that build was still serving it. The smoke
+    // tool learned the same lesson first (tools/screenshot.mjs).
+    const usersDbPath = path.join(REPO_ROOT, "data", `facets-test-users-${process.pid}.db`)
     const child = spawn("node", ["server/index.ts"], {
       cwd: REPO_ROOT,
       stdio: ["ignore", "pipe", "pipe"],
@@ -89,6 +97,7 @@ describe("booting with no corpus", () => {
         HOST: "127.0.0.1",
         PORT: "0", // ephemeral — never a reserved port
         DB_PATH: path.join(REPO_ROOT, "data", "__no-such-corpus__.sqlite"),
+        USERS_DB_PATH: usersDbPath,
         NODE_ENV: "production",
       },
     })
@@ -125,6 +134,7 @@ describe("booting with no corpus", () => {
           /* already gone */
         }
       }
+      for (const suffix of ["", "-wal", "-shm"]) fs.rmSync(usersDbPath + suffix, { force: true })
     }
   }, 30000)
 })

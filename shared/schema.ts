@@ -199,16 +199,30 @@ export const MAX_EXCLUDES = 500
 /**
  * Caps on الدواوين, enforced server-side. A ديوان is a selection; a scrape is
  * not. They sit beside the other limits rather than in §11 because §8's game
- * requests bound the ديوان POOL by `ALBUM_LIMITS.baits` — a مساجلة played
- * inside a shelf can never be handed more أبيات than the shelf can hold.
+ * requests bound the ديوان POOL by `ALBUM_LIMITS.pool` — a مساجلة played
+ * inside a shelf is handed at most that many ids, whatever the shelf holds.
  */
 export const ALBUM_LIMITS = {
   /** دواوين one account may own */
   perUser: 50,
-  /** أبيات one ديوان may hold */
-  baits: 300,
-  /** أبيات one `POST /:code/baits` may carry */
+  /**
+   * ENTRIES one ديوان may hold — a قصيدة or a single بيت each. A playlist of
+   * two hundred قصائد is a long one; a shelf of two hundred أبيات is the same
+   * cap seen from the other kind, and neither is a scrape.
+   */
+  entries: 200,
+  /** entries one `POST /:code/entries` may carry */
   bulk: 120,
+  /**
+   * The most bait ids a مساجلة is handed for a ديوان. The solo duel carries the
+   * pool on every request (design-server.md §8 — the duel is stateless), so it
+   * has to be bounded on the wire; a playlist of long قصائد can resolve to far
+   * more playable أبيات than this, and the door then says so in words rather
+   * than silently. The ROOM reads the shelf server-side and is not bound by it.
+   */
+  pool: 1000,
+  /** أبيات one «أضِفه إلى التحفيظ» press may turn into cards */
+  memorize: 300,
   /** other people's دواوين one account may keep in its مكتبة */
   saved: 100,
   /**
@@ -1078,7 +1092,7 @@ const poolBaitIds = z
   .max(4000)
   .optional()
   .default([])
-  .transform((ids) => ids.slice(0, ALBUM_LIMITS.baits))
+  .transform((ids) => ids.slice(0, ALBUM_LIMITS.pool))
 
 /** Exclude list: any length accepted, truncated to MAX_EXCLUDES by the schema. */
 const excludeIds = z
@@ -1520,7 +1534,7 @@ export const DuelConfigSchema = z.object({
     .object({
       code: AlbumCodeSchema,
       title: z.string(),
-      baitIds: z.array(z.number().int().positive()).max(ALBUM_LIMITS.baits),
+      baitIds: z.array(z.number().int().positive()).max(ALBUM_LIMITS.pool),
     })
     .nullable()
     .default(null),
@@ -1797,11 +1811,28 @@ export const PERSIST_SCHEMAS = {
 // the moment the بيت was added, so the entry still renders as a بيت even on the
 // day a rebuild drops the قصيدة it came from.
 
-/** The anchor on the wire: `baits.h_full` as a signed decimal string. */
+/** The anchor of a بيت on the wire: `baits.h_full` as a signed decimal string. */
 export const BaitAnchorSchema = z
   .string()
   .trim()
   .regex(/^-?\d{1,20}$/, "anchor must be a decimal fnv1a64")
+
+/**
+ * The anchor of a قصيدة on the wire: `poemAnchor(poems.dedup_key)` —
+ * `p` and the signed decimal fnv1a64 of the key (shared/arabic.ts). The prefix
+ * is what lets one `order` list and one DELETE path carry both kinds.
+ */
+export const PoemAnchorSchema = z
+  .string()
+  .trim()
+  .regex(/^p-?\d{1,20}$/, "anchor must be p + a decimal fnv1a64")
+
+/** Either kind — what `order` and `DELETE /:code/entries/:anchor` accept. */
+export const AlbumAnchorSchema = z.union([PoemAnchorSchema, BaitAnchorSchema])
+export type AlbumAnchor = z.infer<typeof AlbumAnchorSchema>
+
+export const AlbumEntryKindSchema = z.enum(["poem", "bait"])
+export type AlbumEntryKind = z.infer<typeof AlbumEntryKindSchema>
 
 /* `AlbumCodeSchema` and `ALBUM_CODE_LENGTH` are declared in §1, and
  * `ALBUM_LIMITS` beside the other caps in §2 — the duel session (§10) and the
@@ -1831,20 +1862,48 @@ export const AlbumTitleSchema = z
 export const AlbumDescriptionSchema = z.string().trim().max(280)
 
 /**
- * One بيت on a shelf, as the server resolved it TODAY.
+ * One entry on a shelf, as the server resolved it TODAY — a whole قصيدة, or a
+ * single بيت.
  *
- * `bait` is the live corpus row when the anchor still finds one and null when it
- * does not; `snapshot` is what was true the day it was added and is always
- * present. A ديوان whose قصيدة a rebuild dropped still prints its أبيات — from
- * the snapshot, with the quiet «ليست في الديوان اليوم» state — because a
- * collection that empties itself when the artefact changes was never a
- * collection.
+ * A ديوان is a playlist: what a reader puts on it is a قصيدة, and a قصيدة is
+ * ONE entry, opened from its first بيت, never forty rows that happen to sit
+ * together. A single بيت is the other kind of entry — the line that stood out —
+ * and the two share an ordered list, a rail and a rule.
+ *
+ * The rule: `poem` / `bait` is the live corpus row when the anchor still finds
+ * one and null when it does not; `snapshot` is what was true the day it was
+ * added and is always present. A ديوان whose قصيدة a rebuild dropped still
+ * prints it — from the snapshot, with the quiet «ليست في الديوان اليوم» state —
+ * because a collection that empties itself when the artefact changes was never
+ * a collection.
  */
-export const AlbumEntrySchema = z.object({
-  hFull: BaitAnchorSchema,
+const AlbumEntryBase = {
   /** the curator's order, 0-based and contiguous */
   position: z.number().int().nonnegative(),
   addedAt: z.number().int().nonnegative(),
+}
+
+export const AlbumPoemEntrySchema = z.object({
+  kind: z.literal("poem"),
+  anchor: PoemAnchorSchema,
+  ...AlbumEntryBase,
+  /** the قصيدة the day it was added: its عنوان, its مطلع, its شاعر, its length */
+  snapshot: z.object({
+    title: z.string(),
+    sadr: z.string(),
+    ajuz: z.string().nullable(),
+    poet: z.string(),
+    baitCount: z.number().int().nonnegative(),
+  }),
+  /** the live قصيدة, or null when today's artefact has no copy of it */
+  poem: PoemSummarySchema.nullable(),
+})
+export type AlbumPoemEntry = z.infer<typeof AlbumPoemEntrySchema>
+
+export const AlbumBaitEntrySchema = z.object({
+  kind: z.literal("bait"),
+  anchor: BaitAnchorSchema,
+  ...AlbumEntryBase,
   snapshot: z.object({
     sadr: z.string(),
     ajuz: z.string().nullable(),
@@ -1853,6 +1912,9 @@ export const AlbumEntrySchema = z.object({
   /** the live row, or null when today's artefact has no copy of this بيت */
   bait: BaitDtoSchema.nullable(),
 })
+export type AlbumBaitEntry = z.infer<typeof AlbumBaitEntrySchema>
+
+export const AlbumEntrySchema = z.discriminatedUnion("kind", [AlbumPoemEntrySchema, AlbumBaitEntrySchema])
 export type AlbumEntry = z.infer<typeof AlbumEntrySchema>
 
 /** A ديوان without its أبيات — the card in «دواويني» and the head of its page. */
@@ -1861,7 +1923,12 @@ export const AlbumSummarySchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
   visibility: AlbumVisibilitySchema,
+  /** entries on the shelf — `poems + baits` */
   count: z.number().int().nonnegative(),
+  /** قصائد on it, whole */
+  poems: z.number().int().nonnegative(),
+  /** single أبيات on it */
+  baits: z.number().int().nonnegative(),
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
   /** the compiler, for the visitor's «جمعه فلان» line */
@@ -1934,7 +2001,7 @@ export const AlbumPatchRequestSchema = z.object({
   title: AlbumTitleSchema.optional(),
   description: AlbumDescriptionSchema.nullish().transform((v) => (v === undefined ? undefined : v && v.trim() ? v.trim() : null)),
   visibility: AlbumVisibilitySchema.optional(),
-  order: z.array(BaitAnchorSchema).max(ALBUM_LIMITS.baits).optional(),
+  order: z.array(AlbumAnchorSchema).max(ALBUM_LIMITS.entries).optional(),
 })
 export type AlbumPatchRequest = z.infer<typeof AlbumPatchRequestSchema>
 /**
@@ -1946,25 +2013,34 @@ export type AlbumPatchRequest = z.infer<typeof AlbumPatchRequestSchema>
 export type AlbumPatchInput = z.input<typeof AlbumPatchRequestSchema>
 
 /**
- * POST /api/albums/:code/baits — add أبيات by anchor alone.
+ * POST /api/albums/:code/entries — add قصائد and أبيات, each named by what the
+ * client can honestly know about it.
  *
- * The client sends hashes and nothing else; the SERVER resolves each one against
- * the corpus and writes the snapshot itself. That is what makes the snapshot
- * trustworthy — a client-supplied «poet» is a client-supplied attribution — and
- * it is why an anchor the artefact cannot answer is refused rather than stored.
+ * A بيت is sent as its content hash (`baitAnchor`); a قصيدة as its PUBLIC id,
+ * which is true today and is exactly what the poem page has. The SERVER
+ * resolves each one against the corpus, derives the قصيدة's durable anchor from
+ * its `dedup_key`, and writes the snapshot itself. That is what makes the
+ * snapshot trustworthy — a client-supplied «poet» is a client-supplied
+ * attribution — and it is why an item the artefact cannot answer is refused
+ * rather than stored.
  */
-export const AlbumAddBaitsRequestSchema = z.object({
-  items: z.array(z.object({ hFull: BaitAnchorSchema })).min(1).max(ALBUM_LIMITS.bulk),
+export const AlbumAddItemSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("poem"), id: PublicPoemIdSchema }),
+  z.object({ kind: z.literal("bait"), hFull: BaitAnchorSchema }),
+])
+export type AlbumAddItem = z.infer<typeof AlbumAddItemSchema>
+
+export const AlbumAddEntriesRequestSchema = z.object({
+  items: z.array(AlbumAddItemSchema).min(1).max(ALBUM_LIMITS.bulk),
 })
-export type AlbumAddBaitsRequest = z.infer<typeof AlbumAddBaitsRequestSchema>
+export type AlbumAddEntriesRequest = z.infer<typeof AlbumAddEntriesRequestSchema>
 
 /**
  * What an add answered: the shelf as it now stands, and how many of the sent
- * anchors actually landed. A bulk «أضِف القصيدة» is mostly duplicates and
- * unresolvable أبيات on the second press, and «أُضيف 12 بيتًا» is the only
- * honest thing to say about it.
+ * items actually landed. A second «أضِف القصيدة» is a duplicate, and «هذه
+ * القصيدة في الديوان أصلًا» is the only honest thing to say about it.
  */
-export const AlbumAddBaitsResponseSchema = z.object({
+export const AlbumAddEntriesResponseSchema = z.object({
   album: AlbumSummarySchema,
   added: z.number().int().nonnegative(),
   /** already on the shelf */
@@ -1972,7 +2048,7 @@ export const AlbumAddBaitsResponseSchema = z.object({
   /** no copy in today's artefact */
   unresolved: z.number().int().nonnegative(),
 })
-export type AlbumAddBaitsResponse = z.infer<typeof AlbumAddBaitsResponseSchema>
+export type AlbumAddEntriesResponse = z.infer<typeof AlbumAddEntriesResponseSchema>
 
 /** PATCH / DELETE answer with the album (or its absence) — never a bare ok. */
 export const AlbumMutationResponseSchema = z.object({ album: AlbumSummarySchema })
@@ -1998,11 +2074,13 @@ export type AlbumSaveResponse = z.infer<typeof AlbumSaveResponseSchema>
 /**
  * GET /api/albums/:code/pool — the ديوان as a مساجلة can play it.
  *
- * Three numbers and a list of ids, and the three numbers are three different
- * truths that the door must not blur:
- *  • `count` — أبيات on the shelf, what its head already says;
+ * Four numbers and a list of ids, and the numbers are different truths that
+ * the door must not blur:
+ *  • `count` — entries on the shelf, what its head already says;
  *  • `resolved` — those today's artefact can still find (a rebuild may have
  *    dropped a قصيدة; the shelf still prints them from its snapshot);
+ *  • `baits` — the أبيات those entries amount to: every بيت of every resolved
+ *    قصيدة, plus the single أبيات;
  *  • `playable` — those `game_baits` will serve, which is the only number the
  *    duel can honour. 39.8 % of قصائد carry no بحر and the pool admits only
  *    `kind='bahr'`, so a thirty-بيت shelf can easily be a twelve-بيت مساجلة,
@@ -2012,14 +2090,18 @@ export type AlbumSaveResponse = z.infer<typeof AlbumSaveResponseSchema>
  * `baitIds` holds ONE id per بيت — the best-ranked playable copy, the same
  * `po.fame DESC, b.position ASC, b.id ASC` order the anchor resolves by — so
  * the opponent's «already said» exclusions cannot be defeated by the corpus
- * holding the same بيت under a second id.
+ * holding the same بيت under a second id. It is capped at `ALBUM_LIMITS.pool`
+ * in SHELF order, and when `baitIds.length < playable` the door says so: the
+ * solo duel carries this list on every request and cannot carry a playlist of
+ * long قصائد whole.
  */
 export const AlbumPoolResponseSchema = z.object({
   album: AlbumSummarySchema,
   count: z.number().int().nonnegative(),
   resolved: z.number().int().nonnegative(),
+  baits: z.number().int().nonnegative(),
   playable: z.number().int().nonnegative(),
-  baitIds: z.array(z.number().int().positive()),
+  baitIds: z.array(z.number().int().positive()).max(ALBUM_LIMITS.pool),
 })
 export type AlbumPoolResponse = z.infer<typeof AlbumPoolResponseSchema>
 
@@ -2029,7 +2111,7 @@ export const ALBUM_ERRORS: Record<string, string> = {
   album_forbidden: "هذا الديوان ليس لك",
   too_many_albums: "بلغتَ أقصى عدد من الدواوين",
   album_full: "امتلأ هذا الديوان",
-  unknown_baits: "لم أجد هذه الأبيات في الديوان",
+  unknown_entry: "لم أجد ذلك في الديوان",
   albums_unavailable: "الدواوين غير متاحة على هذا الخادم",
   cannot_save_own: "هذا ديوانك، وهو في دواوينك أصلًا",
   too_many_saved: "امتلأت مكتبتك",

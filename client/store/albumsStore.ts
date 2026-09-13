@@ -17,27 +17,33 @@ import { create } from "zustand"
 
 import { ApiError } from "../api/client.ts"
 import {
-  addAlbumBaits as addBaitsRequest,
+  addAlbumEntries as addEntriesRequest,
   createAlbum as createRequest,
   getMyAlbums,
   saveAlbum as saveRequest,
   unsaveAlbum as unsaveRequest,
 } from "../api/queries.ts"
-import { HARF_FORMS, countedNoun, formatAlbums, formatBaits } from "../../shared/format.ts"
-import { ALBUM_LIMITS, type AlbumSummary, type AlbumVisibility, type SavedAlbum } from "../../shared/schema.ts"
+import { HARF_FORMS, countedNoun, formatAlbums, formatBaits, formatPoems } from "../../shared/format.ts"
+import {
+  ALBUM_LIMITS,
+  type AlbumAddItem,
+  type AlbumSummary,
+  type AlbumVisibility,
+  type SavedAlbum,
+} from "../../shared/schema.ts"
 import { tookSessionExpiry, useAuth } from "./authStore.ts"
 import { toast } from "./toastStore.ts"
 
 /**
- * What the picker was opened on: the anchors to add, and enough words to say
- * what is being added («أُضيف بيتُ المتنبي», «أُضيفت 12 بيتًا»).
+ * What the picker was opened on: the items to add, and enough words to say
+ * what is being added.
  *
- * It is a LIST because one gesture adds one بيت and another adds a whole
- * قصيدة, and there is no reason for those to be two dialogs — the sheet says
- * how many it is carrying and the rest is identical.
+ * One gesture adds one بيت and another adds a whole قصيدة — as ONE entry, the
+ * playlist's unit — and there is no reason for those to be two dialogs: the
+ * sheet says what it is carrying and the rest is identical.
  */
 export type AlbumPick = {
-  anchors: string[]
+  items: AlbumAddItem[]
   /** what the sheet calls what is being added */
   label: string
 }
@@ -55,8 +61,8 @@ export type AlbumPick = {
  */
 const ALBUM_ERROR: Record<string, string> = {
   too_many_albums: `بلغتَ أقصى عدد من الدواوين (${formatAlbums(ALBUM_LIMITS.perUser)})`,
-  album_full: `امتلأ هذا الديوان (${formatBaits(ALBUM_LIMITS.baits)})`,
-  unknown_baits: "لم أجد هذه الأبيات في الديوان",
+  album_full: `امتلأ هذا الديوان (${formatPoems(ALBUM_LIMITS.entries)} أو ${formatBaits(ALBUM_LIMITS.entries)})`,
+  unknown_entry: "لم أجد ذلك في الديوان",
   album_not_found: "لا ديوان بهذا الرمز",
   albums_unavailable: "الدواوين غير متاحة على هذا الخادم",
   bad_body: `راجع ما كتبته: للديوان اسمٌ لا يزيد على ${countedNoun(ALBUM_LIMITS.titleChars, HARF_FORMS)}`,
@@ -169,13 +175,13 @@ export const useAlbums = create<AlbumsStore>()((set, get) => ({
     if (!pick || get().busy) return false
     set({ busy: true, error: null })
     try {
-      const res = await addBaitsRequest(code, pick.anchors)
+      const res = await addEntriesRequest(code, pick.items)
       set((s) => ({
         albums: s.albums.map((a) => (a.code === res.album.code ? res.album : a)),
         busy: false,
         pick: null,
       }))
-      toast(addedMessage(res.added, res.duplicates, res.album.title), res.added > 0 ? "ok" : "info")
+      toast(addedMessage(pick, res.added, res.duplicates, res.album.title), res.added > 0 ? "ok" : "info")
       return res.added > 0
     } catch (err) {
       if (tookSessionExpiry(err)) {
@@ -244,15 +250,18 @@ export const useAlbums = create<AlbumsStore>()((set, get) => ({
 }))
 
 /**
- * What the toast says, and it says the honest thing in all three cases.
+ * What the toast says, and it says the honest thing in every case.
  *
  * «أُضيف» over a duplicate is a lie a reader catches immediately (the count on
- * the card did not move), and a bare «تمّ» after adding a 40-بيت قصيدة to a
- * shelf that already held it says nothing at all. The counted noun is
- * `shared/format.ts`'s, never glued here.
+ * the card did not move), and a bare «تمّ» says nothing at all. A قصيدة is one
+ * entry, so its message names it as one thing — «أُضيفت القصيدة» — and never
+ * counts its أبيات; a pick of أبيات counts them through `shared/format.ts`,
+ * never glued here.
  */
-export function addedMessage(added: number, duplicates: number, title: string): string {
-  if (added === 0 && duplicates > 0) return `هذه الأبيات في «${title}» أصلًا`
+export function addedMessage(pick: Pick<AlbumPick, "items">, added: number, duplicates: number, title: string): string {
+  const poem = pick.items.length === 1 && pick.items[0]!.kind === "poem"
+  if (added === 0 && duplicates > 0) return poem ? `هذه القصيدة في «${title}» أصلًا` : `هذه الأبيات في «${title}» أصلًا`
   if (added === 0) return `لم يُضف شيء إلى «${title}»`
+  if (poem) return `أُضيفت القصيدة إلى «${title}»`
   return `أُضيف إلى «${title}»: ${formatBaits(added)}`
 }

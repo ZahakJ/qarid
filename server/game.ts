@@ -229,8 +229,8 @@ export function gameFilter(db: Db, filters: GameFilters | undefined, pool?: read
   //
   // Interpolated rather than bound only in the sense that the placeholders are
   // generated; every value goes through `?`, and the schema has already proved
-  // each is a positive integer capped at `ALBUM_LIMITS.baits`. `game_baits`'
-  // primary key is `bait_id`, so a 300-value IN list is 300 point lookups.
+  // each is a positive integer capped at `ALBUM_LIMITS.pool`. `game_baits`'
+  // primary key is `bait_id`, so a 1,000-value IN list is 1,000 point lookups.
   const pooled = pool !== undefined && pool.length > 0
   if (pool !== undefined && pool.length === 0) {
     // An EMPTY pool was asked for: the ديوان resolved to nothing playable. That

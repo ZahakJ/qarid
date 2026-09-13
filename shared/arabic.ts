@@ -590,6 +590,28 @@ export function baitAnchor(sadr: string, ajuz: string | null | undefined): strin
   return fnv1a64Signed(norm).toString()
 }
 
+/**
+ * The anchor of a whole قصيدة on a reader's ديوان — `poems.dedup_key` hashed.
+ *
+ * A ديوان is a playlist of قصائد before it is a shelf of أبيات, and a قصيدة
+ * needs the same kind of anchor a بيت has: content, never an id, because every
+ * id in the artefact moves on `npm run ingest`. The content of a قصيدة, for the
+ * purpose of «which one is this», is exactly what the ingest's own dedup pass
+ * decided it was — `nameKey|مطلع` (`dedupKeyOf`, scripts/ingest/transform.ts),
+ * UNIQUE on `poems` after pass 0 and stable across rebuilds, since neither the
+ * شاعر's name nor the first hemistich changes when a row id does.
+ *
+ * The key itself is stored beside the entry for the lookup (`poems.dedup_key`
+ * is the UNIQUE index); what travels on the WIRE is this hash of it, because a
+ * dedup key is Arabic text up to 1,763 characters long in the corpus, and an
+ * identity that has to fit in a URL path segment cannot be that. The `p` prefix
+ * keeps a قصيدة's anchor distinguishable from a بيت's at a glance and in a
+ * schema (`PoemAnchorSchema`), so one `order` list can carry both.
+ */
+export function poemAnchor(dedupKey: string): string {
+  return `p${fnv1a64Signed(dedupKey).toString()}`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Names
 // ─────────────────────────────────────────────────────────────────────────────

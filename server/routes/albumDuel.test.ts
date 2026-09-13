@@ -136,11 +136,44 @@ async function makeAlbum(who: Reader, fields: Record<string, unknown> = {}): Pro
 
 async function fill(who: Reader, code: string, baits: readonly { sadr: string; ajuz: string }[]): Promise<void> {
   const res = await req(
-    `/api/albums/${code}/baits`,
-    body("POST", { items: baits.map((b) => ({ hFull: anchorOf(b) })) }),
+    `/api/albums/${code}/entries`,
+    body("POST", { items: baits.map((b) => ({ kind: "bait", hFull: anchorOf(b) })) }),
     who,
   )
   expect(res.status).toBe(200)
+}
+
+/**
+ * A قصيدة from the fixture with at least `min` playable أبيات — the playlist's
+ * unit. `ids` is ONE id per distinct بيت (a refrain repeated inside a قصيدة is
+ * one بيت, and the pool serves it once — the same rule as across the corpus),
+ * and `baits` counts the rows that carry an anchor.
+ */
+function fixturePoem(min: number): { publicId: string; baits: number; ids: number[] } {
+  const row = db
+    .q(
+      `SELECT p.public_id AS pid,
+              (SELECT COUNT(*) FROM baits b JOIN game_baits g ON g.bait_id = b.id WHERE b.poem_id = p.id) AS playable
+       FROM poems p
+       WHERE playable >= ? ORDER BY playable DESC, p.id ASC LIMIT 1`,
+    )
+    .get(min) as Record<string, unknown> | undefined
+  if (!row) throw new Error(`no fixture قصيدة with ${min} playable أبيات`)
+  const rows = db
+    .q(
+      `SELECT b.id AS id, CAST(b.h_full AS TEXT) AS h, g.bait_id AS playable
+       FROM baits b LEFT JOIN game_baits g ON g.bait_id = b.id
+       JOIN poems p ON p.id = b.poem_id WHERE p.public_id = ? AND b.h_full IS NOT NULL ORDER BY b.position`,
+    )
+    .all(String(row.pid)) as Array<{ id: number; h: string; playable: number | null }>
+  const seen = new Set<string>()
+  const ids: number[] = []
+  for (const r of rows) {
+    if (r.playable === null || seen.has(r.h)) continue
+    seen.add(r.h)
+    ids.push(Number(r.id))
+  }
+  return { publicId: String(row.pid), baits: rows.length, ids }
 }
 
 /** A shelf big enough to play in, and the pool the server resolved it to. */
@@ -208,6 +241,29 @@ describe("GET /api/albums/:code/pool", () => {
     expect(pool.playable).toBe(playable.length)
     expect(pool.baitIds).toHaveLength(playable.length)
     expect(pool.album.title).toBe("ما أحفظ")
+  })
+
+  it("opens a قصيدة entry into every playable بيت it has, and counts its أبيات", async () => {
+    const a = reader("labid")
+    const code = await makeAlbum(a)
+    const poem = fixturePoem(ALBUM_LIMITS.playableFloor)
+    const mute = unplayableBaits(2)
+    const added = await req(
+      `/api/albums/${code}/entries`,
+      body("POST", { items: [{ kind: "poem", id: poem.publicId }, ...mute.map((b) => ({ kind: "bait", hFull: anchorOf(b) }))] }),
+      a,
+    )
+    expect(added.status).toBe(200)
+
+    const pool = AlbumPoolResponseSchema.parse(await (await req(`/api/albums/${code}/pool`, {}, a)).json())
+    // Three entries; the قصيدة is ONE of them, however long it is.
+    expect(pool.count).toBe(3)
+    expect(pool.resolved).toBe(3)
+    // …but it is all of its أبيات once opened.
+    expect(pool.baits).toBe(poem.baits + mute.length)
+    expect(pool.playable).toBe(poem.ids.length)
+    // The pool is the قصيدة's OWN rows, in its order, then nothing for the mute ones.
+    expect(pool.baitIds).toEqual(poem.ids)
   })
 
   it("hands back ids `game_baits` actually holds, one per بيت", async () => {

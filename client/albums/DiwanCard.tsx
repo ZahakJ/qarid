@@ -17,7 +17,7 @@
  */
 import type React from "react"
 
-import { arabicDate, formatBaits } from "../../shared/format.ts"
+import { arabicDate, formatAlbumContents } from "../../shared/format.ts"
 import type { AlbumSummary, SavedAlbum } from "../../shared/schema.ts"
 import { PanelCorners } from "../components/Ornaments.tsx"
 import { routeHash } from "../router.ts"
@@ -49,7 +49,7 @@ export function DiwanCard({
       </span>
       {album.description ? <span className="dwcard__desc">{album.description}</span> : null}
       <span className="dwcard__meta">
-        <span className="dwcard__n">{formatBaits(album.count)}</span>
+        <span className="dwcard__n">{formatAlbumContents(album.poems, album.baits)}</span>
         {/* من يراه is the OWNER's business: on somebody else's shelf the badge
             would say «مفتوح» on every card and mean nothing. */}
         {album.isOwner ? <VisibilityBadge album={album} /> : null}

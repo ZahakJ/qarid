@@ -331,9 +331,9 @@ describe("game requests", () => {
     expect(GameStartRequestSchema.safeParse({ difficulty: "impossible" }).success).toBe(false)
   })
 
-  it("bounds the ديوان pool by the shelf's own cap, and defaults it to «no ديوان»", () => {
-    const many = Array.from({ length: 900 }, (_, i) => i + 1)
-    expect(GameReplyRequestSchema.parse({ letter: "م", poolBaitIds: many }).poolBaitIds).toHaveLength(ALBUM_LIMITS.baits)
+  it("bounds the ديوان pool by the wire cap, and defaults it to «no ديوان»", () => {
+    const many = Array.from({ length: 3000 }, (_, i) => i + 1)
+    expect(GameReplyRequestSchema.parse({ letter: "م", poolBaitIds: many }).poolBaitIds).toHaveLength(ALBUM_LIMITS.pool)
     // `[]` is what an ordinary duel sends, and it means «the whole corpus» —
     // the server reads a NON-EMPTY list as the ديوان (server/routes/game.ts).
     expect(GameReplyRequestSchema.parse({ letter: "م" }).poolBaitIds).toEqual([])

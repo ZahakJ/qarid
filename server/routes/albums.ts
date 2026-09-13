@@ -6,29 +6,40 @@
  *   GET    /api/albums/:code            one shelf, resolved against the artefact
  *   PATCH  /api/albums/:code            owner: title · وصف · visibility · order
  *   DELETE /api/albums/:code            owner
- *   POST   /api/albums/:code/baits      add by ANCHOR; the server builds the snapshot
- *   DELETE /api/albums/:code/baits/:h   remove one بيت
+ *   POST   /api/albums/:code/entries    add قصائد (by public id) and أبيات (by anchor);
+ *                                       the server anchors them and builds the snapshot
+ *   DELETE /api/albums/:code/entries/:a remove one entry by its anchor
  *   POST   /api/albums/:code/save       keep somebody else's shelf — المكتبة
  *   DELETE /api/albums/:code/save       let it go
  *   GET    /api/albums/:code/pool       the shelf as a مساجلة can play it
  *
+ * ── A ديوان IS A PLAYLIST ─────────────────────────────────────────────────
+ *
+ * An entry is a whole قصيدة or a single بيت, and a قصيدة is ONE entry: the
+ * first shape of this feature exploded «أضِف القصيدة» into forty rows in a flat
+ * list, and two قصائد added back to back read as one unbroken run of verse.
+ * The two kinds share one ordered list and one anchor rule.
+ *
  * ── THE ANCHOR, which is the whole design ─────────────────────────────────
  *
- * A ديوان stores `h_full` — the ingest's own fnv1a64 of the normalized بيت
- * (`baitAnchor`, shared/arabic.ts) — and never an id. `public_id` is `q<row id>`
- * for 73 % of قصائد and every id in the artefact moves on `npm run ingest`, so a
- * shelf of ids would quietly re-point at other people's poetry at the next
- * rebuild. `baits_hfull` makes re-finding a بيت a point lookup, and beside the
- * anchor rides a display SNAPSHOT taken at the moment of adding, so an entry the
- * artefact can no longer answer still renders as a بيت — marked «ليست في
- * الديوان اليوم» rather than silently gone. This is the same rule
- * `shared/anthologies.ts` holds for the curated shelves (CANON ANCHORS BY
- * CONTENT), applied to the shelves a reader compiles himself.
+ * A ديوان stores CONTENT and never an id. `public_id` is `q<row id>` for 73 %
+ * of قصائد and every id in the artefact moves on `npm run ingest`, so a shelf
+ * of ids would quietly re-point at other people's poetry at the next rebuild.
+ * A بيت's anchor is `h_full` — the ingest's own fnv1a64 of the normalized بيت
+ * (`baitAnchor`, shared/arabic.ts), a point lookup on `baits_hfull`. A قصيدة's
+ * is its `dedup_key` — `nameKey|مطلع`, the ingest's own decision about which
+ * rows are one قصيدة, UNIQUE on `poems` — stored whole for the lookup and
+ * hashed for the wire (`poemAnchor`). Beside every anchor rides a display
+ * SNAPSHOT taken at the moment of adding, so an entry the artefact can no
+ * longer answer still renders as what it was — marked «ليست في الديوان اليوم»
+ * rather than silently gone. This is the same rule `shared/anthologies.ts`
+ * holds for the curated shelves (CANON ANCHORS BY CONTENT), applied to the
+ * shelves a reader compiles himself.
  *
- * The SERVER resolves; the client sends hashes and nothing else. A
- * client-supplied «poet» in the snapshot would be a client-supplied attribution
- * on a page carrying somebody's name, so an anchor the artefact cannot answer is
- * refused at the door rather than stored on trust.
+ * The SERVER resolves; the client sends a hash or a public id and nothing
+ * else. A client-supplied «poet» in the snapshot would be a client-supplied
+ * attribution on a page carrying somebody's name, so an item the artefact
+ * cannot answer is refused at the door rather than stored on trust.
  *
  * ── ENUMERATION ───────────────────────────────────────────────────────────
  *
@@ -47,14 +58,15 @@
 
 import { Hono, type Context } from "hono"
 
+import { poemAnchor } from "../../shared/arabic.ts"
 import {
   ALBUM_LIMITS,
-  AlbumAddBaitsRequestSchema,
+  AlbumAddEntriesRequestSchema,
+  AlbumAnchorSchema,
   AlbumCodeSchema,
   AlbumCreateRequestSchema,
   AlbumPatchRequestSchema,
-  BaitAnchorSchema,
-  type AlbumAddBaitsResponse,
+  type AlbumAddEntriesResponse,
   type AlbumEntry,
   type AlbumPoolResponse,
   type AlbumResponse,
@@ -66,13 +78,13 @@ import {
 import { albumPool, readableAlbum } from "../albumGame.ts"
 import type { Config } from "../config.ts"
 import type { Db } from "../db.ts"
-import { BAIT_COLS, POEM_COLS, POEM_JOINS, baitDto, str, strOrNull, type Row } from "../dto.ts"
+import { BAIT_COLS, POEM_COLS, POEM_JOINS, baitDto, num, poemSummary, str, strOrNull, type Row } from "../dto.ts"
 import { decodeParam } from "../query.ts"
 import { clientKey, createRateLimiter } from "../ratelimit.ts"
 import {
-  addAlbumBaits,
-  albumBaits,
-  albumBaitCount,
+  addAlbumEntries,
+  albumEntries,
+  albumEntryCount,
   blockExistsBetween,
   countAlbums,
   countSavedAlbums,
@@ -82,11 +94,12 @@ import {
   isAlbumSaved,
   listAlbums,
   listSavedAlbums,
-  removeAlbumBait,
+  removeAlbumEntry,
   reorderAlbum,
   saveAlbum,
   unsaveAlbum,
   updateAlbum,
+  type AlbumEntryInsert,
   type AlbumRow,
   type UserRow,
   type UsersDb,
@@ -101,7 +114,7 @@ import { currentUser, parseBody } from "./auth.ts"
  * curating a ديوان presses «أضِف إلى ديوان» once per بيت, and twenty أبيات in
  * ten minutes is a slow afternoon, not abuse. Same SHAPE (per-IP token bucket,
  * ten-minute window), three times the tokens — still far under anything that
- * could fill a 300-بيت shelf by script, because the shelf's own cap does that.
+ * could fill a shelf by script, because the shelf's own cap does that.
  */
 export const ALBUM_WRITE_LIMIT = { tokens: 60, windowMs: 10 * 60 * 1000 } as const
 
@@ -119,8 +132,8 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
   // cheap, and `/mine` is one indexed scan of a table with at most 50 rows).
   app.use("/", async (c, next) => (c.req.method === "POST" ? writeLimiter.middleware(c, next) : next()))
   app.use("/:code", async (c, next) => (c.req.method === "GET" ? next() : writeLimiter.middleware(c, next)))
-  app.use("/:code/baits", writeLimiter.middleware)
-  app.use("/:code/baits/:anchor", writeLimiter.middleware)
+  app.use("/:code/entries", writeLimiter.middleware)
+  app.use("/:code/entries/:anchor", writeLimiter.middleware)
   app.use("/:code/save", writeLimiter.middleware)
 
   /** The signed-in account, or the 401/503 response that stands in for it. */
@@ -220,11 +233,15 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
   // shelves you may OPEN are the ones you may play inside — a ديوان you cannot
   // see is a 404 here as everywhere else.
   //
-  // It says three numbers because they are three different truths and the door
+  // It says four numbers because they are four different truths and the door
   // must not blur them (`server/albumGame.ts`). No floor is enforced HERE: the
   // route's job is to say what the shelf is, and the client's door is what
   // refuses to open below `ALBUM_LIMITS.playableFloor` — a reader looking at a
   // six-بيت ديوان is owed the sentence, not an error.
+  //
+  // `baitIds` is cut at `ALBUM_LIMITS.pool` for the wire and `playable` is NOT:
+  // the solo duel carries the list on every request and a playlist of long
+  // قصائد does not fit, so the door prints both and says which it plays from.
   app.get("/:code/pool", (c) => {
     const hit = readable(c)
     if (!hit) return notFound(c)
@@ -234,8 +251,9 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
       album: summaryOf(hit.album, isOwner, savedBy(hit.users, hit.viewer, hit.album)),
       count: pool.count,
       resolved: pool.resolved,
+      baits: pool.baits,
       playable: pool.baitIds.length,
-      baitIds: pool.baitIds,
+      baitIds: pool.baitIds.slice(0, ALBUM_LIMITS.pool),
     }
     return c.json(body)
   })
@@ -306,60 +324,50 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
     return c.json({ ok: true as const })
   })
 
-  // ── add أبيات ─────────────────────────────────────────────────────────────
-  app.post("/:code/baits", async (c) => {
+  // ── add entries ───────────────────────────────────────────────────────────
+  app.post("/:code/entries", async (c) => {
     const hit = owned(c)
     if ("res" in hit) return hit.res
-    const parsed = await parseBody(c, AlbumAddBaitsRequestSchema)
+    const parsed = await parseBody(c, AlbumAddEntriesRequestSchema)
     if (!parsed.ok) return parsed.res
 
-    const held = albumBaitCount(hit.users, hit.album.id)
-    if (held >= ALBUM_LIMITS.baits) {
-      return c.json({ error: "album_full", message: "امتلأ هذا الديوان", limit: ALBUM_LIMITS.baits }, 409)
+    const held = albumEntryCount(hit.users, hit.album.id)
+    if (held >= ALBUM_LIMITS.entries) {
+      return c.json({ error: "album_full", message: "امتلأ هذا الديوان", limit: ALBUM_LIMITS.entries }, 409)
     }
 
-    // De-duplicate WITHIN the request first: «أضِف القصيدة» over a قصيدة that
-    // repeats a بيت sends the same anchor twice, and `INSERT OR IGNORE` would
-    // count the second one as a duplicate of a بيت added one row earlier.
-    const wanted: string[] = []
+    // Resolve first, dedupe on the ANCHOR second: a قصيدة sent by id and the
+    // same قصيدة sent twice are one anchor, and `INSERT OR IGNORE` would count
+    // the second one as a duplicate of an entry added one row earlier.
+    const inserts: AlbumEntryInsert[] = []
     const seen = new Set<string>()
-    for (const item of parsed.data.items) {
-      if (seen.has(item.hFull)) continue
-      seen.add(item.hFull)
-      wanted.push(item.hFull)
-    }
-
-    const inserts: Parameters<typeof addAlbumBaits>[2][number][] = []
     let unresolved = 0
-    const room = ALBUM_LIMITS.baits - held
-    for (const anchor of wanted) {
-      const row = anchorRow(db, anchor)
-      if (!row) {
+    const room = ALBUM_LIMITS.entries - held
+    for (const item of parsed.data.items) {
+      const insert = item.kind === "poem" ? poemInsert(db, item.id) : baitInsert(db, item.hFull)
+      if (insert === null) {
         unresolved += 1
         continue
       }
+      if (seen.has(insert.anchor)) continue
+      seen.add(insert.anchor)
       // The cap is counted on what will actually be WRITTEN, and the overflow is
-      // simply not added — a 300-بيت shelf plus a 400-بيت قصيدة is a truncation
-      // the toast reports, not a 409 that loses the first 300.
+      // simply not added — a full shelf plus a bulk add is a truncation the toast
+      // reports, not a 409 that loses what was already there.
       if (inserts.length >= room) break
-      inserts.push({
-        hFull: anchor,
-        snapshotSadr: str(row.b_sadr),
-        snapshotAjuz: strOrNull(row.b_ajuz),
-        snapshotPoet: str(row.po_name),
-      })
+      inserts.push(insert)
     }
 
-    // Every anchor the artefact refused, and nothing landed: say so rather than
+    // Every item the artefact refused, and nothing landed: say so rather than
     // answering «أُضيف 0» to a request that was wrong in kind.
-    if (inserts.length === 0 && unresolved === wanted.length) {
-      return c.json({ error: "unknown_baits", message: "لم أجد هذه الأبيات في الديوان" }, 404)
+    if (inserts.length === 0 && unresolved === parsed.data.items.length) {
+      return c.json({ error: "unknown_entry", message: "لم أجد ذلك في الديوان" }, 404)
     }
 
     const now = Date.now()
-    const added = addAlbumBaits(hit.users, hit.album.id, inserts, now)
+    const added = addAlbumEntries(hit.users, hit.album.id, inserts, now)
     const fresh = findAlbumByCode(hit.users, hit.album.code)!
-    const body: AlbumAddBaitsResponse = {
+    const body: AlbumAddEntriesResponse = {
       album: summaryOf(fresh, true, false),
       added,
       duplicates: inserts.length - added,
@@ -368,14 +376,14 @@ export function albumRoutes(db: Db, users: UsersDb | null, config: Config): Hono
     return c.json(body)
   })
 
-  // ── remove one بيت ────────────────────────────────────────────────────────
-  app.delete("/:code/baits/:anchor", (c) => {
+  // ── remove one entry ──────────────────────────────────────────────────────
+  app.delete("/:code/entries/:anchor", (c) => {
     const hit = owned(c)
     if ("res" in hit) return hit.res
-    const anchor = BaitAnchorSchema.safeParse(decodeParam(c.req.param("anchor")))
-    if (!anchor.success) return c.json({ error: "unknown_baits", message: "لم أجد هذا البيت في هذا الديوان" }, 404)
-    if (!removeAlbumBait(hit.users, hit.album.id, anchor.data, Date.now())) {
-      return c.json({ error: "unknown_baits", message: "لم أجد هذا البيت في هذا الديوان" }, 404)
+    const anchor = AlbumAnchorSchema.safeParse(decodeParam(c.req.param("anchor")))
+    if (!anchor.success) return c.json({ error: "unknown_entry", message: "لم أجد ذلك في هذا الديوان" }, 404)
+    if (!removeAlbumEntry(hit.users, hit.album.id, anchor.data, Date.now())) {
+      return c.json({ error: "unknown_entry", message: "لم أجد ذلك في هذا الديوان" }, 404)
     }
     const fresh = findAlbumByCode(hit.users, hit.album.code)!
     return c.json({ album: summaryOf(fresh, true, false) })
@@ -395,6 +403,8 @@ export function summaryOf(a: AlbumRow, isOwner: boolean, saved: boolean): AlbumS
     description: a.description,
     visibility: a.visibility,
     count: a.count,
+    poems: a.poems,
+    baits: a.baits,
     createdAt: a.createdAt,
     updatedAt: a.updatedAt,
     curator: { username: a.ownerUsername, displayName: a.ownerDisplayName },
@@ -429,7 +439,7 @@ export function savedOf(users: UsersDb, viewer: UserRow, row: { savedAt: number;
 }
 
 /**
- * The one query that turns an anchor back into a بيت.
+ * The one query that turns a بيت's anchor back into a بيت.
  *
  * `baits_hfull` makes it a point lookup, and the ORDER BY is the same one
  * `exactCopies` in server/game.ts uses for the same reason: the corpus holds the
@@ -437,7 +447,7 @@ export function savedOf(users: UsersDb, viewer: UserRow, row: { savedAt: number;
  * canonical شاعر's, nearest his مطلع — never whichever id SQLite inserted first
  * («قفا نبك» resolves to أبو العباس الجراوي on rowid order).
  */
-function anchorRow(db: Db, anchor: string): Row | undefined {
+function baitRowByAnchor(db: Db, anchor: string): Row | undefined {
   let key: bigint
   try {
     key = BigInt(anchor)
@@ -454,17 +464,63 @@ function anchorRow(db: Db, anchor: string): Row | undefined {
     .get(key) as Row | undefined
 }
 
+/** A قصيدة's row plus its dedup key, by either of the two keys a shelf uses. */
+const POEM_BY = `SELECT ${POEM_COLS}, p.dedup_key AS p_dedup_key
+  FROM poems p ${POEM_JOINS}`
+
+/** …by PUBLIC id — what the client sends at add time. */
+function poemRowById(db: Db, publicId: string): Row | undefined {
+  return db.q(`${POEM_BY} WHERE p.public_id = ?`).get(publicId) as Row | undefined
+}
+
+/** …by DEDUP KEY — what the shelf stored, a point lookup on the UNIQUE index. */
+function poemRowByKey(db: Db, dedupKey: string): Row | undefined {
+  return db.q(`${POEM_BY} WHERE p.dedup_key = ?`).get(dedupKey) as Row | undefined
+}
+
+/** The row `addAlbumEntries` writes for a قصيدة, or null when the id names nothing. */
+function poemInsert(db: Db, publicId: string): AlbumEntryInsert | null {
+  const row = poemRowById(db, publicId)
+  if (!row) return null
+  const key = str(row.p_dedup_key)
+  return {
+    kind: "poem",
+    anchor: poemAnchor(key),
+    poemKey: key,
+    snapshot: {
+      title: str(row.p_title),
+      // The مطلع, so a قصيدة the artefact later loses still shows its first
+      // line. `preview_sadr` is null for six verse-less rows the ingest keeps.
+      sadr: strOrNull(row.p_preview_sadr) ?? "",
+      ajuz: strOrNull(row.p_preview_ajuz),
+      poet: str(row.po_name),
+      baitCount: num(row.p_bait_count),
+    },
+  }
+}
+
+/** The row `addAlbumEntries` writes for a بيت, or null when the anchor names nothing. */
+function baitInsert(db: Db, anchor: string): AlbumEntryInsert | null {
+  const row = baitRowByAnchor(db, anchor)
+  if (!row) return null
+  return {
+    kind: "bait",
+    anchor,
+    snapshot: { sadr: str(row.b_sadr), ajuz: strOrNull(row.b_ajuz), poet: str(row.po_name) },
+  }
+}
+
 /**
  * Resolution, memoised per (album, updated_at).
  *
- * A 300-بيت shelf is 300 point lookups, which is ~4 ms on the real artefact —
- * affordable once, wasteful on every reload of a page that has not changed. The
- * key carries `updated_at`, so any write through this module's own helpers (all
- * of which stamp it) invalidates the entry by construction rather than by
- * anyone remembering to clear a cache. The map is bounded and dropped whole at
- * `MEMO_CAP`: a shelf is per-user data, so this is a working set, not a warm
- * cache like `facets.ts`'s, and an LRU would be more machinery than the 4 ms it
- * is protecting.
+ * A 200-entry shelf is 200 point lookups, which is a few milliseconds on the
+ * real artefact — affordable once, wasteful on every reload of a page that has
+ * not changed. The key carries `updated_at`, so any write through this module's
+ * own helpers (all of which stamp it) invalidates the entry by construction
+ * rather than by anyone remembering to clear a cache. The map is bounded and
+ * dropped whole at `MEMO_CAP`: a shelf is per-user data, so this is a working
+ * set, not a warm cache like `facets.ts`'s, and an LRU would be more machinery
+ * than the milliseconds it is protecting.
  */
 const MEMO = new Map<string, AlbumEntry[]>()
 const MEMO_CAP = 256
@@ -473,15 +529,30 @@ export function resolveAlbum(db: Db, users: UsersDb, album: AlbumRow): AlbumEntr
   const key = `${album.id}:${album.updatedAt}`
   const hit = MEMO.get(key)
   if (hit) return hit
-  const entries = albumBaits(users, album.id).map((row, i): AlbumEntry => {
-    const found = anchorRow(db, row.hFull)
+  const entries = albumEntries(users, album.id).map((row, i): AlbumEntry => {
+    // The stored positions are contiguous after a reorder, but a shelf that
+    // has only ever been appended to and pruned has gaps. The wire carries the
+    // INDEX, so the client's «up / down» arithmetic never has to know that.
+    const base = { anchor: row.anchor, position: i, addedAt: row.addedAt }
+    if (row.kind === "poem") {
+      const found = poemRowByKey(db, row.poemKey!)
+      return {
+        kind: "poem",
+        ...base,
+        snapshot: {
+          title: row.snapshotTitle ?? "",
+          sadr: row.snapshotSadr,
+          ajuz: row.snapshotAjuz,
+          poet: row.snapshotPoet,
+          baitCount: row.snapshotCount ?? 0,
+        },
+        poem: found ? poemSummary(found) : null,
+      }
+    }
+    const found = baitRowByAnchor(db, row.anchor)
     return {
-      hFull: row.hFull,
-      // The stored positions are contiguous after a reorder, but a shelf that
-      // has only ever been appended to and pruned has gaps. The wire carries the
-      // INDEX, so the client's «up / down» arithmetic never has to know that.
-      position: i,
-      addedAt: row.addedAt,
+      kind: "bait",
+      ...base,
       snapshot: { sadr: row.snapshotSadr, ajuz: row.snapshotAjuz, poet: row.snapshotPoet },
       bait: found ? baitDto(found) : null,
     }

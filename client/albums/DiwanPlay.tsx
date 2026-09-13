@@ -7,13 +7,17 @@
  *
  * ── WHY THE PANEL SAYS A NUMBER BEFORE IT SAYS ANYTHING ELSE ────────────────
  *
- * A shelf's count is not what a مساجلة can serve. 39.8 % of قصائد in the corpus
- * carry no بحر, and the game pool admits only those that do — so a thirty-بيت
- * ديوان is often a twelve-بيت مساجلة, and the two numbers have to be said in
- * the same breath or the door is promising something the game will not do.
- * Below `ALBUM_LIMITS.playableFloor` the two مساجلة doors are shut and say why:
- * a chain whose opponent concedes on the first turn is not a game, it is a
- * +500 button.
+ * A shelf's count is not what a مساجلة can serve. A ديوان is a playlist of
+ * قصائد, so first the قصائد are opened into their أبيات (`baits` on the pool),
+ * and then 39.8 % of قصائد in the corpus carry no بحر and the game pool admits
+ * only those that do — so a thirty-بيت ديوان is often a twelve-بيت مساجلة, and
+ * the two numbers have to be said in the same breath or the door is promising
+ * something the game will not do. A third number appears only when it differs:
+ * the solo duel carries the pool on every request and takes at most
+ * `ALBUM_LIMITS.pool` ids, so a playlist of long قصائد says which part of
+ * itself the opponent recites from. Below `ALBUM_LIMITS.playableFloor` the two
+ * مساجلة doors are shut and say why: a chain whose opponent concedes on the
+ * first turn is not a game, it is a +500 button.
  *
  * ── THE ASYMMETRY, SAID OUT LOUD ────────────────────────────────────────────
  *
@@ -29,18 +33,20 @@
  * The import writes CARDS into `qarid:v1:training`, in this browser, through
  * the same `introduce` the drill uses (`seedOf` is spelled once, in
  * schedule.ts, so a بيت imported here and the same بيت offered by the drill are
- * one card and not two). The ديوان is the SOURCE; the deck is the reader's, and
- * nothing about it goes to the server. The toast says the honest split —
- * «أُضيف 24 بيتًا، و6 أبيات عندك من قبل» — and the promise ends there: the درب reminds
- * through the ordinary due-cards flow, and nothing here says a word about a
- * notification.
+ * one card). The ديوان is the SOURCE; the deck is the reader's, and nothing
+ * about it goes to the server. The قصائد on the shelf are fetched on the press
+ * and never before it (`gatherAlbumBaits`, memorize.ts), capped at
+ * `ALBUM_LIMITS.memorize` cards a sitting. The toast says the honest split —
+ * «أُضيف 24 بيتًا، و6 أبيات عندك من قبل» — and the promise ends there: the درب
+ * reminds through the ordinary due-cards flow, and nothing here says a word
+ * about a notification.
  */
 import { useEffect, useState } from "react"
 
 import { ALBUM_LIMITS, type AlbumEntry, type AlbumSummary, type ChainMode } from "../../shared/schema.ts"
-import { BAYT_FORMS, countedNounGenitive, formatPlayableBaits, formatNumber } from "../../shared/format.ts"
+import { BAYT_FORMS, countedNounGenitive, formatBaits, formatPlayableBaits, formatNumber } from "../../shared/format.ts"
 import { ApiError } from "../api/client.ts"
-import { getAlbumPool } from "../api/queries.ts"
+import { getAlbumPool, getPoemBaits } from "../api/queries.ts"
 import { Segmented } from "../components/Segmented.tsx"
 import { PanelCorners } from "../components/Ornaments.tsx"
 import { configFor } from "../duel/tiers.ts"
@@ -50,16 +56,17 @@ import { useAuth, tookSessionExpiry } from "../store/authStore.ts"
 import { createRoom } from "../store/roomStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { useTraining } from "../store/trainingStore.ts"
-import { importedMessage, memorizeSeeds } from "./memorize.ts"
+import { gatherAlbumBaits, importedMessage, memorizeSeeds } from "./memorize.ts"
 import { AlbumModal } from "./Modal.tsx"
 import { ROOM_STRIKES_DEFAULT, ROOM_TIMERS } from "../../shared/schema.ts"
 
-type Pool = { playable: number; baitIds: number[] } | null
+type Pool = { baits: number; playable: number; baitIds: number[] } | null
 
 export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: readonly AlbumEntry[] }) {
   const [pool, setPool] = useState<Pool>(null)
   const [failed, setFailed] = useState(false)
   const [friend, setFriend] = useState(false)
+  const [gathering, setGathering] = useState(false)
   const user = useAuth((s) => s.user)
   const openAuth = useAuth((s) => s.openDialog)
   const introduce = useTraining((s) => s.introduce)
@@ -75,7 +82,7 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
     getAlbumPool(album.code, { signal: ac.signal })
       .then((res) => {
         if (ac.signal.aborted) return
-        setPool({ playable: res.playable, baitIds: res.baitIds })
+        setPool({ baits: res.baits, playable: res.playable, baitIds: res.baitIds })
       })
       .catch(() => {
         if (!ac.signal.aborted) setFailed(true)
@@ -83,7 +90,7 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
     return () => ac.abort()
   }, [album.code, album.updatedAt])
 
-  const live = entries.filter((e) => e.bait !== null)
+  const live = entries.filter((e) => (e.kind === "poem" ? e.poem : e.bait) !== null)
   const ready = pool !== null && pool.playable >= ALBUM_LIMITS.playableFloor
 
   const solo = () => {
@@ -103,15 +110,27 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
     navigate({ view: "duel-play" })
   }
 
-  const memorize = () => {
-    // `reload()` FIRST, always: a مساجلة finished in this tab (or another one)
-    // writes the same slice, and every train surface re-reads before it writes
-    // — the two-writers invariant (client/store/trainingStore.ts).
-    reload()
-    const seeds = memorizeSeeds(entries)
-    const made = introduce(seeds)
-    const already = seeds.length - made.length
-    toast(importedMessage(made.length, already), made.length > 0 ? "ok" : "info")
+  const memorize = async () => {
+    if (gathering) return
+    setGathering(true)
+    try {
+      const { baits, left } = await gatherAlbumBaits(entries, (id, limit) =>
+        getPoemBaits(id, { offset: 0, limit }).then((page) => page.items),
+      )
+      // `reload()` FIRST, always — and after the awaits: a مساجلة finished in
+      // this tab (or another one) writes the same slice, and every train
+      // surface re-reads before it writes — the two-writers invariant
+      // (client/store/trainingStore.ts).
+      reload()
+      const seeds = memorizeSeeds(baits)
+      const made = introduce(seeds)
+      const already = seeds.length - made.length
+      toast(importedMessage(made.length, already, left), made.length > 0 ? "ok" : "info")
+    } catch {
+      toast("تعذّر جلب أبيات الديوان", "danger")
+    } finally {
+      setGathering(false)
+    }
   }
 
   return (
@@ -131,8 +150,12 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
             فيه {formatPlayableBaits(pool.playable)}
             {/* «من» is a حرف جرّ and المثنى is مجرور after it: a two-بيت shelf
                 with one playable بيت read «من بيتان». */}
-            {pool.playable < album.count ? (
-              <span className="dwplay__of"> من {countedNounGenitive(album.count, BAYT_FORMS)}</span>
+            {pool.playable < pool.baits ? (
+              <span className="dwplay__of"> من {countedNounGenitive(pool.baits, BAYT_FORMS)}</span>
+            ) : null}
+            {/* The wire cap, said only when it bites. */}
+            {pool.baitIds.length < pool.playable ? (
+              <span className="dwplay__of">، ويُنشد الخصم وحدك من أوّل {formatBaits(pool.baitIds.length)} منها</span>
             ) : null}
           </>
         )}
@@ -160,8 +183,13 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
         {/* Not a `--ghost`: its gold text made the QUIETEST of the three doors
             the loudest thing in the panel, and gold in this app is
             illumination, not emphasis-by-default. */}
-        <button type="button" className="btn" onClick={memorize} disabled={live.length === 0}>
-          أضِفه إلى التحفيظ
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void memorize()}
+          disabled={live.length === 0 || gathering}
+        >
+          {gathering ? "…تُجمع الأبيات" : "أضِفه إلى التحفيظ"}
         </button>
       </div>
 

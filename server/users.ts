@@ -59,7 +59,7 @@ export const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 const MAX_UA = 200
 
 /** Schema version this build expects; `PRAGMA user_version` is the ledger. */
-export const USERS_SCHEMA_VERSION = 10
+export const USERS_SCHEMA_VERSION = 11
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handle
@@ -459,10 +459,78 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
   (raw) => {
     raw.exec(`ALTER TABLE rooms ADD COLUMN album_id INTEGER REFERENCES albums(id) ON DELETE SET NULL`)
   },
+
+  /*
+   * 10 → 11: a ديوان is a PLAYLIST of قصائد — `album_entries` replaces
+   * `album_baits`.
+   *
+   * A reader thinks of a ديوان as a folder of poems he can hand to somebody,
+   * and the first shape stored only أبيات: «أضِف القصيدة» exploded a forty-بيت
+   * قصيدة into forty rows in one flat list, and two قصائد added back to back
+   * came out as one unbroken run of verse with nothing to say where one ended.
+   * So an entry now has a KIND. A `poem` entry is one row for the whole قصيدة;
+   * a `bait` entry is the single line that stood out. They share one ordered
+   * list, one rail and one anchor rule.
+   *
+   * The قصيدة's anchor is `poems.dedup_key` — `nameKey|مطلع`, the ingest's own
+   * decision about which rows are the same قصيدة, UNIQUE after pass 0 and
+   * stable across rebuilds where every id is not. `poem_key` stores it for the
+   * lookup; `anchor` stores its hash (`poemAnchor`, shared/arabic.ts), which is
+   * the identity on the wire: a dedup key is Arabic text up to 1,763 characters
+   * long, and an identity has to fit in a URL path. For a `bait` entry the
+   * anchor is `h_full` as before and `poem_key` is null — the two CHECKs make
+   * the row shapes exclusive rather than a convention.
+   *
+   * The snapshot grows two columns a قصيدة needs and a بيت does not: its
+   * عنوان and its length. `snapshot_sadr`/`snapshot_ajuz` hold the مطلع for a
+   * قصيدة and the بيت itself for a بيت, so an entry the artefact can no longer
+   * answer still renders as what it was.
+   *
+   * Every existing row is carried over as a `bait` entry with its position,
+   * its snapshot and its anchor untouched; nothing a reader compiled is lost or
+   * re-ordered. The old table is dropped in the same transaction.
+   */
+  (raw) => {
+    raw.exec(`
+      CREATE TABLE album_entries (
+        album_id       INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+        kind           TEXT NOT NULL CHECK (kind IN ('poem', 'bait')),
+        anchor         TEXT NOT NULL,
+        poem_key       TEXT,
+        position       INTEGER NOT NULL,
+        snapshot_title TEXT,
+        snapshot_sadr  TEXT NOT NULL,
+        snapshot_ajuz  TEXT,
+        snapshot_poet  TEXT NOT NULL,
+        snapshot_count INTEGER,
+        added_at       INTEGER NOT NULL,
+        UNIQUE (album_id, anchor),
+        CHECK ((kind = 'poem') = (poem_key IS NOT NULL)),
+        CHECK ((kind = 'poem') = (snapshot_title IS NOT NULL)),
+        CHECK ((kind = 'poem') = (snapshot_count IS NOT NULL))
+      );
+      CREATE INDEX album_entries_order ON album_entries(album_id, position);
+
+      INSERT INTO album_entries
+        (album_id, kind, anchor, poem_key, position, snapshot_title, snapshot_sadr, snapshot_ajuz,
+         snapshot_poet, snapshot_count, added_at)
+      SELECT album_id, 'bait', h_full, NULL, position, NULL, snapshot_sadr, snapshot_ajuz,
+             snapshot_poet, NULL, added_at
+      FROM album_baits;
+
+      DROP TABLE album_baits;
+    `)
+  },
 ]
 
-/** Bring an open handle up to `USERS_SCHEMA_VERSION`. Idempotent. */
-export function migrate(raw: DatabaseSync): number {
+/**
+ * Bring an open handle up to `USERS_SCHEMA_VERSION`. Idempotent.
+ *
+ * `upTo` exists for ONE caller: a test that has to stand a database at the
+ * version BEFORE a data-carrying migration, seed it the old way, and then run
+ * the step that moves the rows. Production never passes it.
+ */
+export function migrate(raw: DatabaseSync, upTo: number = MIGRATIONS.length): number {
   const row = raw.prepare("PRAGMA user_version").get() as { user_version: number } | undefined
   let version = Number(row?.user_version ?? 0)
   if (version > MIGRATIONS.length) {
@@ -470,7 +538,7 @@ export function migrate(raw: DatabaseSync): number {
     // running an old server against a new schema silently drops columns.
     throw new Error(`users db is at schema ${version}, this build knows ${MIGRATIONS.length}`)
   }
-  while (version < MIGRATIONS.length) {
+  while (version < Math.min(upTo, MIGRATIONS.length)) {
     const step = MIGRATIONS[version]!
     raw.exec("BEGIN")
     try {
@@ -1460,7 +1528,7 @@ export function recentMatches(db: UsersDb, userId: number, limit: number): Recen
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// الدواوين (migration 8)
+// الدواوين (migrations 8 and 11)
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // The SQL half of «a reader compiles his own ديوان». Nothing here reads the
@@ -1497,12 +1565,18 @@ export type AlbumRow = {
   /** the owner, denormalized by the join every read does anyway */
   ownerUsername: string
   ownerDisplayName: string
+  /** entries on the shelf — `poems + baits` */
   count: number
+  /** whole قصائد on it */
+  poems: number
+  /** single أبيات on it */
+  baits: number
 }
 
 const ALBUM_SELECT = `SELECT a.id, a.code, a.owner_user_id, a.title, a.description, a.visibility,
          a.created_at, a.updated_at, u.username, u.display_name,
-         (SELECT COUNT(*) FROM album_baits ab WHERE ab.album_id = a.id) AS n
+         (SELECT COUNT(*) FROM album_entries e WHERE e.album_id = a.id AND e.kind = 'poem') AS n_poems,
+         (SELECT COUNT(*) FROM album_entries e WHERE e.album_id = a.id AND e.kind = 'bait') AS n_baits
   FROM albums a JOIN users u ON u.id = a.owner_user_id`
 
 function albumRow(row: unknown): AlbumRow | null {
@@ -1519,7 +1593,9 @@ function albumRow(row: unknown): AlbumRow | null {
     updatedAt: Number(r.updated_at),
     ownerUsername: String(r.username),
     ownerDisplayName: String(r.display_name),
-    count: Number(r.n ?? 0),
+    count: Number(r.n_poems ?? 0) + Number(r.n_baits ?? 0),
+    poems: Number(r.n_poems ?? 0),
+    baits: Number(r.n_baits ?? 0),
   }
 }
 
@@ -1600,82 +1676,127 @@ export function deleteAlbum(db: UsersDb, albumId: number): boolean {
   return Number(db.q("DELETE FROM albums WHERE id = ?").run(albumId).changes) > 0
 }
 
-export type AlbumBaitRow = {
-  hFull: string
+export type AlbumEntryKind = "poem" | "bait"
+
+/**
+ * One row of a shelf, as stored. The snapshot is the UNION of the two kinds:
+ * `title` and `baitCount` are null on a بيت entry, `poemKey` is null on a بيت
+ * entry, and the CHECKs in migration 11 are what make that a shape and not a
+ * convention.
+ */
+export type AlbumEntryRow = {
+  kind: AlbumEntryKind
+  anchor: string
+  /** `poems.dedup_key` for a قصيدة; null for a بيت */
+  poemKey: string | null
   position: number
   addedAt: number
+  snapshotTitle: string | null
   snapshotSadr: string
   snapshotAjuz: string | null
   snapshotPoet: string
+  snapshotCount: number | null
 }
 
-function albumBaitRow(row: Record<string, unknown>): AlbumBaitRow {
+function albumEntryRow(row: Record<string, unknown>): AlbumEntryRow {
+  const nullable = (v: unknown): string | null => (v === null || v === undefined ? null : String(v))
   return {
-    hFull: String(row.h_full),
+    kind: String(row.kind) as AlbumEntryKind,
+    anchor: String(row.anchor),
+    poemKey: nullable(row.poem_key),
     position: Number(row.position),
     addedAt: Number(row.added_at),
+    snapshotTitle: nullable(row.snapshot_title),
     snapshotSadr: String(row.snapshot_sadr),
-    snapshotAjuz: row.snapshot_ajuz === null || row.snapshot_ajuz === undefined ? null : String(row.snapshot_ajuz),
+    snapshotAjuz: nullable(row.snapshot_ajuz),
     snapshotPoet: String(row.snapshot_poet),
+    snapshotCount: row.snapshot_count === null || row.snapshot_count === undefined ? null : Number(row.snapshot_count),
   }
 }
 
+const ENTRY_COLS = `kind, anchor, poem_key, position, added_at,
+       snapshot_title, snapshot_sadr, snapshot_ajuz, snapshot_poet, snapshot_count`
+
 /** The shelf, in the curator's order. */
-export function albumBaits(db: UsersDb, albumId: number): AlbumBaitRow[] {
+export function albumEntries(db: UsersDb, albumId: number): AlbumEntryRow[] {
   const rows = db
-    .q(
-      `SELECT h_full, position, added_at, snapshot_sadr, snapshot_ajuz, snapshot_poet
-       FROM album_baits WHERE album_id = ? ORDER BY position ASC, added_at ASC`,
-    )
+    .q(`SELECT ${ENTRY_COLS} FROM album_entries WHERE album_id = ? ORDER BY position ASC, added_at ASC`)
     .all(albumId) as Array<Record<string, unknown>>
-  return rows.map(albumBaitRow)
+  return rows.map(albumEntryRow)
 }
 
-export function albumBaitCount(db: UsersDb, albumId: number): number {
-  const row = db.q("SELECT COUNT(*) AS n FROM album_baits WHERE album_id = ?").get(albumId) as
+export function albumEntryCount(db: UsersDb, albumId: number): number {
+  const row = db.q("SELECT COUNT(*) AS n FROM album_entries WHERE album_id = ?").get(albumId) as
     | { n: number }
     | undefined
   return Number(row?.n ?? 0)
 }
 
-/** Which of these anchors the shelf already holds — the duplicate half of a bulk add. */
-export function albumHasAnchors(db: UsersDb, albumId: number, anchors: readonly string[]): Set<string> {
-  const held = new Set<string>()
-  if (anchors.length === 0) return held
-  const stmt = db.q("SELECT 1 AS hit FROM album_baits WHERE album_id = ? AND h_full = ?")
-  for (const a of anchors) if (stmt.get(albumId, a)) held.add(a)
-  return held
-}
-
-export type AlbumBaitInsert = {
-  hFull: string
-  snapshotSadr: string
-  snapshotAjuz: string | null
-  snapshotPoet: string
-}
+export type AlbumEntryInsert =
+  | {
+      kind: "poem"
+      anchor: string
+      poemKey: string
+      snapshot: { title: string; sadr: string; ajuz: string | null; poet: string; baitCount: number }
+    }
+  | {
+      kind: "bait"
+      anchor: string
+      snapshot: { sadr: string; ajuz: string | null; poet: string }
+    }
 
 /**
- * Append أبيات to the end of the shelf, in one transaction, and stamp the album.
+ * Append entries to the end of the shelf, in one transaction, and stamp the
+ * album.
  *
- * `INSERT OR IGNORE` against `UNIQUE(album_id, h_full)` is what makes a second
- * «أضِف القصيدة» add only what was missing rather than fail the whole request —
- * and the returned count is the honest «أُضيف كذا بيتًا» the toast says.
+ * `INSERT OR IGNORE` against `UNIQUE(album_id, anchor)` is what makes a second
+ * «أضِف القصيدة» a duplicate rather than a failed request — and the returned
+ * count is the honest «أُضيف» the toast says.
  */
-export function addAlbumBaits(db: UsersDb, albumId: number, items: readonly AlbumBaitInsert[], now: number): number {
+export function addAlbumEntries(db: UsersDb, albumId: number, items: readonly AlbumEntryInsert[], now: number): number {
   if (items.length === 0) return 0
   db.raw.exec("BEGIN IMMEDIATE")
   try {
-    const row = db.q("SELECT COALESCE(MAX(position), -1) AS p FROM album_baits WHERE album_id = ?").get(albumId) as
+    const row = db.q("SELECT COALESCE(MAX(position), -1) AS p FROM album_entries WHERE album_id = ?").get(albumId) as
       | { p: number }
       | undefined
     let next = Number(row?.p ?? -1) + 1
     const stmt = db.q(
-      `INSERT OR IGNORE INTO album_baits (album_id, h_full, position, snapshot_sadr, snapshot_ajuz, snapshot_poet, added_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR IGNORE INTO album_entries
+         (album_id, kind, anchor, poem_key, position, snapshot_title, snapshot_sadr, snapshot_ajuz,
+          snapshot_poet, snapshot_count, added_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     let added = 0
     for (const item of items) {
-      const res = stmt.run(albumId, item.hFull, next, item.snapshotSadr, item.snapshotAjuz, item.snapshotPoet, now)
+      const res =
+        item.kind === "poem"
+          ? stmt.run(
+              albumId,
+              "poem",
+              item.anchor,
+              item.poemKey,
+              next,
+              item.snapshot.title,
+              item.snapshot.sadr,
+              item.snapshot.ajuz,
+              item.snapshot.poet,
+              item.snapshot.baitCount,
+              now,
+            )
+          : stmt.run(
+              albumId,
+              "bait",
+              item.anchor,
+              null,
+              next,
+              null,
+              item.snapshot.sadr,
+              item.snapshot.ajuz,
+              item.snapshot.poet,
+              null,
+              now,
+            )
       if (Number(res.changes) > 0) {
         added += 1
         next += 1
@@ -1694,8 +1815,8 @@ export function addAlbumBaits(db: UsersDb, albumId: number, items: readonly Albu
   }
 }
 
-export function removeAlbumBait(db: UsersDb, albumId: number, hFull: string, now: number): boolean {
-  const res = db.q("DELETE FROM album_baits WHERE album_id = ? AND h_full = ?").run(albumId, hFull)
+export function removeAlbumEntry(db: UsersDb, albumId: number, anchor: string, now: number): boolean {
+  const res = db.q("DELETE FROM album_entries WHERE album_id = ? AND anchor = ?").run(albumId, anchor)
   if (Number(res.changes) === 0) return false
   db.q("UPDATE albums SET updated_at = ? WHERE id = ?").run(now, albumId)
   return true
@@ -1718,9 +1839,9 @@ export function reorderAlbum(db: UsersDb, albumId: number, order: readonly strin
   db.raw.exec("BEGIN IMMEDIATE")
   try {
     const current = db
-      .q("SELECT h_full FROM album_baits WHERE album_id = ? ORDER BY position ASC, added_at ASC")
-      .all(albumId) as Array<{ h_full: string }>
-    const held = new Set(current.map((r) => String(r.h_full)))
+      .q("SELECT anchor FROM album_entries WHERE album_id = ? ORDER BY position ASC, added_at ASC")
+      .all(albumId) as Array<{ anchor: string }>
+    const held = new Set(current.map((r) => String(r.anchor)))
     const seen = new Set<string>()
     const seq: string[] = []
     for (const a of order) {
@@ -1728,9 +1849,9 @@ export function reorderAlbum(db: UsersDb, albumId: number, order: readonly strin
       seen.add(a)
       seq.push(a)
     }
-    for (const r of current) if (!seen.has(String(r.h_full))) seq.push(String(r.h_full))
+    for (const r of current) if (!seen.has(String(r.anchor))) seq.push(String(r.anchor))
 
-    const stmt = db.q("UPDATE album_baits SET position = ? WHERE album_id = ? AND h_full = ?")
+    const stmt = db.q("UPDATE album_entries SET position = ? WHERE album_id = ? AND anchor = ?")
     for (let i = 0; i < seq.length; i++) stmt.run(-(i + 1), albumId, seq[i]!)
     for (let i = 0; i < seq.length; i++) stmt.run(i, albumId, seq[i]!)
     db.q("UPDATE albums SET updated_at = ? WHERE id = ?").run(now, albumId)
