@@ -89,8 +89,9 @@ was assembled rather than written. See the invariant below.
   `/anthologies/:slug` (المختارات المنظومة — the curated shelves, resolved
   against the corpus at RUNTIME; see the invariant below) · **albums**
   `/albums` (POST create), `/albums/mine`, `/albums/:code` (GET visibility-gated
-  · PATCH · DELETE), `/albums/:code/baits` (POST, by ANCHOR), 
-  `/albums/:code/baits/:anchor` (DELETE), `/albums/:code/save` (POST · DELETE —
+  · PATCH · DELETE), `/albums/:code/entries` (POST — a قصيدة by PUBLIC ID or a
+  بيت by ANCHOR; the server anchors both by content), 
+  `/albums/:code/entries/:anchor` (DELETE), `/albums/:code/save` (POST · DELETE —
   «أضِف إلى مكتبتك», the ONE thing a reader may do to somebody else's shelf),
   `/albums/:code/pool` (GET — the shelf as a مساجلة can play it: count ·
   resolved · **playable** · the bait ids, see the invariant) —
@@ -481,12 +482,39 @@ was assembled rather than written. See the invariant below.
   ديوان. And a curated attribution the corpus contradicts is DROPPED, not
   bent: «إذا بلغ الفطام لنا صبي» is عمرو بن كلثوم's and the artefact files it
   under عنترة, so it is simply not on the shelf.
+- **A ديوان is a PLAYLIST: a قصيدة is ONE entry.** `album_entries` (migration
+  11, replacing `album_baits` — every old row carried over as a `bait` entry in
+  place) holds two KINDS on one ordered list: `poem`, a whole قصيدة, and
+  `bait`, the single line that stood out. The first shape stored only أبيات,
+  so «أضِف القصيدة» exploded a forty-بيت قصيدة into forty rows and two قصائد
+  added back to back read as one unbroken run of verse; a reader thinks of a
+  ديوان as a folder of poems he can hand to somebody, and the page now draws it
+  that way — a قصيدة is a CARD (`.diwan-poem*`: عنوان or مطلع, the مطلع under
+  it, شاعر · بحر · length, the whole card a link) and a بيت is a `BaytPlate` row
+  with its full rail. The two CHECKs in the DDL make the row shapes exclusive
+  (`poem_key` and the title/count snapshot columns exist iff `kind='poem'`).
+  Everything a قصيدة entry touches follows from «one entry, opened at play
+  time»: `/api/albums/:code/entries` takes a قصيدة by PUBLIC ID (true today,
+  the one thing the poem page honestly knows) and the SERVER derives its
+  anchor; `albumPool` opens each قصيدة into its أبيات in shelf order (one point
+  lookup on `poems.dedup_key`, one range read on `baits_poem_pos`, capped at
+  5,000 أبيات a shelf so a hostile reader's fifty دواوين cannot grow the memo
+  into gigabytes); «أضِفه إلى التحفيظ» FETCHES the قصائد on the press
+  (`gatherAlbumBaits`, client/albums/memorize.ts — the fetcher is injected, so
+  the gathering is tested against a table), capped at `ALBUM_LIMITS.memorize`
+  cards a sitting and saying what it left; and the share text, the cards and
+  the head all count through `formatAlbumContents(poems, baits)` («7 قصائد
+  و12 بيتًا») because «19 مدخلًا» would be honest and meaningless. The «⋯»
+  sheet («أعِد القصيدة كاملة» / «أزِل القصيدة كلها») and `regroup.ts` are GONE:
+  both existed only because a قصيدة was forty rows, and a قصيدة that is one
+  row is removed with the same ✕ a بيت is.
 - **A ديوان a READER compiles is anchored by CONTENT too, and the code is its
-  only credential.** `albums` / `album_baits` land at `PRAGMA user_version` 8
-  (`saved_albums` at 9, `rooms.album_id` at 10)
+  only credential.** `albums` lands at `PRAGMA user_version` 8 (`saved_albums`
+  at 9, `rooms.album_id` at 10, `album_entries` at 11)
   and `server/routes/albums.ts` is the only thing that reads them. Four things
   are load-bearing and each of them was a choice against an easier one.
-  (1) **The anchor is `baits.h_full`, never an id.** `public_id` is `q<row id>`
+  (1) **The anchor is CONTENT, never an id — `baits.h_full` for a بيت and
+  `poems.dedup_key` for a قصيدة.** `public_id` is `q<row id>`
   for 73 % of قصائد and every id in the artefact moves on `npm run ingest` (the
   d1a38337 rebuild moved 442 قصائد), so a shelf of ids would quietly re-point at
   other people's poetry — the worst failure available to a collection whose only
@@ -495,15 +523,25 @@ was assembled rather than written. See the invariant below.
   hash, spelled once), carried as a DECIMAL STRING because JSON has no 64-bit
   integer, and `baits_hfull` makes re-finding a بيت a point lookup. It is null
   for a بيت with no عجز — `transform.ts` writes no `h_full` for those either —
-  so «أضِف إلى ديوان» simply does not offer itself on one.
+  so «أضِف إلى ديوان» simply does not offer itself on one. A قصيدة's anchor is
+  its `dedup_key` — `nameKey|مطلع`, the ingest's own decision about which rows
+  are one قصيدة, UNIQUE on `poems` after pass 0 and stable where every id is
+  not — stored whole in `poem_key` for the lookup and HASHED for the wire
+  (`poemAnchor`, `p` + the decimal fnv1a64): a dedup key is Arabic text up to
+  1,763 characters long in the corpus, and an identity that must fit in a URL
+  path segment cannot be that. `PoemAnchorSchema` / `BaitAnchorSchema` are
+  distinguishable by the prefix, which is what lets one `order` list and one
+  DELETE path carry both kinds.
   (2) **The snapshot is the floor, and the SERVER writes it.** `{sadr, ajuz,
-  poet}` is taken at the moment of adding, so an entry the artefact can no
-  longer answer still renders as a بيت, marked «ليس في الديوان اليوم» rather
-  than silently gone — المختارات المنظومة's rule («an entry the corpus cannot
-  answer is still an ITEM») applied to a reader's own shelf. The client sends
-  HASHES and nothing else: a client-supplied «poet» would be a client-supplied
-  attribution on a page carrying somebody's name, so an anchor the artefact
-  refuses is a 404, never a stored row.
+  poet}` for a بيت — and `{title, sadr, ajuz, poet, baitCount}` for a قصيدة,
+  its مطلع standing in for the whole — is taken at the moment of adding, so an
+  entry the artefact can no longer answer still renders as what it was, marked
+  «ليس في الديوان اليوم» rather than silently gone — المختارات المنظومة's rule
+  («an entry the corpus cannot answer is still an ITEM») applied to a reader's
+  own shelf. The client sends a hash or a public id and nothing else: a
+  client-supplied «poet» would be a client-supplied attribution on a page
+  carrying somebody's name, so an item the artefact refuses is a 404, never a
+  stored row.
   (3) **The CODE is the capability, so it is ten letters and not six.** A room
   code is six because it is spoken in the minute before a مساجلة and
   `rooms.join_key` is the credential behind it; a ديوان has no knock and no
@@ -574,11 +612,17 @@ was assembled rather than written. See the invariant below.
   machine says, and it decides nothing about the player's own answers, which
   are still verified against the whole corpus. `[]` means «no ديوان»; an empty
   pool that was ASKED for is `impossible`, never a silent widening.
-  (c) **THREE numbers, and the door says the third.** `count` (on the shelf),
-  `resolved` (today's artefact can still find it) and `playable` (`game_baits`
-  will serve it). 39.8 % of قصائد carry no بحر, so a thirty-بيت ديوان is often
-  a twelve-بيت مساجلة; the floor is `ALBUM_LIMITS.playableFloor` = 10 playable
-  أبيات, said in words on a shut door rather than enforced in silence.
+  (c) **FOUR numbers, and the door says the last two.** `count` (entries on
+  the shelf), `resolved` (today's artefact can still find them), `baits` (the
+  أبيات those entries amount to once every قصيدة is opened) and `playable`
+  (`game_baits` will serve them). 39.8 % of قصائد carry no بحر, so a thirty-بيت
+  ديوان is often a twelve-بيت مساجلة; the floor is `ALBUM_LIMITS.playableFloor`
+  = 10 playable أبيات, said in words on a shut door rather than enforced in
+  silence. And `baitIds` on the WIRE is cut at `ALBUM_LIMITS.pool` (1,000) in
+  shelf order while `playable` is not: the solo duel carries the pool on every
+  request and a playlist of long قصائد does not fit, so when the two differ the
+  door says which part of itself the opponent recites from. The ROOM reads the
+  shelf server-side and is not bound by that cap.
   (d) **The room's refusal is SOFT.** «ليس من هذا الديوان» is a real بيت on the
   required letter that is not on the shelf — `wrong_letter`'s shape, not
   `not_found`'s — so it costs no strike, writes no `match_turns` row and leaves
@@ -638,9 +682,12 @@ was assembled rather than written. See the invariant below.
 - **`data/qarid-users.db` (`USERS_DB_PATH`) is the ONE writable database** —
   accounts, sessions, the opt-in ترسانة snapshot, v2 §5's `rooms` /
   `match_turns`, at migration 8 `albums` / `album_baits`, at 9
-  `saved_albums` (+ `user_reports.target_album_id`) and at 10 `rooms.album_id`
+  `saved_albums` (+ `user_reports.target_album_id`), at 10 `rooms.album_id`
   (ON DELETE SET NULL — deleting a ديوان must not delete the مساجلات played in
-  it), all created by
+  it) and at 11 `album_entries` (a ديوان as a playlist — `poem` and `bait`
+  entries on one list; `album_baits` dropped with its rows carried over, and
+  `migrate(raw, upTo)` exists so a test can seed the old table and run the
+  step), all created by
   `server/users.ts`'s `PRAGMA user_version` migrations (WAL,
   `foreign_keys = ON`). It fails the same tolerant way the
   corpus does: `openUsersDbIfWritable` returns null on a read-only `data/` and
@@ -762,36 +809,26 @@ was assembled rather than written. See the invariant below.
   captions are derived by `histogramLabel()` from `min`/`max`, NOT read from
   `meta.stats_json`, because the artefact still holds «٢–٣» from before the
   decision and re-deriving them costs no re-ingest.
-- **A ديوان is compiled a قصيدة at a time, so it is PRUNED one at a time —
-  and قصيدة-level acts get WORDS, not glyphs.** «⋯» on an owner's row opens a
-  sheet carrying «أعِد القصيدة كاملة» and «أزِل القصيدة كلها من الديوان», with
-  the count on it («7 أبيات منها في ديوانك») because a reader is owed that
-  number before he presses, not in the toast after. They are not two more icons
-  on the rail: the rail already carries ↑ ↓ ✕, and on a phone there is no hover,
-  so an unlabelled square is a control nobody can read — which is exactly how
-  ✕ and «احذفه» were reported, as MISSING rather than as unclear. Hence also
-  the standing (not hover) danger tint on `.diwan-move--drop` and
-  `.diwan-head__danger` under `(hover: none)`. `poemAnchors` is the one place a
-  قصيدة's rows are identified, by `bait.poem.id`, and a dead entry
-  (`bait === null`) belongs to no nameable قصيدة and is never swept up by an act
-  aimed at one.
+- **Anything that spawns `server/index.ts` MUST pass `USERS_DB_PATH`.** The
+  server opens that path and MIGRATES it, and its default is the LIVE
+  `data/qarid-users.db` — so a test or a tool that boots the real server
+  without it runs the working tree's migrations on the production database
+  while the deployed build is still serving it. Measured on 2026-09-12: the
+  «booting with no corpus» test in `server/routes/facets.test.ts` pushed the
+  live file to `user_version` 11 (dropping `album_baits`) under the v10
+  server, and every `/api/albums/*` on the site answered a SQL error until the
+  new build was deployed. `tools/screenshot.mjs` uses `data/smoke-users.db`
+  and that test now uses a per-PID scratch file; a new spawn copies one of
+  them. `migrate()` refuses to run BACKWARDS by design, so there is no undo —
+  only a snapshot taken beforehand (`VACUUM INTO`).
 - **The smoke walk is SIGNED OUT, so no owner-only surface is ever shot.** The
-  ديوان's whole editing rail — reorder, remove, the قصيدة sheet, «احذفه» —
-  exists only for `isOwner` and has never appeared in `screenshots/`. Read
-  those with an account before believing a ديوان change is verified; the
-  clarity defects above sat there through two releases because every screenshot
-  of that page was a visitor's.
-- **A restored قصيدة is RE-SEATED, not appended.** «أعِد القصيدة كاملة» (the
-  ⟲ on an owner's ديوان row) re-adds every بيت of that بيت's قصيدة — the corpus
-  is read-only, so a removal never touched the قصيدة itself, only this shelf's
-  copy of it. But `POST /:code/baits` appends, which would leave the قصيدة in
-  pieces: two survivors at rows 3 and 4 and nine restored ones at the end of a
-  shelf holding twenty other قصائد. `regroupPoem` (client/albums/regroup.ts,
-  pure and tested) gathers the block in the قصيدة's OWN order and re-seats it
-  where the قصيدة's earliest بيت already sat; every other row keeps its
-  arrangement, because the shelf's order is the one thing in a ديوان the reader
-  made by hand. The add endpoint's dedupe does the rest — أبيات still held come
-  back as `duplicates`, and only the missing ones are written.
+  ديوان's whole editing rail — reorder, remove, «احذفه» — exists only for
+  `isOwner` and has never appeared in `screenshots/`. Read those with an
+  account before believing a ديوان change is verified; the clarity defects the
+  first shape had (an unlabelled ✕ reported as MISSING rather than as unclear)
+  sat there through two releases because every screenshot of that page was a
+  visitor's. The standing (not hover) danger tint on `.diwan-move--drop` and
+  `.diwan-head__danger` under `(hover: none)` is what that walk taught.
 - **The نِيب is drawn in FIVE places and generated into a sixth — change it in
   all of them.** The motif carried a "slit": `M6 21 12.2 14.8`, an ink stroke at
   55% meant to be the slot down a pen nib's spine. But the nib body is a curved

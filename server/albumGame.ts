@@ -12,16 +12,17 @@
  *   • `playTurn` (server/rooms.ts) — which asks, on every accepted بيت, whether
  *     the بيت the verifier MATCHED is on the shelf.
  *
- * ── TWO NUMBERS THAT ARE NOT THE SAME NUMBER ─────────────────────────────────
+ * ── FOUR NUMBERS THAT ARE NOT THE SAME NUMBER ────────────────────────────────
  *
- * A shelf holds `count` أبيات. `resolved` is how many of them today's artefact
- * can still find (a rebuild may have dropped a قصيدة; the shelf still prints
- * those from its snapshot — CLAUDE.md's anchor invariant). `playable` is how
- * many of THOSE `game_baits` will serve, and it is the only one a duel can
- * honour: 39.8 % of قصائد carry no بحر and the pool admits only `kind='bahr'`,
- * so a thirty-بيت ديوان is often a twelve-بيت مساجلة. Every door says the
- * playable number, because a door that promised thirty and played twelve would
- * be the interface knowing and not saying.
+ * A shelf holds `count` ENTRIES — قصائد whole, and single أبيات. `resolved` is
+ * how many of them today's artefact can still find (a rebuild may have dropped
+ * a قصيدة; the shelf still prints those from its snapshot — CLAUDE.md's anchor
+ * invariant). `baits` is the أبيات those entries amount to once every قصيدة is
+ * opened. `playable` is how many of THOSE `game_baits` will serve, and it is
+ * the only one a duel can honour: 39.8 % of قصائد carry no بحر and the pool
+ * admits only `kind='bahr'`, so a thirty-بيت ديوان is often a twelve-بيت
+ * مساجلة. Every door says the playable number, because a door that promised
+ * thirty and played twelve would be the interface knowing and not saying.
  *
  * ── THE MEMBERSHIP TEST IS THE ANCHOR, NEVER AN ID ───────────────────────────
  *
@@ -42,7 +43,7 @@
 
 import { AlbumCodeSchema } from "../shared/schema.ts"
 import type { Db } from "./db.ts"
-import { albumBaits, findAlbumByCode, type AlbumRow, type UsersDb } from "./users.ts"
+import { albumEntries, findAlbumByCode, type AlbumRow, type UsersDb } from "./users.ts"
 
 /**
  * THE READ GATE, spelled once — «yours, or a code that opens a shelf its owner
@@ -65,87 +66,169 @@ export function readableAlbum(users: UsersDb, code: string, viewerId: number | n
 }
 
 export type AlbumPool = {
-  /** أبيات on the shelf */
+  /** entries on the shelf */
   count: number
   /** those today's artefact still holds */
   resolved: number
-  /** those a مساجلة can serve — one id each, best copy first */
+  /** the أبيات those entries amount to — every بيت of every resolved قصيدة, plus the single ones */
+  baits: number
+  /** those a مساجلة can serve — one id each, in shelf order, best copy of each بيت */
   baitIds: number[]
-  /** every anchor on the shelf, for the room's membership test */
+  /** every anchor of every بيت on the shelf, for the room's membership test */
   anchors: Set<string>
 }
 
-/** How many أبيات the pool query will look at — the shelf's own cap. */
-const MAX_ANCHORS = 300
+/**
+ * How many أبيات one shelf may resolve to before the pool stops reading.
+ *
+ * A قصيدة entry brings every one of its أبيات (the longest in the corpus has
+ * 951), and two hundred entries of those would be a memo of 190,000 strings per
+ * shelf — a working set a hostile reader could grow into gigabytes across his
+ * fifty دواوين. Five thousand covers any shelf a reader compiles by hand (the
+ * mean قصيدة is fourteen أبيات) and bounds the rest; a shelf past it plays its
+ * first five thousand, in its own order.
+ */
+const POOL_BAITS_CAP = 5000
 
 /**
  * Resolve a shelf into its playable pool, memoised per `(album, updated_at)`.
  *
  * The key is the album's `updated_at`, which every write helper in
- * `server/users.ts` stamps — so an added or removed بيت invalidates this by
+ * `server/users.ts` stamps — so an added or removed entry invalidates this by
  * construction, exactly as `resolveAlbum`'s memo does, rather than by anyone
  * remembering to clear a cache. The map is bounded and dropped whole: this is a
  * per-user working set, not a warm cache like `facets.ts`'s.
+ *
+ * The walk is in SHELF order, because `baitIds` is truncated for the wire at
+ * `ALBUM_LIMITS.pool` and «the first thousand» has to mean the first thousand
+ * the curator arranged. A قصيدة entry is one point lookup on `poems.dedup_key`
+ * and one range read on `baits_poem_pos`; the single أبيات are gathered and
+ * answered by ONE `IN` query over `baits_hfull`, as before.
  */
 const MEMO = new Map<string, AlbumPool>()
 const MEMO_CAP = 128
+
+type PoolRow = { h: string; bid: number; playable: boolean }
 
 export function albumPool(db: Db, users: UsersDb, album: AlbumRow): AlbumPool {
   const key = `${album.id}:${album.updatedAt}`
   const hit = MEMO.get(key)
   if (hit) return hit
 
-  const rows = albumBaits(users, album.id).slice(0, MAX_ANCHORS)
-  const anchors = new Set<string>()
+  const entries = albumEntries(users, album.id)
+  const pool: AlbumPool = { count: entries.length, resolved: 0, baits: 0, baitIds: [], anchors: new Set() }
+
+  // Every بيت the shelf amounts to, in shelf order, each entry's rows in a run.
+  // Read once for the single أبيات (one IN query), then interleaved in order.
+  const single = singleBaitRows(
+    db,
+    entries.filter((e) => e.kind === "bait").map((e) => e.anchor),
+  )
+
+  const seen = new Set<string>()
+  const take = (rows: readonly PoolRow[]): void => {
+    for (const row of rows) {
+      if (pool.baits >= POOL_BAITS_CAP) return
+      pool.baits += 1
+      pool.anchors.add(row.h)
+      if (!row.playable || seen.has(row.h)) continue
+      seen.add(row.h)
+      pool.baitIds.push(row.bid)
+    }
+  }
+
+  for (const entry of entries) {
+    if (entry.kind === "poem") {
+      const rows = poemBaitRows(db, entry.poemKey!)
+      if (rows === null) continue
+      pool.resolved += 1
+      take(rows)
+    } else {
+      const rows = single.get(entry.anchor)
+      if (rows === undefined) continue
+      pool.resolved += 1
+      take(rows)
+    }
+  }
+
+  if (MEMO.size >= MEMO_CAP) MEMO.clear()
+  MEMO.set(key, pool)
+  return pool
+}
+
+/**
+ * The أبيات of one قصيدة entry, in the قصيدة's order — or null when today's
+ * artefact has no row under that dedup key.
+ *
+ * The playable copy is the بيت's OWN row: a قصيدة on a shelf is one specific
+ * copy (the dedup winner), and `game_baits` is keyed on its ids, so there is
+ * nothing to rank here — unlike a single بيت, whose best copy across the corpus
+ * `singleBaitRows` picks by fame.
+ */
+function poemBaitRows(db: Db, dedupKey: string): PoolRow[] | null {
+  const poem = db.q("SELECT id FROM poems WHERE dedup_key = ?").get(dedupKey) as { id: number } | undefined
+  if (!poem) return null
+  const rows = db
+    .q(
+      `SELECT CAST(b.h_full AS TEXT) AS h, b.id AS bid, gb.bait_id AS playable
+       FROM baits b LEFT JOIN game_baits gb ON gb.bait_id = b.id
+       WHERE b.poem_id = ? AND b.h_full IS NOT NULL
+       ORDER BY b.position ASC`,
+    )
+    .all(Number(poem.id)) as Array<Record<string, unknown>>
+  return rows.map((r) => ({
+    h: String(r.h),
+    bid: Number(r.bid),
+    playable: r.playable !== null && r.playable !== undefined,
+  }))
+}
+
+/**
+ * The single أبيات, anchor → the best copy in the corpus — ONE query for the
+ * whole shelf. `baits_hfull` makes each anchor a point lookup, and the join out
+ * is at most 200 × (copies of one بيت) rows, which is why the fame ordering can
+ * be done in SQL and read greedily here: the first row per anchor is the copy
+ * `resolveAlbum` shows too.
+ */
+function singleBaitRows(db: Db, anchors: readonly string[]): Map<string, PoolRow[]> {
+  const out = new Map<string, PoolRow[]>()
   const keys: bigint[] = []
-  for (const row of rows) {
-    if (anchors.has(row.hFull)) continue
-    anchors.add(row.hFull)
+  for (const a of new Set(anchors)) {
     try {
-      keys.push(BigInt(row.hFull))
+      keys.push(BigInt(a))
     } catch {
       // An anchor the users db holds that is not a decimal integer cannot name
       // a بيت; it is still ON the shelf (the snapshot renders), simply not
       // playable. `BaitAnchorSchema` makes this unreachable through the API.
     }
   }
-
-  const pool: AlbumPool = { count: album.count, resolved: 0, baitIds: [], anchors }
-  if (keys.length > 0) {
-    // ONE query for the whole shelf: `baits_hfull` makes each anchor a point
-    // lookup, and the join out is at most 300 × (copies of one بيت) rows, which
-    // is why the fame ordering can be done in SQL and read greedily here.
-    const seen = new Set<string>()
-    const resolvedAnchors = new Set<string>()
-    const found = db
-      .q(
-        // `CAST(h_full AS TEXT)` and not the column: it is a signed 64-bit
-        // integer, and the anchor a shelf stores is its DECIMAL STRING
-        // (`baitAnchor`, shared/arabic.ts). Reading it back as a JS number
-        // would round it, and the row would then belong to no anchor at all.
-        `SELECT CAST(b.h_full AS TEXT) AS h, b.id AS bid, gb.bait_id AS playable
-         FROM baits b
-         JOIN poems p ON p.id = b.poem_id
-         JOIN poets po ON po.id = p.poet_id
-         LEFT JOIN game_baits gb ON gb.bait_id = b.id
-         WHERE b.h_full IN (${keys.map(() => "?").join(",")})
-         ORDER BY po.fame DESC, b.position ASC, b.id ASC`,
-      )
-      .all(...keys) as Array<Record<string, unknown>>
-    for (const row of found) {
-      const h = String(row.h)
-      resolvedAnchors.add(h)
-      if (row.playable === null || row.playable === undefined) continue
-      if (seen.has(h)) continue
-      seen.add(h)
-      pool.baitIds.push(Number(row.bid))
-    }
-    pool.resolved = resolvedAnchors.size
+  if (keys.length === 0) return out
+  const found = db
+    .q(
+      // `CAST(h_full AS TEXT)` and not the column: it is a signed 64-bit
+      // integer, and the anchor a shelf stores is its DECIMAL STRING
+      // (`baitAnchor`, shared/arabic.ts). Reading it back as a JS number
+      // would round it, and the row would then belong to no anchor at all.
+      `SELECT CAST(b.h_full AS TEXT) AS h, b.id AS bid, gb.bait_id AS playable
+       FROM baits b
+       JOIN poems p ON p.id = b.poem_id
+       JOIN poets po ON po.id = p.poet_id
+       LEFT JOIN game_baits gb ON gb.bait_id = b.id
+       WHERE b.h_full IN (${keys.map(() => "?").join(",")})
+       ORDER BY po.fame DESC, b.position ASC, b.id ASC`,
+    )
+    .all(...keys) as Array<Record<string, unknown>>
+  for (const r of found) {
+    const h = String(r.h)
+    const playable = r.playable !== null && r.playable !== undefined
+    const rows = out.get(h)
+    // One row per anchor: the first PLAYABLE copy in fame order if there is
+    // one, else the first copy at all — so an unplayable بيت still counts as a
+    // بيت the shelf holds and an anchor the room accepts.
+    if (rows === undefined) out.set(h, [{ h, bid: Number(r.bid), playable }])
+    else if (!rows[0]!.playable && playable) rows[0] = { h, bid: Number(r.bid), playable }
   }
-
-  if (MEMO.size >= MEMO_CAP) MEMO.clear()
-  MEMO.set(key, pool)
-  return pool
+  return out
 }
 
 /** Test seam — the memo is keyed on `updated_at`, so this is only for fixtures. */

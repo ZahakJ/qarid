@@ -15,7 +15,7 @@
  */
 import {
   AccountDeleteResponseSchema,
-  AlbumAddBaitsResponseSchema,
+  AlbumAddEntriesResponseSchema,
   AlbumDeleteResponseSchema,
   AlbumMutationResponseSchema,
   AlbumPoolResponseSchema,
@@ -79,7 +79,8 @@ import {
   type BaitsResponse,
   type DailyResponse,
   type FacetsResponse,
-  type AlbumAddBaitsResponse,
+  type AlbumAddEntriesResponse,
+  type AlbumAddItem,
   type AlbumCreateInput,
   type AlbumDeleteResponse,
   type AlbumMutationResponse,
@@ -585,19 +586,21 @@ export function deleteAlbum(code: string, o?: Opts): Promise<AlbumDeleteResponse
   })
 }
 
-/** Add أبيات by anchor. The response says how many actually landed. */
-export function addAlbumBaits(code: string, anchors: readonly string[], o?: Opts): Promise<AlbumAddBaitsResponse> {
-  return post(
-    `/api/albums/${encodeURIComponent(code)}/baits`,
-    AlbumAddBaitsResponseSchema,
-    { items: anchors.map((hFull) => ({ hFull })) },
-    init(o),
-  )
+/**
+ * Add entries — a قصيدة by its public id, a بيت by its anchor. The response
+ * says how many actually landed.
+ */
+export function addAlbumEntries(
+  code: string,
+  items: readonly AlbumAddItem[],
+  o?: Opts,
+): Promise<AlbumAddEntriesResponse> {
+  return post(`/api/albums/${encodeURIComponent(code)}/entries`, AlbumAddEntriesResponseSchema, { items }, init(o))
 }
 
-export function removeAlbumBait(code: string, anchor: string, o?: Opts): Promise<AlbumMutationResponse> {
+export function removeAlbumEntry(code: string, anchor: string, o?: Opts): Promise<AlbumMutationResponse> {
   return request(
-    `/api/albums/${encodeURIComponent(code)}/baits/${encodeURIComponent(anchor)}`,
+    `/api/albums/${encodeURIComponent(code)}/entries/${encodeURIComponent(anchor)}`,
     AlbumMutationResponseSchema,
     { ...init(o), method: "DELETE" },
   )

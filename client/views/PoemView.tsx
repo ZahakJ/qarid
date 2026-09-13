@@ -308,16 +308,15 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
 
   /** بطاقة البيت — opens the card dialog: preview, shape, then save or share. */
   /**
-   * «أضِف القصيدة إلى ديوان» — the bulk gesture, on what is on the page.
+   * «أضِف القصيدة إلى ديوان» — the قصيدة as ONE entry on a shelf.
    *
-   * `baits` is what has been fetched (200 up front, more as the reader
-   * approaches the end), and that is deliberately what goes: the alternative is
-   * a second request for أبيات nobody has read, to fill a shelf past the cap
-   * the server holds anyway. The picker prints the resulting count.
+   * It sends the id and nothing else: the ديوان is a playlist, the قصيدة is
+   * its unit, and how many أبيات it has (loaded or not) is the server's to
+   * count and the shelf's card to say.
    */
   const addPoemToAlbum = useCallback(() => {
-    openAlbumPickerForPoem(baits, "هذه القصيدة")
-  }, [baits])
+    if (poem) openAlbumPickerForPoem(poem)
+  }, [poem])
 
   const runCard = useCallback(
     (b: BaitDto) => {
@@ -604,11 +603,8 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
           <button type="button" className="btn" onClick={sharePoem}>
             شارِك القصيدة
           </button>
-          {/* The bulk half of the collection gesture. It carries what is
-              LOADED, minus the أبيات the scrape left without a عجز and capped
-              at one request — and the picker's own note then says how many
-              that came to, because «أضِف القصيدة» over a 400-بيت ديوان that
-              silently added 120 would be the app deciding for the reader. */}
+          {/* The whole-قصيدة half of the collection gesture: one entry on the
+              shelf, however long the قصيدة is. */}
           <button type="button" className="btn" onClick={addPoemToAlbum}>
             أضِف القصيدة إلى ديوان
           </button>

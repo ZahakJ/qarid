@@ -13,21 +13,23 @@
  * visibility control here on purpose — the reader is in the middle of reading a
  * قصيدة, and «who may see this» is a decision for the shelf's own page.
  *
- * THE ANCHOR is what travels. `openAlbumPicker` takes the بيت's text and
- * computes `baitAnchor` itself, so no caller has to know that a ديوان is keyed
- * on content — and a بيت with no عجز (24,378 قصائد end on one) simply produces
- * no anchor and no action, rather than a button that fails on press.
+ * THE ANCHOR is what travels for a بيت. `openAlbumPicker` takes the بيت's text
+ * and computes `baitAnchor` itself, so no caller has to know that a ديوان is
+ * keyed on content — and a بيت with no عجز (24,378 قصائد end on one) simply
+ * produces no anchor and no action, rather than a button that fails on press.
+ * A قصيدة travels as its public id — the one thing the poem page honestly
+ * knows — and the SERVER derives its durable anchor from the dedup key.
  */
 import { useState } from "react"
 
 import { baitAnchor } from "../../shared/arabic.ts"
-import { BAYT_FORMS, countedNounAccusative, formatBaits } from "../../shared/format.ts"
-import { ALBUM_LIMITS, type AlbumSummary } from "../../shared/schema.ts"
+import { formatAlbumContents } from "../../shared/format.ts"
+import { ALBUM_LIMITS, type AlbumSummary, type PoemSummary } from "../../shared/schema.ts"
 import { useAlbums, type AlbumPick } from "../store/albumsStore.ts"
 import { AlbumModal } from "./Modal.tsx"
 import { VISIBILITY } from "./visibility.ts"
 
-/** What a caller hands `openAlbumPicker` — one بيت, or a whole قصيدة's worth. */
+/** What a caller hands `openAlbumPicker` — one بيت. */
 export type PickableBait = { sadr: string; ajuz: string | null | undefined }
 
 /**
@@ -38,27 +40,16 @@ export type PickableBait = { sadr: string; ajuz: string | null | undefined }
 export function openAlbumPicker(bait: PickableBait, label = "هذا البيت"): void {
   const anchor = baitAnchor(bait.sadr, bait.ajuz)
   if (!anchor) return
-  useAlbums.getState().open({ anchors: [anchor], label })
+  useAlbums.getState().open({ items: [{ kind: "bait", hFull: anchor }], label })
 }
 
 /**
- * Open it on a whole قصيدة. The أبيات with no عجز are dropped here rather than
- * refused by the server, and the count the sheet prints is of what will
- * actually be added — «أضِف 41 بيتًا» over a 42-بيت قصيدة whose last line the
- * scrape cut in half is the honest number.
+ * Open it on a whole قصيدة — ONE entry, the playlist's unit. The picker sends
+ * the id; the server anchors the قصيدة by content and takes its own snapshot,
+ * so the caller hands over nothing it would have to be trusted about.
  */
-export function openAlbumPickerForPoem(baits: readonly PickableBait[], label: string): void {
-  const anchors: string[] = []
-  const seen = new Set<string>()
-  for (const b of baits) {
-    const anchor = baitAnchor(b.sadr, b.ajuz)
-    if (!anchor || seen.has(anchor)) continue
-    seen.add(anchor)
-    anchors.push(anchor)
-    if (anchors.length >= ALBUM_LIMITS.bulk) break
-  }
-  if (anchors.length === 0) return
-  useAlbums.getState().open({ anchors, label })
+export function openAlbumPickerForPoem(poem: Pick<PoemSummary, "id">, label = "هذه القصيدة"): void {
+  useAlbums.getState().open({ items: [{ kind: "poem", id: poem.id }], label })
 }
 
 /**
@@ -102,18 +93,15 @@ function AlbumPicker({ pick }: { pick: AlbumPick }) {
   }
 
   /**
-   * The bulk note keeps its VERB in front of a fixed subject.
-   *
-   * «تُضاف {n}» put the verb ahead of the معدود, whose gender then moves under
-   * it — «تُضاف بيتان» wants يُضاف, «تُضاف 12 بيتًا» wants يُضاف, and only 3–10
-   * came out right. «يأخذ الديوان…» agrees with الديوان and never with the
-   * number, and the معدود that follows is مفعول به, so it goes through
-   * `countedNounAccusative` («بيتين», not «بيتان»).
+   * The note says what KIND of thing is being added, because the two are
+   * different objects on the shelf: a قصيدة goes in whole, as one entry that
+   * opens on its first بيت, and the reader is owed that sentence before he
+   * presses — «forty rows appeared» is exactly the surprise this shape exists
+   * to remove.
    */
-  const note =
-    pick.anchors.length === 1
-      ? "الديوان مجموعتك أنت — تُسمّيها، وترتّبها، وتختار من يراها."
-      : `يأخذ الديوان الذي تختاره ${countedNounAccusative(pick.anchors.length, BAYT_FORMS)}.`
+  const note = pick.items.some((i) => i.kind === "poem")
+    ? "تدخل القصيدة الديوان كاملةً، مدخلًا واحدًا يُفتح من مطلعها — لا أبياتًا مفرّقة."
+    : "الديوان مجموعتك أنت — تُسمّيها، وترتّبها، وتختار من يراها."
 
   return (
     <AlbumModal title={TITLE} note={note} onClose={close} className="dwmodal--pick">
@@ -133,7 +121,7 @@ function AlbumPicker({ pick }: { pick: AlbumPick }) {
                     <bdi>{a.title}</bdi>
                   </span>
                   <span className="dwpick__meta">
-                    <span className="dwpick__n">{formatBaits(a.count)}</span>
+                    <span className="dwpick__n">{formatAlbumContents(a.poems, a.baits)}</span>
                     <VisibilityBadge album={a} />
                   </span>
                 </button>

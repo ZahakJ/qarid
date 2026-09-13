@@ -11,10 +11,16 @@
  * sets them, here as everywhere.
  *
  * The motif is the shelf: a card is a spine standing next to its neighbours,
- * and the page itself is one — an ordinal in the margin, the بيت in the middle,
- * the curator's rail on the far edge, and a gold hairline dissolving between
- * each pair. The ordinal is `--font-mono` because it is a number
+ * and the page itself is one — an ordinal in the margin, the entry in the
+ * middle, the curator's rail on the far edge, and a gold hairline dissolving
+ * between each pair. The ordinal is `--font-mono` because it is a number
  * (CLAUDE.md: Amiri's arabic subset carries no Latin figures).
+ *
+ * An entry is a قصيدة or a بيت. The بيت is `BaytPlate`'s row, untouched; the
+ * قصيدة is this sheet's own card (`.diwan-poem*`), laid out on the SAME three
+ * columns the plate uses — `--bayt-num-col` for the ordinal, the text, the
+ * reserved rail gutter — so the two kinds sit on one axis down the page and
+ * the number margin reads as one column whichever kind a row is.
  */
 
 /* ── #/diwans — the index ─────────────────────────────────────────────── */
@@ -522,14 +528,6 @@
   background: rgba(var(--danger-rgb), 0.1);
 }
 
-/* «⋯» opens the قصيدة's own acts, so it answers in the accent rather than in
-   danger red — it is the one control on this rail that is not destructive. */
-.diwan-move--more:hover:not(:disabled) {
-  color: var(--accent);
-  border-color: var(--accent-line);
-  background: rgba(var(--accent-rgb), 0.1);
-}
-
 /* The 44px touch floor, and no hover to reveal the rail with. */
 @media (hover: none), (pointer: coarse) {
   .diwan-move {
@@ -537,18 +535,13 @@
     block-size: 2.75rem;
   }
 
-  /* Four identical outlined squares are four controls a reader cannot tell
+  /* Three identical outlined squares are three controls a reader cannot tell
      apart, and one of them deletes. The ✕ carries its danger tint standing,
-     and «⋯» its accent, so the rail reads as "move, move, REMOVE, more"
-     without a tooltip nobody on a phone can summon. */
+     so the rail reads as "move, move, REMOVE" without a tooltip nobody on a
+     phone can summon. */
   .diwan-move--drop {
     color: rgb(var(--danger-rgb));
     border-color: rgba(var(--danger-rgb), 0.3);
-  }
-
-  .diwan-move--more {
-    color: var(--accent);
-    border-color: var(--accent-line);
   }
 
   .diwan-row__rail {
@@ -574,6 +567,124 @@
     display: inline-flex;
     align-items: center;
     min-block-size: 2.75rem;
+  }
+}
+
+/* ── a قصيدة on the shelf ─────────────────────────────────────────────── */
+
+/* The card sits on `BaytPlate`'s three columns so its ordinal lines up with
+   the بيت rows' numbers and its text starts on the same edge as a صدر. It is
+   a LINK the whole way across — a playlist row is aimed at, not read — and
+   the hover is the poets grid's: the heading warms to gold, nothing moves. */
+.diwan-poem__body {
+  display: grid;
+  grid-template-columns: var(--bayt-num-col, 3.2rem) minmax(0, 1fr) var(--bayt-rail-col, 4.9rem);
+  align-items: baseline;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* `.bayt-num`'s own measures (bayt.css) — end-aligned in the column, the same
+   inline padding, tabular figures — so the ordinals of the two kinds sit on
+   one vertical line down the page and warm to the same gold on hover. */
+.diwan-poem__num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-1);
+  color: var(--text-3);
+  text-align: end;
+  padding-inline-end: var(--sp-3);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  transition: color var(--dur-2) var(--ease);
+}
+
+.diwan-poem:hover .diwan-poem__num,
+.diwan-poem:focus-within .diwan-poem__num {
+  color: var(--accent-soft);
+}
+
+.diwan-poem__text {
+  display: grid;
+  gap: var(--sp-1);
+  min-inline-size: 0;
+}
+
+/* The عنوان in the display face; a مطلع standing in for one in the verse
+   face, exactly as `.prow__title--matla` does it on the browse list. */
+.diwan-poem__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ui-5);
+  line-height: 1.6;
+  color: var(--text-1);
+  transition: color var(--dur-2) var(--ease);
+}
+
+.diwan-poem__title--matla {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-md);
+  line-height: 1.7;
+}
+
+.diwan-poem__body:hover .diwan-poem__title,
+.diwan-poem__body:focus-visible .diwan-poem__title {
+  color: var(--accent);
+}
+
+/* The مطلع under a real عنوان: verse face, one step smaller than a row's بيت,
+   the two hemistichs on one line with a breathing space between them, and the
+   line ELLIPSISED rather than wrapped — a card says the first line the way a
+   reader recites it, and a wrapped hemistich is not a hemistich. */
+.diwan-poem__matla {
+  font-family: var(--font-verse);
+  font-size: var(--fs-bayt-sm);
+  line-height: 1.8;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diwan-poem__sep {
+  display: inline-block;
+  inline-size: 2.5rem;
+}
+
+.diwan-poem__n {
+  font-family: var(--font-mono);
+  font-size: var(--fs-ui-0);
+  color: var(--text-3);
+}
+
+/* The plate's own narrow breakpoint: below it `.bayt-row` shrinks its number
+   column to 2.1rem, and the card follows so the ordinals stay on one line. */
+@media (max-width: 860px) {
+  .diwan-poem__body {
+    grid-template-columns: 2.1rem minmax(0, 1fr) var(--bayt-rail-col, 2.2rem);
+  }
+
+  .diwan-poem__num {
+    padding-inline-end: var(--sp-2);
+  }
+}
+
+/* A phone has no rail gutter at all (phone.css puts the plate's rail under
+   the بيت), and the مطلع may take a second line, since at 390 a nowrap مطلع
+   would show three words and an ellipsis. */
+@media (hover: none), (pointer: coarse) {
+  .diwan-poem__body {
+    grid-template-columns: 2.1rem minmax(0, 1fr);
+  }
+
+  .diwan-poem__matla {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .diwan-poem__sep {
+    inline-size: 1.25rem;
   }
 }
 

@@ -23,9 +23,11 @@ import {
   formatDayStreak,
   formatResults,
   formatWords,
+  formatAlbumContents,
   formatAlbums,
   formatBaits,
   formatMissingBaits,
+  formatMissingPoems,
   formatPlayableBaits,
   formatClock,
   formatCount,
@@ -148,6 +150,28 @@ describe("«مفقود من الديوان اليوم» — the أبيات a reb
     expect(formatMissingBaits(2)).toBe("بيتان مفقودان")
     expect(formatMissingBaits(4)).toBe("4 أبيات مفقودة")
     expect(formatMissingBaits(13)).toBe("13 بيتًا مفقودًا")
+  })
+})
+
+describe("what a ديوان holds — «7 قصائد و12 بيتًا»", () => {
+  it("counts each kind through its own forms, and joins them with a واو", () => {
+    expect(formatAlbumContents(7, 12)).toBe("7 قصائد و12 بيتًا")
+    expect(formatAlbumContents(1, 0)).toBe("قصيدة واحدة")
+    expect(formatAlbumContents(2, 0)).toBe("قصيدتان")
+    expect(formatAlbumContents(0, 2)).toBe("بيتان")
+    expect(formatAlbumContents(11, 1)).toBe("11 قصيدة وبيت واحد")
+  })
+
+  it("says an empty shelf in words", () => {
+    expect(formatAlbumContents(0, 0)).toBe("لا شيء بعد")
+    expect(formatAlbumContents(0, 0)).not.toMatch(/\d/)
+  })
+
+  it("agrees «مفقودة» with قصائد in all four shapes", () => {
+    expect(formatMissingPoems(1)).toBe("قصيدة واحدة مفقودة")
+    expect(formatMissingPoems(2)).toBe("قصيدتان مفقودتان")
+    expect(formatMissingPoems(5)).toBe("5 قصائد مفقودة")
+    expect(formatMissingPoems(12)).toBe("12 قصيدة مفقودة")
   })
 })
 

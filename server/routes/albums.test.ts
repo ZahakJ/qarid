@@ -2,25 +2,26 @@
  * الدواوين end to end — the real routes, the real writable database, the real
  * fixture artefact built by `scripts/ingest/build.ts`.
  *
- * Nothing here is mocked, and the أبيات are not hard-coded: every test reads a
- * بيت out of the fixture, computes its anchor with the SAME `baitAnchor` the
- * client would, and sends the hash — which is exactly the contract («the client
- * sends hashes, the server resolves and writes the snapshot»). A re-ingest that
- * renumbers `baits.id` therefore breaks none of it, which is the property the
- * whole feature exists to have.
+ * Nothing here is mocked, and the entries are not hard-coded: every test reads
+ * a بيت or a قصيدة out of the fixture, sends what the client would (the بيت's
+ * anchor, computed with the SAME `baitAnchor`; the قصيدة's public id), and
+ * reads back what the server anchored and snapshotted — which is exactly the
+ * contract. A re-ingest that renumbers `baits.id` and `poems.id` therefore
+ * breaks none of it, which is the property the whole feature exists to have.
  */
 
 import fs from "node:fs"
 import path from "node:path"
 import { randomBytes } from "node:crypto"
+import { DatabaseSync } from "node:sqlite"
 
 import type { Hono } from "hono"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
-import { baitAnchor } from "../../shared/arabic.ts"
+import { baitAnchor, poemAnchor } from "../../shared/arabic.ts"
 import {
   ALBUM_LIMITS,
-  AlbumAddBaitsResponseSchema,
+  AlbumAddEntriesResponseSchema,
   AlbumResponseSchema,
   AlbumsResponseSchema,
   AlbumMutationResponseSchema,
@@ -37,9 +38,12 @@ import {
   findUserByUsername,
   saveAlbum,
   hashToken,
+  listAlbums,
+  migrate,
   newAlbumCode,
   newSessionToken,
   openUsersDb,
+  USERS_SCHEMA_VERSION,
   type UsersDb,
 } from "../users.ts"
 
@@ -114,6 +118,31 @@ function anchorsOf(rows: ReturnType<typeof fixtureBaits>): string[] {
     if (!a) throw new Error("a fixture بيت with a عجز must have an anchor")
     return a
   })
+}
+
+/** The add body for a list of بيت anchors. */
+function baitItems(anchors: readonly string[]): Array<{ kind: "bait"; hFull: string }> {
+  return anchors.map((hFull) => ({ kind: "bait", hFull }))
+}
+
+type FixturePoem = { publicId: string; dedupKey: string; title: string; poet: string; baitCount: number }
+
+/** قصائد from the fixture, longest first — the playlist's unit. */
+function fixturePoems(limit: number): FixturePoem[] {
+  return (
+    db
+      .q(
+        `SELECT p.public_id AS pid, p.dedup_key AS key, p.title AS title, po.name AS poet, p.bait_count AS n
+         FROM poems p JOIN poets po ON po.id = p.poet_id ORDER BY p.bait_count DESC, p.id ASC LIMIT ?`,
+      )
+      .all(limit) as Array<Record<string, unknown>>
+  ).map((r) => ({
+    publicId: String(r.pid),
+    dedupKey: String(r.key),
+    title: String(r.title),
+    poet: String(r.poet),
+    baitCount: Number(r.n),
+  }))
 }
 
 async function makeAlbum(who: Reader, fields: Record<string, unknown> = {}): Promise<string> {
@@ -212,29 +241,132 @@ describe("creating a ديوان", () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The anchor
+// The entries — a قصيدة is ONE, and everything is anchored by content
 // ─────────────────────────────────────────────────────────────────────────────
+
+describe("a قصيدة is one entry", () => {
+  it("adds a قصيدة by its public id, anchors it by its dedup key, and snapshots it whole", async () => {
+    const a = reader("imru")
+    const code = await makeAlbum(a)
+    const [poem] = fixturePoems(1)
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items: [{ kind: "poem", id: poem!.publicId }] }), a)
+    expect(res.status).toBe(200)
+    const added = AlbumAddEntriesResponseSchema.parse(await res.json())
+    expect(added.added).toBe(1)
+    expect(added.album.count).toBe(1)
+    expect(added.album.poems).toBe(1)
+    expect(added.album.baits).toBe(0)
+
+    const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
+    expect(shelf.entries).toHaveLength(1)
+    const entry = shelf.entries[0]!
+    expect(entry.kind).toBe("poem")
+    if (entry.kind !== "poem") return
+    // The anchor is the dedup key's hash, never the id the client sent.
+    expect(entry.anchor).toBe(poemAnchor(poem!.dedupKey))
+    expect(entry.anchor).not.toContain(poem!.publicId)
+    expect(entry.poem?.id).toBe(poem!.publicId)
+    expect(entry.poem?.baitCount).toBe(poem!.baitCount)
+    // The SERVER wrote the snapshot, and it is the whole قصيدة's card.
+    expect(entry.snapshot.title).toBe(poem!.title)
+    expect(entry.snapshot.poet).toBe(poem!.poet)
+    expect(entry.snapshot.baitCount).toBe(poem!.baitCount)
+    expect(entry.snapshot.sadr.length).toBeGreaterThan(0)
+  })
+
+  it("keeps a قصيدة and single أبيات on ONE ordered list", async () => {
+    const a = reader("tarafa")
+    const code = await makeAlbum(a)
+    const [p1, p2] = fixturePoems(2)
+    const anchors = anchorsOf(fixtureBaits(2))
+    const res = await req(
+      `/api/albums/${code}/entries`,
+      body("POST", {
+        items: [
+          { kind: "bait", hFull: anchors[0] },
+          { kind: "poem", id: p1!.publicId },
+          { kind: "bait", hFull: anchors[1] },
+          { kind: "poem", id: p2!.publicId },
+        ],
+      }),
+      a,
+    )
+    expect(res.status).toBe(200)
+    const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
+    expect(shelf.entries.map((e) => e.kind)).toEqual(["bait", "poem", "bait", "poem"])
+    expect(shelf.entries.map((e) => e.position)).toEqual([0, 1, 2, 3])
+    expect(shelf.album.count).toBe(4)
+    expect(shelf.album.poems).toBe(2)
+    expect(shelf.album.baits).toBe(2)
+  })
+
+  it("counts a re-added قصيدة as a duplicate — however it was named", async () => {
+    const a = reader("zuhayr")
+    const code = await makeAlbum(a)
+    const [poem] = fixturePoems(1)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: [{ kind: "poem", id: poem!.publicId }] }), a)
+    // Sent twice in one request AND once already on the shelf: one entry.
+    const res = await req(
+      `/api/albums/${code}/entries`,
+      body("POST", { items: [{ kind: "poem", id: poem!.publicId }, { kind: "poem", id: poem!.publicId }] }),
+      a,
+    )
+    const again = AlbumAddEntriesResponseSchema.parse(await res.json())
+    expect(again.added).toBe(0)
+    expect(again.duplicates).toBe(1)
+    expect(again.album.count).toBe(1)
+  })
+
+  it("keeps rendering a قصيدة the artefact can no longer answer — the snapshot is the floor", async () => {
+    const a = reader("amr")
+    const code = await makeAlbum(a)
+    const [poem] = fixturePoems(1)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: [{ kind: "poem", id: poem!.publicId }] }), a)
+
+    // Simulate the rebuild that drops the قصيدة: point the stored key at one
+    // no row carries. Everything else is untouched, which is exactly the state
+    // a re-ingest leaves behind.
+    users.q("UPDATE album_entries SET poem_key = ? WHERE poem_key = ?").run("nobody|nothing", poem!.dedupKey)
+    users.q("UPDATE albums SET updated_at = updated_at + 1 WHERE code = ?").run(code)
+
+    const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
+    const entry = shelf.entries[0]!
+    expect(entry.kind).toBe("poem")
+    if (entry.kind !== "poem") return
+    expect(entry.poem).toBeNull()
+    expect(entry.snapshot.title).toBe(poem!.title)
+    expect(entry.snapshot.poet).toBe(poem!.poet)
+    expect(entry.snapshot.baitCount).toBe(poem!.baitCount)
+  })
+
+  it("refuses an id the artefact cannot answer rather than storing it on trust", async () => {
+    const a = reader("harith")
+    const code = await makeAlbum(a)
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items: [{ kind: "poem", id: "q999999" }] }), a)
+    expect(res.status).toBe(404)
+    expect((await res.json()).error).toBe("unknown_entry")
+  })
+})
 
 describe("أبيات are anchored by content, not by id", () => {
   it("resolves an h_full into the live بيت and writes the snapshot itself", async () => {
     const a = reader("jarir")
     const code = await makeAlbum(a)
     const rows = fixtureBaits(3)
-    const res = await req(
-      `/api/albums/${code}/baits`,
-      body("POST", { items: anchorsOf(rows).map((hFull) => ({ hFull })) }),
-      a,
-    )
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchorsOf(rows)) }), a)
     expect(res.status).toBe(200)
-    const added = AlbumAddBaitsResponseSchema.parse(await res.json())
+    const added = AlbumAddEntriesResponseSchema.parse(await res.json())
     expect(added.added).toBe(3)
     expect(added.unresolved).toBe(0)
     expect(added.album.count).toBe(3)
+    expect(added.album.baits).toBe(3)
 
     const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
     expect(shelf.entries).toHaveLength(3)
     for (const [i, entry] of shelf.entries.entries()) {
       expect(entry.position).toBe(i)
+      expect(entry.kind).toBe("bait")
+      if (entry.kind !== "bait") continue
       // The live row came back, and the snapshot the SERVER wrote agrees with it.
       expect(entry.bait).not.toBeNull()
       expect(entry.snapshot.sadr).toBe(rows[i]!.sadr)
@@ -248,36 +380,39 @@ describe("أبيات are anchored by content, not by id", () => {
     const code = await makeAlbum(a)
     const [row] = fixtureBaits(1)
     const anchor = baitAnchor(row!.sadr, row!.ajuz)!
-    await req(`/api/albums/${code}/baits`, body("POST", { items: [{ hFull: anchor }] }), a)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems([anchor]) }), a)
 
     // Simulate the rebuild that drops the قصيدة: rewrite the stored anchor to
     // one no بيت carries. The row is untouched otherwise, which is exactly the
     // state a re-ingest leaves behind.
-    users.q("UPDATE album_baits SET h_full = ? WHERE h_full = ?").run("123456789", anchor)
+    users.q("UPDATE album_entries SET anchor = ? WHERE anchor = ?").run("123456789", anchor)
     users.q("UPDATE albums SET updated_at = updated_at + 1 WHERE code = ?").run(code)
 
     const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
     expect(shelf.entries).toHaveLength(1)
-    expect(shelf.entries[0]!.bait).toBeNull()
-    expect(shelf.entries[0]!.snapshot.sadr).toBe(row!.sadr)
-    expect(shelf.entries[0]!.snapshot.poet).toBe(row!.poet)
+    const entry = shelf.entries[0]!
+    expect(entry.kind).toBe("bait")
+    if (entry.kind !== "bait") return
+    expect(entry.bait).toBeNull()
+    expect(entry.snapshot.sadr).toBe(row!.sadr)
+    expect(entry.snapshot.poet).toBe(row!.poet)
   })
 
   it("refuses an anchor the artefact cannot answer rather than storing it on trust", async () => {
     const a = reader("dhurumma")
     const code = await makeAlbum(a)
-    const res = await req(`/api/albums/${code}/baits`, body("POST", { items: [{ hFull: "-987654321" }] }), a)
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(["-987654321"]) }), a)
     expect(res.status).toBe(404)
-    expect((await res.json()).error).toBe("unknown_baits")
+    expect((await res.json()).error).toBe("unknown_entry")
   })
 
   it("counts a re-added بيت as a duplicate, not as an error", async () => {
     const a = reader("mutanabi")
     const code = await makeAlbum(a)
     const anchors = anchorsOf(fixtureBaits(4))
-    await req(`/api/albums/${code}/baits`, body("POST", { items: anchors.slice(0, 2).map((hFull) => ({ hFull })) }), a)
-    const res = await req(`/api/albums/${code}/baits`, body("POST", { items: anchors.map((hFull) => ({ hFull })) }), a)
-    const again = AlbumAddBaitsResponseSchema.parse(await res.json())
+    await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchors.slice(0, 2)) }), a)
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchors) }), a)
+    const again = AlbumAddEntriesResponseSchema.parse(await res.json())
     expect(again.added).toBe(2)
     expect(again.duplicates).toBe(2)
     expect(again.album.count).toBe(4)
@@ -286,21 +421,21 @@ describe("أبيات are anchored by content, not by id", () => {
   it("rejects a bulk add over ALBUM_LIMITS.bulk before it reads the corpus", async () => {
     const a = reader("bashshar")
     const code = await makeAlbum(a)
-    const items = Array.from({ length: ALBUM_LIMITS.bulk + 1 }, (_, i) => ({ hFull: String(i + 1) }))
-    const res = await req(`/api/albums/${code}/baits`, body("POST", { items }), a)
+    const items = baitItems(Array.from({ length: ALBUM_LIMITS.bulk + 1 }, (_, i) => String(i + 1)))
+    const res = await req(`/api/albums/${code}/entries`, body("POST", { items }), a)
     expect(res.status).toBe(400)
   })
 
-  it("truncates at ALBUM_LIMITS.baits instead of losing the shelf that was already there", async () => {
+  it("truncates at ALBUM_LIMITS.entries instead of losing the shelf that was already there", async () => {
     const a = reader("ibnrumi")
     const code = await makeAlbum(a)
-    const rows = fixtureBaits(ALBUM_LIMITS.baits + 40)
+    const rows = fixtureBaits(ALBUM_LIMITS.entries + 40)
     // Only run the cap test when the fixture is big enough to reach it.
-    if (rows.length <= ALBUM_LIMITS.baits) return
+    if (rows.length <= ALBUM_LIMITS.entries) return
     const anchors = [...new Set(anchorsOf(rows))]
     for (let i = 0; i < anchors.length; i += ALBUM_LIMITS.bulk) {
       const slice = anchors.slice(i, i + ALBUM_LIMITS.bulk)
-      const res = await req(`/api/albums/${code}/baits`, body("POST", { items: slice.map((hFull) => ({ hFull })) }), a)
+      const res = await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(slice) }), a)
       if (res.status === 409) {
         expect((await res.json()).error).toBe("album_full")
         break
@@ -308,20 +443,136 @@ describe("أبيات are anchored by content, not by id", () => {
       expect(res.status).toBe(200)
     }
     const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
-    expect(shelf.entries.length).toBeLessThanOrEqual(ALBUM_LIMITS.baits)
-    expect(shelf.album.count).toBeLessThanOrEqual(ALBUM_LIMITS.baits)
+    expect(shelf.entries.length).toBeLessThanOrEqual(ALBUM_LIMITS.entries)
+    expect(shelf.album.count).toBeLessThanOrEqual(ALBUM_LIMITS.entries)
   })
 
-  it("removes one بيت by its anchor and closes the gap in the order", async () => {
+  it("removes one entry by its anchor — either kind — and closes the gap in the order", async () => {
     const a = reader("abunuwas")
     const code = await makeAlbum(a)
-    const anchors = anchorsOf(fixtureBaits(3))
-    await req(`/api/albums/${code}/baits`, body("POST", { items: anchors.map((hFull) => ({ hFull })) }), a)
-    const res = await req(`/api/albums/${code}/baits/${encodeURIComponent(anchors[0]!)}`, { method: "DELETE" }, a)
-    expect(res.status).toBe(200)
-    const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
-    expect(shelf.entries.map((e) => e.hFull)).toEqual([anchors[1], anchors[2]])
+    const anchors = anchorsOf(fixtureBaits(2))
+    const [poem] = fixturePoems(1)
+    await req(
+      `/api/albums/${code}/entries`,
+      body("POST", {
+        items: [
+          { kind: "bait", hFull: anchors[0] },
+          { kind: "poem", id: poem!.publicId },
+          { kind: "bait", hFull: anchors[1] },
+        ],
+      }),
+      a,
+    )
+    const pAnchor = poemAnchor(poem!.dedupKey)
+    const drop = (anchor: string) => req(`/api/albums/${code}/entries/${encodeURIComponent(anchor)}`, { method: "DELETE" }, a)
+    expect((await drop(anchors[0]!)).status).toBe(200)
+    let shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
+    expect(shelf.entries.map((e) => e.anchor)).toEqual([pAnchor, anchors[1]])
     expect(shelf.entries.map((e) => e.position)).toEqual([0, 1])
+
+    expect((await drop(pAnchor)).status).toBe(200)
+    shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
+    expect(shelf.entries.map((e) => e.anchor)).toEqual([anchors[1]])
+    expect(shelf.album.poems).toBe(0)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Migration 11 — the shelves that already existed
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("migration 10 → 11", () => {
+  it("carries every `album_baits` row over as a بيت entry, in place and in order", () => {
+    const p = tempUsersPath("migrate")
+    const raw = new DatabaseSync(p)
+    raw.exec("PRAGMA foreign_keys = ON")
+    expect(migrate(raw, 10)).toBe(10)
+
+    // A shelf the way the OLD build wrote it — straight into the old table.
+    raw
+      .prepare("INSERT INTO users (username, display_name, pass_hash, created_at, last_seen) VALUES (?, ?, ?, ?, ?)")
+      .run("kaab", "كعب", "scrypt$not-a-login", 1, 1)
+    raw
+      .prepare(
+        "INSERT INTO albums (code, owner_user_id, title, visibility, created_at, updated_at) VALUES (?, 1, ?, 'unlisted', 1, 1)",
+      )
+      .run("BADIRUKAMO", "بانت سعاد")
+    const ins = raw.prepare(
+      "INSERT INTO album_baits (album_id, h_full, position, snapshot_sadr, snapshot_ajuz, snapshot_poet, added_at) VALUES (1, ?, ?, ?, ?, ?, ?)",
+    )
+    ins.run("111", 5, "صدرٌ أوّل", "عجزٌ أوّل", "كعب بن زهير", 10)
+    ins.run("222", 9, "صدرٌ ثانٍ", null, "كعب بن زهير", 11)
+
+    expect(migrate(raw)).toBe(USERS_SCHEMA_VERSION)
+    raw.close()
+
+    // …and the new build reads it as the same shelf.
+    const moved = openUsersDb(p)
+    const owner = findUserByUsername(moved, "kaab")!
+    const [album] = listAlbums(moved, owner.id)
+    expect(album?.count).toBe(2)
+    expect(album?.baits).toBe(2)
+    expect(album?.poems).toBe(0)
+    const rows = moved
+      .q(
+        `SELECT kind, anchor, poem_key, position, snapshot_sadr, snapshot_ajuz, snapshot_poet, snapshot_title,
+                snapshot_count, added_at
+         FROM album_entries ORDER BY position`,
+      )
+      .all() as Array<Record<string, unknown>>
+    expect(rows).toEqual([
+      {
+        kind: "bait",
+        anchor: "111",
+        poem_key: null,
+        position: 5,
+        snapshot_sadr: "صدرٌ أوّل",
+        snapshot_ajuz: "عجزٌ أوّل",
+        snapshot_poet: "كعب بن زهير",
+        snapshot_title: null,
+        snapshot_count: null,
+        added_at: 10,
+      },
+      {
+        kind: "bait",
+        anchor: "222",
+        poem_key: null,
+        position: 9,
+        snapshot_sadr: "صدرٌ ثانٍ",
+        snapshot_ajuz: null,
+        snapshot_poet: "كعب بن زهير",
+        snapshot_title: null,
+        snapshot_count: null,
+        added_at: 11,
+      },
+    ])
+    const gone = moved.q("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'album_baits'").get()
+    expect(gone).toBeUndefined()
+    moved.close()
+  })
+
+  it("makes the two row shapes exclusive — a قصيدة needs its key, a بيت may not carry one", () => {
+    const fresh = openUsersDb(tempUsersPath("shapes"))
+    fresh
+      .q("INSERT INTO users (username, display_name, pass_hash, created_at, last_seen) VALUES (?, ?, ?, ?, ?)")
+      .run("x", "x", "x", 1, 1)
+    fresh.q("INSERT INTO albums (code, owner_user_id, title, created_at, updated_at) VALUES ('BADIRUKAMO', 1, 'x', 1, 1)").run()
+    let n = 0
+    const ins = (kind: string, key: string | null, title: string | null, count: number | null) =>
+      fresh
+        .q(
+          `INSERT INTO album_entries (album_id, kind, anchor, poem_key, position, snapshot_title, snapshot_sadr,
+                                      snapshot_ajuz, snapshot_poet, snapshot_count, added_at)
+           VALUES (1, ?, ?, ?, 0, ?, 'س', NULL, 'ش', ?, 1)`,
+        )
+        .run(kind, `a${++n}`, key, title, count)
+    expect(() => ins("poem", null, "t", 3)).toThrow(/CHECK/)
+    expect(() => ins("bait", "k", null, null)).toThrow(/CHECK/)
+    expect(() => ins("poem", "k", null, 3)).toThrow(/CHECK/)
+    expect(() => ins("verse", null, null, null)).toThrow(/CHECK/)
+    expect(() => ins("poem", "k", "t", 3)).not.toThrow()
+    expect(() => ins("bait", null, null, null)).not.toThrow()
+    fresh.close()
   })
 })
 
@@ -372,8 +623,8 @@ describe("visibility", () => {
     const anchor = anchorsOf(fixtureBaits(1))[0]!
 
     expect((await req(`/api/albums/${code}`, body("PATCH", { title: "لي أنا" }), b)).status).toBe(404)
-    expect((await req(`/api/albums/${code}/baits`, body("POST", { items: [{ hFull: anchor }] }), b)).status).toBe(404)
-    expect((await req(`/api/albums/${code}/baits/${anchor}`, { method: "DELETE" }, b)).status).toBe(404)
+    expect((await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems([anchor]) }), b)).status).toBe(404)
+    expect((await req(`/api/albums/${code}/entries/${anchor}`, { method: "DELETE" }, b)).status).toBe(404)
     expect((await req(`/api/albums/${code}`, { method: "DELETE" }, b)).status).toBe(404)
     // …and it is still there, unchanged.
     const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
@@ -413,27 +664,27 @@ describe("the owner's edits", () => {
     const a = reader("qays")
     const code = await makeAlbum(a)
     const anchors = anchorsOf(fixtureBaits(4))
-    await req(`/api/albums/${code}/baits`, body("POST", { items: anchors.map((hFull) => ({ hFull })) }), a)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchors) }), a)
 
     // The last two named first, the first two left unnamed — and one repeat, the
     // shape a double-fired drag produces.
     await req(`/api/albums/${code}`, body("PATCH", { order: [anchors[3], anchors[2], anchors[3]] }), a)
     const shelf = AlbumResponseSchema.parse(await (await req(`/api/albums/${code}`, {}, a)).json())
-    expect(shelf.entries.map((e) => e.hFull)).toEqual([anchors[3], anchors[2], anchors[0], anchors[1]])
+    expect(shelf.entries.map((e) => e.anchor)).toEqual([anchors[3], anchors[2], anchors[0], anchors[1]])
     expect(shelf.entries.map((e) => e.position)).toEqual([0, 1, 2, 3])
   })
 
-  it("deletes the shelf and its أبيات with it", async () => {
+  it("deletes the shelf and its entries with it", async () => {
     const a = reader("waddah")
     const code = await makeAlbum(a)
     const anchors = anchorsOf(fixtureBaits(2))
-    await req(`/api/albums/${code}/baits`, body("POST", { items: anchors.map((hFull) => ({ hFull })) }), a)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchors) }), a)
     const { id } = users.q("SELECT id FROM albums WHERE code = ?").get(code) as { id: number }
     expect((await req(`/api/albums/${code}`, { method: "DELETE" }, a)).status).toBe(200)
     expect((await req(`/api/albums/${code}`, {}, a)).status).toBe(404)
     // The أبيات went with it — `ON DELETE CASCADE`, not a second DELETE anyone
     // has to remember to write.
-    const left = users.q("SELECT COUNT(*) AS n FROM album_baits WHERE album_id = ?").get(id) as { n: number }
+    const left = users.q("SELECT COUNT(*) AS n FROM album_entries WHERE album_id = ?").get(id) as { n: number }
     expect(Number(left.n)).toBe(0)
   })
 })
@@ -517,7 +768,7 @@ describe("المكتبة", () => {
     const keeper = reader("azza")
     const rows = fixtureBaits(2)
     const code = await makeAlbum(curator, { title: "ديوانُ عزة", visibility: "public" })
-    await req(`/api/albums/${code}/baits`, body("POST", { items: anchorsOf(rows).map((hFull) => ({ hFull })) }), curator)
+    await req(`/api/albums/${code}/entries`, body("POST", { items: baitItems(anchorsOf(rows)) }), curator)
     await req(`/api/albums/${code}/save`, body("POST", {}), keeper)
 
     // The curator takes it back.
