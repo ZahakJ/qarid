@@ -9,7 +9,7 @@
 import { create } from "zustand"
 import { isHijaiLetter } from "../shared/letters.ts"
 import { anthologyBySlug } from "../shared/anthologies.ts"
-import { AlbumCodeSchema, PoetSlugSchema, PublicPoemIdSchema, RoomCodeSchema, SlugSchema, UsernameSchema } from "../shared/schema.ts"
+import { AlbumCodeSchema, DayKeySchema, PoetSlugSchema, PublicPoemIdSchema, RoomCodeSchema, SlugSchema, UsernameSchema } from "../shared/schema.ts"
 import { BUHUR } from "./data/buhur.ts"
 
 export type BrowseSort = "fame" | "recent" | "length" | "random"
@@ -99,6 +99,8 @@ export type Route =
   | { view: "duel-play" }
   | { view: "duel-summary" }
   | { view: "daily" }
+  /** `#/day/<YYYY-MM-DD>` — بيت اليوم of one day; bare `#/day` is today's. */
+  | { view: "day"; date?: string }
   | { view: "train" }
   | { view: "train-drill"; letter?: string }
   | { view: "train-arsenal" }
@@ -305,6 +307,11 @@ export function parseHash(raw: string): Route {
     case "daily":
       return { view: "daily" }
 
+    case "day": {
+      const date = seg[1]
+      return date !== undefined && DayKeySchema.safeParse(date).success ? { view: "day", date } : { view: "day" }
+    }
+
     case "train": {
       const sub = seg[1]
       if (sub === "drill") {
@@ -475,6 +482,8 @@ export function routeHash(r: Route): string {
       return "#/duel/summary"
     case "daily":
       return "#/daily"
+    case "day":
+      return r.date ? `#/day/${r.date}` : "#/day"
     case "train":
       return "#/train"
     case "train-drill": {
@@ -541,6 +550,8 @@ export function routeTitle(r: Route): string {
       return "خلاصة المساجلة"
     case "daily":
       return "تحدّي اليوم"
+    case "day":
+      return "بيت اليوم"
     case "train":
       return "التحفيظ"
     case "train-drill":
@@ -610,6 +621,8 @@ export function pageKey(r: Route): string {
       return `anthology:${r.slug}`
     case "diwan":
       return `diwan:${r.code}`
+    case "day":
+      return `day:${r.date ?? ""}`
     default:
       return r.view
   }
@@ -662,6 +675,8 @@ export function navDepth(): number {
  * specific instruction of the two.
  */
 const SHARE_PATH = /^\/p\/([^/]+)\/?$/
+/** `/d`, `/d/today`, `/d/<YYYY-MM-DD>` — بيت اليوم's shareable address (server/daily.ts). */
+const DAY_PATH = /^\/d(?:\/(today|\d{4}-\d{2}-\d{2}))?\/?$/
 
 /**
  * The pure half: what `/p/<id>` should become, or null to leave the URL alone.
@@ -670,7 +685,10 @@ const SHARE_PATH = /^\/p\/([^/]+)\/?$/
 export function sharePathToHash(pathname: string, hash: string): string | null {
   if (hash) return null
   const m = SHARE_PATH.exec(pathname)
-  return m ? `/#/poem/${m[1]}` : null
+  if (m) return `/#/poem/${m[1]}`
+  const d = DAY_PATH.exec(pathname)
+  if (d) return d[1] && d[1] !== "today" ? `/#/day/${d[1]}` : "/#/day"
+  return null
 }
 
 function foldSharePath(): void {
