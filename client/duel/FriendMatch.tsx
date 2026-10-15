@@ -12,9 +12,8 @@
  * The other three are the room's rules, and each says what it costs in words:
  * الرويّ vs الحرف الأخير, the clock, and how many misses end it.
  *
- * Everything here refuses to pretend: with no account the dialog is one line
- * and one button, because a room needs two named people and there is no way to
- * make that softer without lying about it.
+ * With no account the section opens the account-less مساجلة instead
+ * (`client/match/`): the same game, a seat secret in place of a sign-in.
  */
 import { useEffect, useRef, useState } from "react"
 import { ApiError } from "../api/client.ts"
@@ -27,6 +26,7 @@ import { useNativeChrome } from "../hooks/useNativeChrome.ts"
 import { navigate } from "../router.ts"
 import { useAuth, tookSessionExpiry } from "../store/authStore.ts"
 import { createRoom } from "../store/roomStore.ts"
+import { GuestMatchButton } from "../match/GuestMatch.tsx"
 import { ROOM_STRIKES_DEFAULT, ROOM_TIMERS, RoomCodeSchema, type BaitDto, type ChainMode } from "../../shared/schema.ts"
 import { formatNumber } from "../../shared/format.ts"
 import { Overlay } from "../components/Overlay.tsx"
@@ -51,11 +51,6 @@ const STRIKE_OPTIONS = [1, 2, 3].map((n) => ({ value: String(n), label: formatNu
 export function FriendMatch() {
   const [open, setOpen] = useState(false)
   const user = useAuth((s) => s.user)
-  const authStatus = useAuth((s) => s.status)
-  const available = useAuth((s) => s.available)
-  const openAuth = useAuth((s) => s.openDialog)
-
-  if (authStatus === "ready" && !available) return null
 
   return (
     <section className="setup-sect setup-sect--friend" aria-labelledby="setup-friend">
@@ -63,7 +58,7 @@ export function FriendMatch() {
         ضدّ صديق
       </h2>
       <p className="setup-sect__lede">
-        غرفةٌ لاثنين: تختار المطلع، ويصلك رمزٌ ورابط تبعثه إلى صاحبك. تُجيبان بيتًا ببيت، والديوان بينكما حَكَم.
+        مساجلةٌ لاثنين: يصلك رمزٌ ورابط تبعثه إلى صاحبك، وتُجيبان بيتًا ببيت، والديوان بينكما حَكَم.
       </p>
       <div className="friend-cta">
         {user ? (
@@ -71,15 +66,14 @@ export function FriendMatch() {
             افتح غرفة
           </button>
         ) : (
-          <button type="button" className="btn btn--primary btn--lg" onClick={() => openAuth("login")}>
-            ادخل بحسابك لتفتح غرفة
-          </button>
+          <GuestMatchButton primary />
         )}
         <span className="friend-cta__note">
-          {user ? "تبدأ المساجلة لحظة دخول صاحبك، وهو الذي يُجيب أوّلًا." : "المساجلة بين اثنين، فلا بدّ أن يُعرف كلٌّ منكما باسمه."}
+          {user ? "تبدأ المساجلة لحظة دخول صاحبك، وهو الذي يُجيب أوّلًا." : "بلا حساب: تفتحها، وتبعث الرابط، ويُجيب صاحبك أوّلًا."}
         </span>
+        {user ? <GuestMatchButton primary={false} /> : null}
       </div>
-      {user ? <JoinByCode /> : null}
+      <JoinByCode view={user ? "room" : "match"} />
       {open ? <FriendDialog onClose={() => setOpen(false)} /> : null}
     </section>
   )
@@ -92,7 +86,7 @@ export function FriendMatch() {
  * in (server/rooms.ts). The copy-link path stays the frictionless default above;
  * this is for when the link never travels, only the six letters do.
  */
-function JoinByCode() {
+function JoinByCode({ view }: { view: "room" | "match" }) {
   const [code, setCode] = useState("")
   const [error, setError] = useState<string | null>(null)
 
@@ -102,7 +96,7 @@ function JoinByCode() {
       setError("الرمز ستة أحرف — كما يُملى بالصوت.")
       return
     }
-    navigate({ view: "room", code: parsed.data })
+    navigate({ view, code: parsed.data })
   }
 
   return (

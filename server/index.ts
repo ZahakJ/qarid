@@ -3,6 +3,7 @@ import { loadConfig } from "./config.ts"
 import { openDbIfPresent } from "./db.ts"
 import { openUsersDbIfWritable } from "./users.ts"
 import { createApp } from "./app.ts"
+import { matchesDbPath, openMatchStore } from "./match/store.ts"
 import { warmAnthologies } from "./routes/anthology.ts"
 import { warmBuhur } from "./routes/buhur.ts"
 import { warmFacets } from "./routes/facets.ts"
@@ -12,7 +13,9 @@ const db = openDbIfPresent(config.dbPath)
 // The ONE writable database (v2.md §4). Null when data/ is read-only or the
 // file cannot be created — the ديوان still serves, /api/auth/* answers 503.
 const users = openUsersDbIfWritable(config.usersDbPath)
-const { app, injectWebSocket } = createApp(config, db, users)
+// Account-less matches keep their own small file, so a restart keeps them live.
+const matchStore = db ? openMatchStore(matchesDbPath()) : undefined
+const { app, injectWebSocket } = createApp(config, db, users, matchStore ? { matchStore } : {})
 
 const primary = serve({ fetch: app.fetch, hostname: config.host, port: config.port }, (info) => {
   console.log(`[qarid] listening on http://${info.address}:${info.port}`)

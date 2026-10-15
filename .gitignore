@@ -33,3 +33,6 @@ dist/
 
 # Box-specific notes (deployment, hosts, this machine) stay out of git.
 *.local.md
+
+# The app's web build (tools/android-bundle.sh), kept apart from dist/.
+/app-web/
