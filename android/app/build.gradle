@@ -62,11 +62,17 @@ android {
     }
     signingConfigs {
         release {
-            if (keystoreProps.getProperty("storeFile")) {
-                storeFile file(keystoreProps.getProperty("storeFile"))
-                storePassword keystoreProps.getProperty("storePassword")
-                keyAlias keystoreProps.getProperty("keyAlias")
-                keyPassword keystoreProps.getProperty("keyPassword")
+            // Each value: keystore.properties, else -Pqarid.<key>, else the
+            // environment variable. See docs/PLAY.md.
+            def signing = { String key, String envName ->
+                keystoreProps.getProperty(key) ?: (project.findProperty("qarid." + key) ?: System.getenv(envName))
+            }
+            def qaridStoreFile = signing("storeFile", "QARID_STORE_FILE")
+            if (qaridStoreFile) {
+                storeFile file(qaridStoreFile)
+                storePassword signing("storePassword", "QARID_STORE_PASSWORD")
+                keyAlias signing("keyAlias", "QARID_KEY_ALIAS")
+                keyPassword signing("keyPassword", "QARID_KEY_PASSWORD")
             }
         }
     }
@@ -74,8 +80,8 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            // Sign only when the keystore is configured; otherwise stay unsigned.
-            if (keystoreProps.getProperty("storeFile")) {
+            // Sign only when a keystore is configured; otherwise stay unsigned.
+            if (signingConfigs.release.storeFile != null) {
                 signingConfig signingConfigs.release
             }
         }
