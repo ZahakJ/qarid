@@ -11,6 +11,7 @@ import { allowlistedOrigin, corsPreflightResponse, originGuard } from "./origin.
 import { ASSETLINKS } from "./assetlinks.ts"
 import { injectPoemHead } from "./share.ts"
 import { dailyShareRoutes } from "./daily.ts"
+import { mountPrivacy } from "./privacy.ts"
 import { decodeParam } from "./query.ts"
 import { PublicPoemIdSchema } from "../shared/schema.ts"
 import { UNTITLED } from "../shared/constants.ts"
@@ -389,6 +390,7 @@ export function createApp(
       "public, max-age=3600",
     )
     serveRootFile("/offline.html", "offline.html", "text/html; charset=utf-8", "public, max-age=300")
+    mountPrivacy(app, distDir, process.env.PRIVACY_CONTACT)
     for (const icon of ["icon-192.png", "icon-512.png", "icon-192-maskable.png", "icon-512-maskable.png"]) {
       serveRootFile(`/icons/${icon}`, path.join("icons", icon), "image/png", "public, max-age=86400")
     }
