@@ -34,11 +34,12 @@ aab=android/app/build/outputs/bundle/release/app-release.aab
 host=${VITE_API_BASE#https://}
 host=${host#http://}
 host=${host%%/*}
-if ! unzip -p "$aab" 'base/assets/public/assets/*.js' | grep -q "$host"; then
+# Count rather than `grep -q`: an early exit would SIGPIPE unzip under pipefail.
+if [ "$(unzip -p "$aab" 'base/assets/public/assets/*.js' | grep -c "$host")" -eq 0 ]; then
   echo "the bundle does not name $host — VITE_API_BASE did not reach the build" >&2
   exit 1
 fi
-if "$JAVA_HOME/bin/jarsigner" -verify "$aab" | grep -q "jar verified"; then
+if [ "$("$JAVA_HOME/bin/jarsigner" -verify "$aab" | grep -c "jar verified")" -gt 0 ]; then
   echo "signed: $aab"
 else
   echo "UNSIGNED: $aab — Play refuses it; configure signing (docs/PLAY.md)" >&2
