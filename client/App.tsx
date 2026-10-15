@@ -49,6 +49,7 @@ import { BuhurView } from "./views/BuhurView.tsx"
 import { DrillView } from "./views/DrillView.tsx"
 import { FavoritesView } from "./views/FavoritesView.tsx"
 import { DailyView } from "./views/DailyView.tsx"
+import { DayView } from "./views/DayView.tsx"
 import { HomeView } from "./views/HomeView.tsx"
 import { MoreView } from "./views/MoreView.tsx"
 import { PoemView } from "./views/PoemView.tsx"
@@ -58,6 +59,7 @@ import { PrivacyView } from "./views/PrivacyView.tsx"
 import { QafiyaView } from "./views/QafiyaView.tsx"
 import { ProfileView } from "./views/ProfileView.tsx"
 import { RoomView } from "./views/RoomView.tsx"
+import { MatchView } from "./match/MatchView.tsx"
 import { RulesView } from "./views/RulesView.tsx"
 import { SearchView } from "./views/SearchView.tsx"
 import { StatsView } from "./views/StatsView.tsx"
@@ -225,6 +227,8 @@ function Body({ route }: { route: Route }) {
       return <DuelSummaryView />
     case "daily":
       return <DailyView />
+    case "day":
+      return <DayView key={route.date ?? ""} date={route.date} />
     case "search":
       return <SearchView q={route.q} page={route.page} />
     case "favorites":
@@ -264,6 +268,8 @@ function Body({ route }: { route: Route }) {
       // Keyed on the code: «رجعة» opens a DIFFERENT room, and the store's
       // socket, poller and draft all belong to the room they were opened for.
       return <RoomView key={route.code} code={route.code} joinKey={route.key} />
+    case "match":
+      return <MatchView key={route.code} code={route.code} joinKey={route.key} />
     default:
       // Every Route["view"] above has a case, so this is unreachable today —
       // it is here so that a route added WITHOUT one lands on the ديوان rather

@@ -225,8 +225,6 @@ export function baitsRoutes(db: Db, _config: Config): Hono {
     const parsed = parseQuery(c, DailyQuerySchema)
     if (!parsed.ok) return parsed.res
     const date = parsed.data.date ?? riyadhDay()
-    const start = fnv1a32(date) % BUCKET_COUNT
-    const filter = gameBaitFilter(db, {})
 
     // Prefer a famous مطلع; relax rather than fail on a thin corpus. Each pass
     // is a window rather than a single row because fame and position say
@@ -235,10 +233,7 @@ export function baitsRoutes(db: Db, _config: Config): Hono {
     // الوراد», where the scraper cut «الغرر» after the first ر and pushed the
     // orphan letter to the head of the عجز. `textIsClean` is the gate; the
     // window is what it needs something to choose from.
-    const row =
-      cleanest(db, filter, "gb.fame >= 2 AND gb.position <= 8", start) ??
-      cleanest(db, filter, "gb.position <= 8", start) ??
-      cleanest(db, filter, "", start)
+    const row = dailyRow(db, date)
     if (row === undefined) return c.json({ error: "no_bait" }, 404)
 
     const poet = poetOfTheDay(db, date)
@@ -350,4 +345,21 @@ function poetOfTheDay(db: Db, date: string) {
     if (row !== undefined) return poetSummary(row)
   }
   return null
+}
+
+/**
+ * بيت اليوم for any `YYYY-MM-DD` — the one pick `/api/baits/daily` and the
+ * shareable `/d/<date>` page (server/daily.ts) both read. It is a function of
+ * the date and of `bucket`/`rand`, which the ingest derives from each بيت's
+ * text and position, never from a rowid — so a rebuilt artefact gives a date
+ * the same بيت whenever the corpus around it has not changed.
+ */
+export function dailyRow(db: Db, date: string): Row | undefined {
+  const start = fnv1a32(date) % BUCKET_COUNT
+  const filter = gameBaitFilter(db, {})
+  return (
+    cleanest(db, filter, "gb.fame >= 2 AND gb.position <= 8", start) ??
+    cleanest(db, filter, "gb.position <= 8", start) ??
+    cleanest(db, filter, "", start)
+  )
 }

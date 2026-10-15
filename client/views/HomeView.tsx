@@ -26,6 +26,7 @@ import { AnthologyStrip } from "./AnthologyView.tsx"
 import { Rule, Shamsa } from "../components/Ornaments.tsx"
 import { useArsenal } from "../hooks/useArsenal.ts"
 import { useNativeChrome } from "../hooks/useNativeChrome.ts"
+import { shareDailyBait } from "../share/dailyShare.ts"
 import { openShareCard } from "../share/ShareDialog.tsx"
 import { loadFacets, loadMeta } from "../store/libraryStore.ts"
 import { useCollections } from "../store/collectionsStore.ts"
@@ -192,6 +193,17 @@ export function HomeView() {
                   <a className="hero__poem" href={routeHash({ view: "poem", id: bait.poem.id, bayt: bait.position })}>
                     القصيدة ←
                   </a>
+                  {daily ? (
+                    <button
+                      type="button"
+                      className="hero__poem"
+                      onClick={() =>
+                        void shareDailyBait({ date: daily.date, sadr: bait.sadr, ajuz: bait.ajuz, poet: bait.poet.name })
+                      }
+                    >
+                      شارك
+                    </button>
+                  ) : null}
                 </>
               }
             />

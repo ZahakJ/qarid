@@ -22,7 +22,9 @@ const config: CapacitorConfig = {
   // applicationId, or Capacitor's generated plugin glue points at the wrong one.
   appId: process.env.QARID_APP_ID ?? "com.example.qarid",
   appName: "قريض",
-  webDir: "dist",
+  // QARID_WEB_DIR lets the app bundle sync from its own build, so a release
+  // build never replaces the dist/ a running server is serving.
+  webDir: process.env.QARID_WEB_DIR ?? "dist",
   android: {
     // Release loads only its bundled assets and the https API — no cleartext.
     allowMixedContent: false,

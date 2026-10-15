@@ -44,6 +44,7 @@ export function tabOf(route: Route): TabId {
     case "duel-play":
     case "duel-summary":
     case "room":
+    case "match":
     case "rules":
       return "duel"
     case "train":
@@ -120,6 +121,7 @@ export function parentRoute(route: Route): Route {
     case "duel-play":
     case "duel-summary":
     case "room":
+    case "match":
     case "rules":
       return { view: "duel" }
     case "train-drill":
