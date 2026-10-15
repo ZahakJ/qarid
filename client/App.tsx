@@ -52,6 +52,7 @@ import { BuhurView } from "./views/BuhurView.tsx"
 import { DrillView } from "./views/DrillView.tsx"
 import { FavoritesView } from "./views/FavoritesView.tsx"
 import { DailyView } from "./views/DailyView.tsx"
+import { DayView } from "./views/DayView.tsx"
 import { HomeView } from "./views/HomeView.tsx"
 import { MoreView } from "./views/MoreView.tsx"
 import { PoemView } from "./views/PoemView.tsx"
@@ -228,6 +229,8 @@ function Body({ route }: { route: Route }) {
       return <DuelSummaryView />
     case "daily":
       return <DailyView />
+    case "day":
+      return <DayView key={route.date ?? ""} date={route.date} />
     case "search":
       return <SearchView q={route.q} page={route.page} />
     case "favorites":
