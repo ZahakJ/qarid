@@ -10,6 +10,7 @@ import type { UsersDb } from "./users.ts"
 import { allowlistedOrigin, corsPreflightResponse, originGuard } from "./origin.ts"
 import { ASSETLINKS } from "./assetlinks.ts"
 import { injectPoemHead } from "./share.ts"
+import { dailyShareRoutes } from "./daily.ts"
 import { decodeParam } from "./query.ts"
 import { PublicPoemIdSchema } from "../shared/schema.ts"
 import { UNTITLED } from "../shared/constants.ts"
@@ -264,6 +265,9 @@ export function createApp(
       mountRoomSocket(app, rooms, upgradeWebSocket)
     }
   }
+
+  // بيت اليوم's shareable page `/d/<date>` and its card `/og/daily/<date>.png`
+  app.route("/", dailyShareRoutes(db, config))
 
   // client bundle — hashed assets immutable, index no-cache (hash-routed SPA)
   const distDir = path.join(import.meta.dirname, "..", "dist")
