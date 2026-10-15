@@ -68,7 +68,7 @@ export type Strategy =
 
 /** The two per-cookie prefixes the worker must never store. */
 export function isNoStore(pathname: string): boolean {
-  return pathname.startsWith("/api/auth") || pathname.startsWith("/api/room")
+  return pathname.startsWith("/api/auth") || pathname.startsWith("/api/room") || pathname.startsWith("/api/match")
 }
 
 /**

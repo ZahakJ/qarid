@@ -156,6 +156,8 @@ export type Route =
    * transcript (server/rooms.ts `newJoinKey`).
    */
   | { view: "room"; code: string; key?: string }
+  /** `#/match/<CODE>` — the same مساجلة with no accounts; `?k=` is the invite */
+  | { view: "match"; code: string; key?: string }
 
 export const HOME: Route = { view: "home" }
 
@@ -362,6 +364,13 @@ export function parseHash(raw: string): Route {
       return key ? { view: "room", code, key } : { view: "room", code }
     }
 
+    case "match": {
+      const code = roomCodeOf(seg[1])
+      if (!code) return HOME
+      const key = params.get("k")
+      return key ? { view: "match", code, key } : { view: "match", code }
+    }
+
     case "u": {
       // `#/u/<username>` — one letter, because it is typed and shared by hand.
       const username = seg[1]
@@ -518,6 +527,8 @@ export function routeHash(r: Route): string {
       return `#/u/${encodeURIComponent(r.username)}`
     case "room":
       return r.key ? `#/room/${r.code}?k=${encodeURIComponent(r.key)}` : `#/room/${r.code}`
+    case "match":
+      return r.key ? `#/match/${r.code}?k=${encodeURIComponent(r.key)}` : `#/match/${r.code}`
   }
 }
 
@@ -582,6 +593,8 @@ export function routeTitle(r: Route): string {
       return "الحساب"
     case "room":
       return "مساجلة الأصدقاء"
+    case "match":
+      return "مساجلة"
   }
 }
 
@@ -617,6 +630,8 @@ export function pageKey(r: Route): string {
       return `profile:${r.username}`
     case "room":
       return `room:${r.code}`
+    case "match":
+      return `match:${r.code}`
     case "anthology-shelf":
       return `anthology:${r.slug}`
     case "diwan":
