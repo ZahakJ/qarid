@@ -182,7 +182,7 @@ function facetKey(q: FacetsQuery): string {
  * one بيت (verse-less poems are dropped at ingest), and nothing has more أبيات
  * than the longest قصيدة. Recognising that turns three of the four measured
  * shapes into the cached unfiltered payload — a b-tree lookup — and leaves the
- * honest ones (`?fame=3`, 71 ms) alone.
+ * genuinely filtered ones (`?fame=3`, 71 ms) alone.
  */
 function trimNoOps(db: Db, q: FacetsQuery): FacetsQuery {
   const out = { ...q }

@@ -1,5 +1,5 @@
 /* قريض — الشعراء: the index, the شاعر page, and the two ornaments they share
- * (v2.md §6 «POETS tab super epic», §8 design bar).
+ * (v2.md §6, §8).
  *
  * Loaded after views.css and before motion.css, and it owns EVERY selector on
  * these two routes — `.poets-*`, `.pcard*`, `.letter-rail*`, `.letter-head*`,

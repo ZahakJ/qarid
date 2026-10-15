@@ -1,5 +1,5 @@
 /**
- * `/api/report`, `/api/block` and `/api/admin/*` — UGC moderation (Track 3).
+ * `/api/report`, `/api/block` and `/api/admin/*` — UGC moderation.
  *
  * A public app with user content (display names, avatars) and live 1v1 play
  * between real people needs three things, and they are the three route groups
@@ -9,7 +9,7 @@
  *   GET    /api/block             the reader's own block list (private to them)
  *   POST   /api/block             block one account
  *   DELETE /api/block             unblock one account
- *   GET    /api/admin/reports     the owner's report queue        (allowlist)
+ *   GET    /api/admin/reports     the admin report queue          (allowlist)
  *   POST   /api/admin/…           remove avatar / reset name / suspend / resolve,
  *                                 and over a ديوان: unlist it, clear its وصف
  *
@@ -22,7 +22,7 @@
  *
  * ADMIN is gated by an ENV ALLOWLIST and nothing invented on top of it: a
  * minimal authenticated route set behind `ADMIN_USERNAMES`, 403 for every
- * account not on it and 401 for none. There is no admin UI — the owner drives it
+ * account not on it and 401 for none. There is no admin UI — an admin drives it
  * with `curl`/the app — because the safe surface is the small one.
  */
 
@@ -65,7 +65,7 @@ import {
 import { currentUser, parseBody } from "./auth.ts"
 
 /**
- * Reports are logged-in but still a write, and a loud one for the owner: 15 an
+ * Reports are logged-in but still a write, and a loud one for the admins: 15 an
  * hour per IP is far above anyone reporting real abuse and well below a flood.
  */
 export const REPORT_LIMIT = { tokens: 15, windowMs: 60 * 60 * 1000 } as const
@@ -73,7 +73,7 @@ export const REPORT_LIMIT = { tokens: 15, windowMs: 60 * 60 * 1000 } as const
 /** Block/unblock is cheap and self-directed: 40 per 10 minutes per IP. */
 export const BLOCK_LIMIT = { tokens: 40, windowMs: 10 * 60 * 1000 } as const
 
-/** Admin actions are the owner's own; a generous bucket keeps a fat-fingered loop honest. */
+/** Admin actions are the admins' own; a generous bucket still bounds a runaway loop. */
 export const ADMIN_LIMIT = { tokens: 120, windowMs: 10 * 60 * 1000 } as const
 
 const unavailable = (c: Context) =>

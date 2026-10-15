@@ -36,10 +36,8 @@ export const platform: string = Capacitor.getPlatform()
 function buildApiBase(): string {
   if (!isNative) return ""
   const configured = (import.meta.env?.VITE_API_BASE ?? "").trim()
-  // No fallback host on purpose. A native shell with no API base is broken,
-  // and the honest way to be broken is loudly and at once — not by quietly
-  // sending every request to a placeholder domain, which is what a default
-  // would be in a public checkout. Set VITE_API_BASE at build time.
+  // No fallback host: without VITE_API_BASE the shell fails loudly rather
+  // than talking to a placeholder. Set it at build time.
   if (!configured) console.error("VITE_API_BASE is not set: the native shell has no API origin to talk to")
   return configured.replace(/\/+$/, "")
 }

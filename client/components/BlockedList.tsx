@@ -1,6 +1,6 @@
 /**
  * «المحظورون» — the reader's own block list, on their own profile page
- * (Track 3). It is the one place a block is undone: each row is an account you
+ *. It is the one place a block is undone: each row is an account you
  * blocked, with «ألغِ الحظر». Private by construction — this list is served only
  * to the reader it belongs to (`GET /api/block`, per-cookie, no-store).
  */

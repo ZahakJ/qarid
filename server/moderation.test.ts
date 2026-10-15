@@ -1,5 +1,5 @@
 /**
- * UGC moderation — report, block, and the owner's admin routes (Track 3).
+ * UGC moderation — report, block, and the admin routes.
  *
  * The four properties this file pins are the ones a public app with user
  * content and live 1v1 play cannot ship without:
@@ -349,7 +349,7 @@ describe("admin", () => {
     const forbidden = await reqOn(adminApp, "/api/admin/reports", { method: "GET" }, nonAdmin)
     expect(forbidden.status).toBe(403)
 
-    // And on the DEFAULT app (empty allowlist) even the owner account is 403 —
+    // And on the DEFAULT app (empty allowlist) even the admin account is 403 —
     // no account is an admin until the environment names it.
     const ownerOnDefault = await reqOn(app, "/api/admin/reports", { method: "GET" }, adminSession())
     expect(ownerOnDefault.status).toBe(403)

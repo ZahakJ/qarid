@@ -10,7 +10,7 @@
  * return nothing with no error to catch it.
  *
  * Two different foldings live here on purpose:
- *   · `normalizeArabic` — the kalam port. Index/query form. Folds أإآٱ→ا, ى→ي,
+ *   · `normalizeArabic` — index/query form. Folds أإآٱ→ا, ى→ي,
  *     ة→ه, ؤ→و, ئ→ي but LEAVES a bare ء alone, because a standalone hamza is a
  *     word people search for.
  *   · `foldLetter` — the 28-letter alphabet. Chain form. Also folds ء→ا,
@@ -38,7 +38,7 @@ const HAS_ARABIC_RE = /[ء-غف-ي]/
 const TASHKEEL_RE = /[\u064B-\u0655\u0670\u06D6-\u06ED\u0640\u200B-\u200F]/g
 
 /**
- * The wider mark set kalam's `_DIACRITICS` strips — everything TASHKEEL_RE
+ * The wider mark set — everything TASHKEEL_RE
  * removes plus U+0656–U+065F (the modern Quranic annotation additions) and the
  * Arabic Extended-A mark block U+08E3–U+08FF. `normalizeArabic` uses this one;
  * `stripTashkeel` uses the narrower display-safe one.
@@ -68,7 +68,7 @@ export function stripTashkeel(s: string): string {
   return s.replace(TASHKEEL_RE, "")
 }
 
-/** kalam's wider mark strip — tashkeel plus the extended annotation blocks. */
+/** The wider mark strip — tashkeel plus the extended annotation blocks. */
 export function stripMarks(s: string): string {
   return s.replace(MARKS_RE, "")
 }
@@ -121,7 +121,7 @@ const LETTER_FOLD: Readonly<Record<string, string>> = {
   // A قصيدة همزية rhymes رَجائي with الرَجاءِ and the poet did not think
   // one ended on ياء; splitting them cost 173 of the 354 disagreements measured
   // over data/sample-2000.jsonl. This is the CHAIN alphabet only — `foldLetters`
-  // and therefore the FTS index keep kalam's ؤ→و / ئ→ي exactly as they were.
+  // and therefore the FTS index keep ؤ→و / ئ→ي.
   "ء": "ا", // ء  bare hamza
   "ؤ": "ا", // ؤ  waw hamza
   "ئ": "ا", // ئ  yeh hamza
@@ -171,9 +171,8 @@ export function cleanText(s: string | null | undefined): string {
 }
 
 /**
- * `normalizeArabic(s)` — the index/query form. A direct port of kalam's
- * `ingest/normalize.py::normalize_arabic`, plus the NFKC pass design-server.md
- * §2 adds (kalam's corpus is already normalised; aldiwan's is not).
+ * `normalizeArabic(s)` — the index/query form, with the NFKC pass of
+ * design-server.md §2 (aldiwan's text carries presentation forms).
  *
  * Lossy on purpose and idempotent by construction: indexing normalises once,
  * `ftsQuery` may normalise twice, and both sides must land on the same string.
@@ -468,7 +467,7 @@ export interface FtsQueryOptions {
 }
 
 /**
- * `ftsQuery(q, mode)` — kalam's `fts_query`, port and contract both.
+ * `ftsQuery(q, mode)`.
  *
  * The quoting trick is the whole security model: EVERY term is wrapped in
  * double quotes, so `AND`, `OR`, `NOT`, `NEAR`, `*`, `^`, `:` and `-` reach
@@ -791,8 +790,7 @@ export interface FoldMatch {
 /**
  * Fold a string while REMEMBERING where every folded character came from.
  *
- * The trick is vellum-prod/client/books/search.ts's, and it exists because the
- * obvious thing does not work: normalise-then-indexOf finds the hit but the
+ * The obvious thing does not work: normalise-then-indexOf finds the hit but the
  * offsets it reports point into the normalised string, which is not the string
  * on screen. Marks were deleted, whitespace was collapsed — the offsets no
  * longer name anything real, and you cannot turn the hit back into a highlight.

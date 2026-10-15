@@ -3,10 +3,9 @@
  * (design-ux.md §6): games played, أبيات played, best streak and score, the
  * شعراء you have met, daily results, and when you first opened the ديوان.
  *
- * Phase 2 reads it (the home screen's المساجلة bar shows أطول سلسلة and the
- * arsenal ring) and writes only `firstSeenAt`. Phase 3's duel summary is what
- * fills the rest; the API is complete here so the duel never has to reach into
- * localStorage itself.
+ * The home screen reads it (the المساجلة bar shows أطول سلسلة and the arsenal
+ * ring) and writes only `firstSeenAt`; the duel summary fills the rest, through
+ * this API rather than localStorage directly.
  *
  * `poetsMet` is the retention mechanic — «لقيت 47 شاعرًا من 6,997» — and is a
  * SET of poet slugs kept sorted so two sessions that met the same شعراء persist
@@ -54,7 +53,7 @@ const loaded = loadSlice("profile", ProfileSliceSchema, DEFAULT_PROFILE)
 
 export const useProfile = create<ProfileStore>()((set, get) => ({
   ...loaded,
-  // «منذ» on the stats page needs a start date, and the honest one is the first
+  // «منذ» on the stats page needs a start date, and the accurate one is the first
   // time this browser opened قريض — not the first duel.
   firstSeenAt: loaded.firstSeenAt || Date.now(),
 

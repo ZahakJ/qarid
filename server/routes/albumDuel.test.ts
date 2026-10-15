@@ -109,7 +109,7 @@ function playableBaits(limit: number, offset = 0): FixtureBait[] {
   }))
 }
 
-/** أبيات with a عجز that the pool will NOT serve — the honest-count half. */
+/** أبيات with a عجز that the pool will NOT serve — the accurate-count half. */
 function unplayableBaits(limit: number): FixtureBait[] {
   return (
     db

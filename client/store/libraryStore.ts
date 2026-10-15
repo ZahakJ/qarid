@@ -62,7 +62,7 @@ type LibraryStore = {
   similar: Lru<SimilarPoemsResponse>
   meta: MetaResponse | null
   setMeta: (m: MetaResponse) => void
-  /** drop everything — test seam, and the only honest response to a rebuild */
+  /** drop everything — test seam, and the response to a rebuild */
   clear: () => void
 }
 

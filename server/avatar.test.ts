@@ -1,5 +1,5 @@
 /**
- * Custom profile pictures (owner's request).
+ * Custom profile pictures.
  *
  * The security surface, exercised through the REAL app over a REAL users
  * database (gitignored, never /tmp): owner-only writes, magic-byte validation

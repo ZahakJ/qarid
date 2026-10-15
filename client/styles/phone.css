@@ -1,4 +1,4 @@
-/* قريض — the PHONE's SCREEN PATTERNS (phase 2 of docs/roadmap-mobile.md).
+/* قريض — the PHONE's SCREEN PATTERNS (docs/roadmap-mobile.md §M1.5).
  *
  * chrome.css is the two BARS. This sheet is what the screens between them do
  * when the reader is holding a phone rather than sitting at a desk: the docked
@@ -868,7 +868,7 @@ body[data-chrome="native"] .wt__dot[data-active="1"] {
   background-color: var(--accent);
 }
 
-/* A checkbox is ~17px in every engine and cannot be resized honestly. Its
+/* A checkbox is ~17px in every engine and cannot be resized cleanly. Its
    `<label>` — «الوقت», «وضع التدريب» in the duel setup — is the target, and the
    box rides inside it. */
 body[data-chrome="native"] .switch {

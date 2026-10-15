@@ -6,8 +6,8 @@
  *
  * A separate stylesheet on purpose. `duel.css` describes the GAME — the letter
  * well, the recitation mask, the exchange log — and this file describes the
- * prose around it; keeping them apart is also what lets the letter-well rebuild
- * and this pass land in the same sprint without touching the same lines.
+ * prose around it; keeping them apart keeps changes to one from touching the
+ * other.
  * Loaded after duel.css, so it may lean on `.answer`, `.btn`, `.switch`,
  * `.segmented` and `.overlay` as they stand, and on the motion vocabulary
  * (`data-enter`) from motion.css.

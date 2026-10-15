@@ -58,7 +58,7 @@
     border-color var(--dur-2) var(--ease);
   /* >300-abyat poems: skip layout for offscreen rows instead of virtualizing,
    * so Ctrl+F, anchors and text selection all keep working (amendments §12).
-   * The intrinsic size keeps the scrollbar honest before a row is laid out. */
+   * The intrinsic size keeps the scrollbar accurate before a row is laid out. */
   content-visibility: auto;
   contain-intrinsic-block-size: auto 4.6rem;
 }
@@ -97,10 +97,10 @@
   }
 }
 
-/* Verse numbers are quiet, Western (owner's call, 2026-08-24) and MONO.
+/* Verse numbers are quiet, Western and MONO.
  * Not the reading font: the Amiri we ship is the `arabic` subset, which has no
  * Latin figures at all, so `--font-verse` here fell through to whatever serif
- * the machine happens to have — Times on this box, something else on the next.
+ * the machine happens to have — Times on one machine, something else on the next.
  * Plex Mono is already bundled for exactly these digits, and its tabular
  * figures keep the margin column straight from بيت 1 to بيت 1,000. */
 .bayt-num {

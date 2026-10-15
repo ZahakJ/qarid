@@ -8,8 +8,8 @@
  *    (`duelStore` sends those seeds whenever `session.dailyDate` is set.)
  *  • ONE life, NO timer: the challenge is memory, not speed.
  *  • ONE attempt per day, enforced on the client against the profile slice —
- *    the corpus is public and the game is stateless, so this is an honesty
- *    rail, not a security boundary, and it is written down as such.
+ *    the corpus is public and the game is stateless, so this is a
+ *    courtesy rail, not a security boundary.
  *
  * The day turns over in Riyadh, matching `riyadhDay()` on the server
  * (server/routes/baits.ts) — بيت اليوم and تحدّي اليوم must not disagree about

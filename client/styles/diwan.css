@@ -1008,7 +1008,7 @@
   margin: 0;
 }
 
-/* The honest number, in the game's own face — it IS an instrument reading. */
+/* The number, in the game's own face — it IS an instrument reading. */
 .dwplay__count {
   font-size: var(--fs-ui-2);
   color: var(--text-1);

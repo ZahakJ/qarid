@@ -1,10 +1,7 @@
 /**
- * The shell (design-ux.md §9). `Body` is the one route switch in قريض, and every
- * `Route["view"]` now has a real case in it. The phase-0 `ViewStub` — a stub
- * heading, a hard-coded corpus count and «هذه الصفحة قيد الإنشاء — المرحلة N» —
- * is GONE with the last stub branch it served; the `default` falls back to the
- * ديوان, so a route added without a case lands somewhere real instead of
- * shipping a construction notice to a reader.
+ * The shell. `Body` is the one route switch in قريض, and every
+ * `Route["view"]` has a real case in it. The `default` falls back to the
+ * ديوان, so a route added without a case lands somewhere real.
  *
  * Contracts this file owns and must keep:
  *  • `document.body.dataset.appReady = '1'` after the first render settles —

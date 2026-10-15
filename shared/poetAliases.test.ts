@@ -91,7 +91,7 @@ describe("the poet alias table", () => {
     // A token-superset is evidence, not proof: sons, transmitters, friends and
     // shared نسبة all look exactly like an alias to the detector.
     for (const name of [
-      "متنبي المغرب", // the task's own example — a different شاعر
+      "متنبي المغرب", // a different شاعر
       "المشوق الشامي صديق المتنبي",
       "يحيى ابن البحتري",
       "خليل ناصيف اليازجي",

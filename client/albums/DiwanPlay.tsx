@@ -36,7 +36,7 @@
  * one card). The ديوان is the SOURCE; the deck is the reader's, and nothing
  * about it goes to the server. The قصائد on the shelf are fetched on the press
  * and never before it (`gatherAlbumBaits`, memorize.ts), capped at
- * `ALBUM_LIMITS.memorize` cards a sitting. The toast says the honest split —
+ * `ALBUM_LIMITS.memorize` cards a sitting. The toast says the accurate split —
  * «أُضيف 24 بيتًا، و6 أبيات عندك من قبل» — and the promise ends there: the درب
  * reminds through the ordinary due-cards flow, and nothing here says a word
  * about a notification.
@@ -73,7 +73,7 @@ export function DiwanPlay({ album, entries }: { album: AlbumSummary; entries: re
   const reload = useTraining((s) => s.reload)
 
   // The pool is asked for ONCE per shelf. It is the same request the duel will
-  // carry on every turn, so asking early is also what makes the door honest
+  // carry on every turn, so asking early is also what makes the door accurate
   // before it is pressed.
   useEffect(() => {
     const ac = new AbortController()

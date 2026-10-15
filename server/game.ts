@@ -351,7 +351,7 @@ export function comboByLetter(db: Db, cond: GbCond, tier: Difficulty): Map<strin
 }
 
 /**
- * The same per-letter counts, but HONEST about every «قيد» — including the
+ * The same per-letter counts, but ACCURATE about every «قيد» — including the
  * three `combo_counts` has no key for (`theme`, `poet`, `lang`).
  *
  * `combo_counts` is keyed on (letter, عصر, بحر, tier) only, so the moment a
@@ -920,7 +920,7 @@ function ftsCandidates(db: Db, match: string, n: number): number[] {
  * duplicate-قصيدة case (byte-identical text under two ids — the corpus has
  * plenty) is already accepted upstream; what is left is two genuinely different
  * أبيات that a fuzzy score cannot separate, and asking the player which one they
- * meant is the only honest answer. A wide band here would turn "I recognise your
+ * meant is the only accurate answer. A wide band here would turn "I recognise your
  * بيت" into "pick one of four", which reads as a rejection.
  */
 export const AMBIGUOUS_BAND = 0.02
@@ -1376,7 +1376,7 @@ function settle(
  * 95,065-بيت مشاهير pool — about 15 MB of strings.
  *
  * The slice is the tier the duel itself calls مبتدئ (`fame = 3 AND position <= 2`
- * — «أشهر الشعراء، ومطالع القصائد»), which is also the honest answer to v2.md's
+ * — «أشهر الشعراء، ومطالع القصائد»), which is also the accurate answer to v2.md's
  * «ranked by fame»: a tutorial suggests أبيات a reader might actually know. A
  * letter too thin to teach with widens one tier (see `assistTier`), and the
  * count that decides comes from `combo_counts`, so choosing costs one point

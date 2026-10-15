@@ -10,7 +10,7 @@
  *
  * v2.md §1 — «صدر only» was the app's best-kept secret: it was true, it was
  * tested, and the only place it was WRITTEN was a grey line at the far end of
- * the actions row, after «Shift+Enter لسطر جديد», where the owner never saw it.
+ * the actions row, after «Shift+Enter لسطر جديد», where nobody saw it.
  * It now sits directly under the field, on every device, as `.answer__help` —
  * and the placeholder says it too (client/duel/placeholders.ts). A rule nobody
  * reads is a rule nobody has.

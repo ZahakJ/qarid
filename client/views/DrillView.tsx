@@ -4,7 +4,7 @@
  * One بيت at a time, and the discipline of the whole screen is that the عجز is
  * NOT on it. `BaytPlate` renders the صدر in its usual geometry with the عجز
  * replaced by a ruled blank of that عجز's own width — the length is a real cue
- * a reciter uses, so it is given honestly, while the words themselves never
+ * a reciter uses, so it is given, while the words themselves never
  * reach the DOM.
  *
  * Then either you write it or you ask to see it. Writing it is marked by

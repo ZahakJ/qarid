@@ -20,8 +20,8 @@
  *
  * THE SOCKET IS AN OPTIMISATION. Every event it carries is the full snapshot,
  * which is what `GET /state` returns, which is what every POST returns. Turn
- * the WebSocket off — a proxy that strips upgrades, a browser tab that lost the
- * connection, the tunnel blinking — and the room still plays through the poller
+ * the WebSocket off — a proxy that strips upgrades, or a browser tab that lost the
+ * connection — and the room still plays through the poller
  * at 2-second granularity. There is exactly one server-side path, and the
  * transport chooses only how fast the news travels.
  */
@@ -712,8 +712,8 @@ export function mountRoomSocket(app: Hono, deps: RoomDeps, upgradeWebSocket: Upg
           if (!parsed.success) return
           const cmd = parsed.data
 
-          // WHO IS THIS, NOW. The session may have been deleted (a logout, the
-          // owner clearing a compromised row per README §Accounts) or simply
+          // WHO IS THIS, NOW. The session may have been deleted (a logout, a
+          // password change, an account deletion) or simply
           // expired since the upgrade; a socket frozen at handshake identity
           // kept playing as a user who no longer exists.
           const user = liveUser()

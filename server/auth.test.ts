@@ -191,7 +191,7 @@ describe("duel statistics over the §5 tables", () => {
 
   /**
    * The profile's numbers are QUERIES, not placeholders — this writes the rows
-   * §5's agent will write and proves the page is already correct, including the
+   * a played room writes and proves the page is already correct, including the
    * longest-run window function behind أطول سلسلة.
    */
   it("counts wins, losses and the longest accepted run once rooms exist", () => {
@@ -540,7 +540,7 @@ describe("/api/profile", () => {
     db.close()
   })
 
-  it("serves a public page with an honest empty duel record", async () => {
+  it("serves a public page with an empty duel record", async () => {
     const res = await app.request("/api/profile/labid")
     expect(res.status).toBe(200)
     const body = ProfileResponseSchema.parse(await res.json())

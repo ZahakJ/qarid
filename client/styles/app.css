@@ -170,31 +170,6 @@
   text-align: center;
 }
 
-/* ── Phase-0 placeholder body ───────────────────────────────────────── */
-.stub {
-  display: grid;
-  gap: var(--sp-3);
-  padding: var(--sp-6);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-3);
-  background: rgba(255, 255, 255, 0.012);
-  color: var(--text-2);
-  font-size: var(--fs-ui-2);
-}
-
-/* The hash is ASCII inside an RTL block. `isolate` alone is not enough: the
- * leading `#/` are neutrals, so they take the paragraph direction and `#/duel`
- * renders as `duel/#`. The run needs its own LTR direction; `justify-self`
- * keeps the box itself at the inline-start (right) edge. */
-.stub__route {
-  font-family: var(--font-mono);
-  font-size: var(--fs-ui-1);
-  color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
-  justify-self: start;
-}
-
 .doors {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));

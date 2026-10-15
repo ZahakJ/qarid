@@ -74,7 +74,7 @@ describe("loadSlice", () => {
   /**
    * The whole point of the version chain, exercised end to end on the slice
    * that needed it: a duel session written at v1 — before `outcome`/`endedAt`
-   * existed — must still load, and must load with what its ending can honestly
+   * existed — must still load, and must load with what its ending can accurately
    * be read as. Both directions: the v1 payload below, and a v2 payload
    * (written by `saveSlice` above) that must survive untouched.
    */

@@ -3,8 +3,7 @@
  * the reader was looking at.
  *
  * `Ctrl+K` **and** `Ctrl+F` (and their Cmd twins) open it on EVERY route; the
- * second one is a deliberate hijack of the browser's own find, asked for by the
- * owner: a reader looking for a word inside a 3.4M-بيت ديوان means the ديوان,
+ * second one deliberately takes over the browser's own find: a reader looking for a word inside a 3.4M-بيت ديوان means the ديوان,
  * not the 40 lines the viewport happens to hold. `Escape` closes it, `/` still
  * prefers a real omnibox if one is on screen (App.tsx), and `#/search` stays
  * exactly where it was for deep links and the full result list.

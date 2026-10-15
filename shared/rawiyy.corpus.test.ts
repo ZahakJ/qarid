@@ -1,6 +1,5 @@
 /**
- * design-server.md §11(c) — the spike that decides whether the whole game is
- * playable: does `rawiyyOf` agree with itself across the أبيات of one قصيدة?
+ * Does `rawiyyOf` agree with itself across the أبيات of one قصيدة?
  *
  * A قصيدة عمودية is monorhyme by definition, so every عجز in it must yield the
  * same روي. Measuring the modal letter's share per poem measures the peel rules

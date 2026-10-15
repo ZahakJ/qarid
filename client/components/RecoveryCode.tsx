@@ -1,5 +1,5 @@
 /**
- * The once-shown RECOVERY CODE panel (no-email account recovery — Play launch).
+ * The once-shown RECOVERY CODE panel (no-email account recovery).
  *
  * قريض has no email, so a forgotten password is recovered with a code, not a
  * link. The server keeps ONLY a scrypt hash of it, so this — the moment right

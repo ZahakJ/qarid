@@ -627,7 +627,7 @@ function writePoets(db: DatabaseSync, lookups: Lookups, poets: Map<string, PoetA
   )
   const insFts = db.prepare("INSERT INTO poets_fts (rowid, norm_name, norm_desc) VALUES (?, ?, ?)")
 
-  // docs/internals.md spike finding 3: 772 names carry more than one poet url, so the
+  // docs/internals.md corpus finding 3: 772 names carry more than one poet url, so the
   // slug is chosen — aldiwan's ascii slug when there is one (they sort first
   // because they are the only ones `poetSlugFrom` returns), else the شاعر's own
   // name, and a numeric suffix breaks the rare remaining collision.

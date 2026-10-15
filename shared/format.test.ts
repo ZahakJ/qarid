@@ -51,7 +51,7 @@ describe("digits", () => {
 })
 
 describe("formatNumber", () => {
-  it("is Western digits with a comma every three — the owner's one scale", () => {
+  it("is Western digits with a comma every three — one scale", () => {
     expect(formatNumber(239411)).toBe("239,411")
     expect(formatNumber(254630)).toBe("254,630")
     expect(formatNumber(1000)).toBe("1,000")

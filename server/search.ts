@@ -2,8 +2,7 @@
  * `server/search.ts` — the FTS5 engine behind `GET /api/search`
  * (design-server.md §7 "Search", design-ux.md §3 Search).
  *
- * Ported from `kalam/server/retrieval.py::_keyword_search`, with the two things
- * that make it safe on a 3.57M-بيت index:
+ * Two things make it safe on a 3.57M-بيت index:
  *
  *  1. **The query is never syntax.** `ftsQuery()` in `shared/arabic.ts` is the
  *     ONLY builder: it normalises exactly the way the index was normalised and

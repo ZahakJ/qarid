@@ -2,9 +2,9 @@
  * `#/diwan/<CODE>` — one ديوان, the playlist a reader compiled himself.
  *
  * The page has two readers and it is the SAME page for both, with one rail
- * added: a visitor sees a title, a curator and the entries; the owner sees
+ * added: a visitor sees a title, a curator and the entries; the curator sees
  * those plus the means to rename, describe, publish, reorder and remove. Two
- * components would have been two layouts to keep in agreement, and the owner
+ * components would have been two layouts to keep in agreement, and the curator
  * is the reader who looks at this page most.
  *
  * AN ENTRY IS A قصيدة OR A بيت, and the page draws them as two different
@@ -25,7 +25,7 @@
  * Reordering is up/down BUTTONS and not only a drag. A drag on a phone fights
  * the page's own scroll, a drag with a keyboard does not exist, and the شطران
  * of a بيت make a drag target that is 58rem wide and one line tall. The buttons
- * are the honest affordance; the whole order goes back in one PATCH either way
+ * are the affordance; the whole order goes back in one PATCH either way
  * (`AlbumPatchRequestSchema.order` — the WHOLE list, never a move).
  */
 import { useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react"

@@ -5,7 +5,7 @@
  * shelf page, and the picker's row — and a visibility whose words differ
  * between them is a visibility the reader has to re-learn on each screen.
  *
- * The wording carries the actual rule, not a euphemism. «بالرابط» is the honest
+ * The wording carries the actual rule, not a euphemism. «بالرابط» is the accurate
  * name for unlisted: the CODE is the capability here, there is no second secret
  * and no knock (server/routes/albums.ts), so whoever has the link is in. Saying
  * «خاص» about it would be a promise the design does not make.

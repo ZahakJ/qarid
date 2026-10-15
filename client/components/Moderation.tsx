@@ -1,6 +1,6 @@
 /**
  * Report and block — the two moderation affordances a reader has over another
- * account (Track 3). They sit, tastefully and small, wherever one real person
+ * account. They sit, tastefully and small, wherever one real person
  * meets another: a profile page (`#/u/<name>`) and a live مساجلة (the opponent).
  * A ديوان gets the report half alone (`AlbumReportAction`, at the foot of this
  * file) — its اسم and وصف are UGC too, while blocking belongs to the person and
@@ -8,7 +8,7 @@
  *
  * BLOCKING IS PRIVATE. Nothing here ever tells the blocked account it was
  * blocked; the button only reflects the reader's OWN state («احظر» ↔ «ألغِ
- * الحظر»). REPORTING is a quiet note to the owner — a reason and an optional
+ * الحظر»). REPORTING is a quiet note to the admins — a reason and an optional
  * line — and answers with a toast, never a running conversation.
  *
  * The dialogs reuse the app's modal mechanics (aria-modal, Escape closes, Tab

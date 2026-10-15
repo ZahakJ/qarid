@@ -124,7 +124,7 @@ export function poemsRoutes(db: Db, _config: Config): Hono {
 
 /**
  * One page of أبيات, already paired `{sadr, ajuz}` by the ingest — the client
- * never sees a flat hemistich list (design-ux.md §10). `baits_poem_pos` makes
+ * never sees a flat hemistich list (design-ux.md §8). `baits_poem_pos` makes
  * this an index range scan even on the 11,608-hemistich قصيدة.
  */
 function readBaits(db: Db, poemId: number, offset: number, limit: number): ReturnType<typeof baitDto>[] {

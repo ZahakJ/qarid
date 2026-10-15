@@ -3,9 +3,8 @@
  *
  * The omnibox types a letter every ~90 ms; the browse facet rail fires a
  * /api/facets round trip on every chip. Both want the same 200 ms of quiet
- * before they cost anything (design-ux.md §3), and the game agent's note is
- * blunt about the other direction: a client that polls on every keystroke will
- * hit the /api/game/* rate limit.
+ * before they cost anything (design-ux.md §3), and a client that polls on every
+ * keystroke will hit the /api/game/* rate limit.
  */
 import { useEffect, useRef, useState } from "react"
 

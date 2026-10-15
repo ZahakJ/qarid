@@ -14,7 +14,7 @@ export type Config = {
   inviteCodes: readonly string[]
   /**
    * ADMIN_USERNAMES — comma list of accounts that may reach `/api/admin/*`
-   * (Track 3). Empty by default: no account is an admin unless the owner names
+   * Empty by default: no account is an admin unless the operator names
    * it in the environment, and the routes 403 for everyone else. Matched
    * case-insensitively, because usernames are `UNIQUE COLLATE NOCASE`.
    */
@@ -40,7 +40,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     usersDbPath: env.USERS_DB_PATH ?? path.join(root, "data", "qarid-users.db"),
     // Registration is OPEN by default (v2.md §4). `REQUIRE_INVITE=1` closes it,
     // and with no `INVITE_CODES` set that means closed to everyone — which is
-    // the honest reading of "require an invite and issue none", not a reason to
+    // the accurate reading of "require an invite and issue none", not a reason to
     // silently fall back to open.
     requireInvite: env.REQUIRE_INVITE === "1" || env.REQUIRE_INVITE === "true",
     inviteCodes: codes,
@@ -50,10 +50,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 /**
- * Is this username on the admin allowlist? (Track 3.) Case-insensitive, because
+ * Is this username on the admin allowlist? Case-insensitive, because
  * accounts are `UNIQUE COLLATE NOCASE` — «Owner» and «owner» are one account and
  * must be one admin. An empty allowlist makes this always false: no `/api/admin`
- * route is reachable until the owner sets `ADMIN_USERNAMES`.
+ * route is reachable until the operator sets `ADMIN_USERNAMES`.
  */
 export function isAdminUsername(config: Config, username: string | null | undefined): boolean {
   if (!username) return false

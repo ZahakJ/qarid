@@ -3,10 +3,8 @@
  * actually played, for the home screen's coverage ring («تغطية 21 من 28 حرفًا»,
  * design-ux.md §5).
  *
- * It reads the persisted slice rather than the training store because the
- * training store is Phase 4 and does not exist yet; the slice's SHAPE, on the
- * other hand, is already fixed in shared/schema.ts, so this reads correctly the
- * moment Phase 4 starts writing it and reads as an empty ترسانة until then.
+ * It reads the persisted slice directly; the slice's SHAPE is fixed in
+ * shared/schema.ts, and an absent slice reads as an empty ترسانة.
  * `persist.loadSlice` backs up and discards anything that is not the right
  * shape, so a hand-edited payload cannot break the home screen.
  */

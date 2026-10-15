@@ -543,7 +543,7 @@ a.exchange__who:hover {
 }
 
 /* «خرج عن القيود» — the opponent answered from OUTSIDE the player's عصر/بحر
- * because nothing inside them chained. Warn-toned and quiet: it is an honest
+ * because nothing inside them chained. Warn-toned and quiet: it is an accurate
  * disclosure, not a fault, and it must never outweigh the شاعر's name beside
  * it. `.num`-free, so nothing here needs an LTR run. */
 .exchange__relaxed {
@@ -1516,7 +1516,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   }
 
   .duel-hud {
-    /* the masthead wraps to two rows on a phone, so there is no honest offset
+    /* the masthead wraps to two rows on a phone, so there is no fixed offset
        to pin under — the HUD scrolls with the transcript instead */
     position: static;
     gap: var(--sp-3);

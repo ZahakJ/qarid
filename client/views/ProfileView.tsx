@@ -292,7 +292,7 @@ export function ProfileView({ username }: { username: string }) {
           </div>
         ) : me ? (
           // Someone else's page, and you are signed in: the quiet «أبلغ» / «احظر»
-          // pair (Track 3). Blocking is private, so the button reflects only your
+          // pair. Blocking is private, so the button reflects only your
           // own state, carried in `youBlocked`.
           <div className="profile-hero__acts">
             <ModerationActions

@@ -1,8 +1,7 @@
 /**
  * `#/duel` — the setup screen (design-ux.md §4 Setup, rewritten for v2.md §1).
  *
- * Five decisions, and v2.md §1 is the owner reporting that he could not read
- * four of them: «القيود» did not say WHOM they constrain, «العدد المتاح» did not
+ * Five decisions, and four of them could not be read (v2.md §1): «القيود» did not say WHOM they constrain, «العدد المتاح» did not
  * say what it counts, «الوصال/المبارزة» and «الروي/الحرف الأخير» were two pairs
  * of words with their meaning hidden inside the selected one. So every control
  * on this page now carries its explanation ON SCREEN, and both sides of every
@@ -18,7 +17,7 @@
  *     when a شاعر is set, which that table has no key for); a thin combination
  *     WARNS, never blocks. The شاعر arrives two ways: typed into `PoetFilter`,
  *     or carried in on `#/duel?poet=<slug>` from «ساجِل من ديوانه» on his page.
- *     Either way the hash is kept honest with a `replace`, so the constraint
+ *     Either way the hash is kept accurate with a `replace`, so the constraint
  *     survives a reload and can be shared — and `pageKey` calls it the same
  *     page, so setting it does not throw the reader to the top of the screen.
  *  3. الوقت   — on/off; off forces the رتبة down to شاعر, because فحل and سيف
@@ -166,7 +165,7 @@ export function DuelSetupView({ poet: routePoet }: { poet?: string } = {}) {
     }
   }, [])
 
-  // The chain-mode example, off a REAL بيت. بيت اليوم is the cheapest honest
+  // The chain-mode example, off a REAL بيت. بيت اليوم is the cheapest accurate
   // source — one cached request (2.8 ms server-side, an hour of Cache-Control)
   // that the home screen has usually already made — and roughly half of all
   // أبيات have no peel to show, so a بيت that cannot teach the difference is

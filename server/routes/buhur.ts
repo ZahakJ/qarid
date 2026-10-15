@@ -12,7 +12,7 @@
  *
  * ── Why this is a route at all, and why it is memoised ──────────────────────
  *
- * Because the honest alternatives were measured on the real artefact
+ * Because the obvious alternatives were measured on the real artefact
  * (`build_id d1a38337`) and both are worse:
  *
  *   `/api/baits?meter=<slug>&limit=1`  — the بيت-mode browse route, fame-first

@@ -48,7 +48,7 @@ export function parseParam<S extends z.ZodType>(c: Context, schema: S, value: st
 
 /**
  * Path params arrive percent-encoded whenever the slug is Arabic — and 73% of
- * poet slugs are (docs/internals.md spike finding 2). Hono decodes for us; this is the
+ * poet slugs are (docs/internals.md corpus finding 2). Hono decodes for us; this is the
  * belt-and-braces pass for a client that double-encoded, and it never throws on
  * a malformed sequence.
  */

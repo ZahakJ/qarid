@@ -60,7 +60,7 @@ import {
 /**
  * The WebSocket suite binds a REAL socket, and it takes whatever the OS hands
  * it (`PORT=0`, read back off `server.address()`). A fixed port would make the
- * whole file fail whenever anything else on the box — another agent's dev
+ * whole file fail whenever anything else on the machine — a dev
  * server, a screenshot run, a second copy of this suite — happened to hold it,
  * and the failure would look like a room bug.
  */

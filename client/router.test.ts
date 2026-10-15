@@ -409,7 +409,7 @@ describe("#/duel?poet= — مساجلة في ديوان شاعرٍ بعينه", 
 
   it("stays ONE page — choosing a شاعر is not arriving somewhere new", () => {
     // The chip is set and cleared in place (and the setup screen keeps the hash
-    // honest with a `replace`), so a jump to the top would throw the reader off
+    // accurate with a `replace`), so a jump to the top would throw the reader off
     // the control they just used.
     expect(pageKey({ view: "duel", poet: "mutanabi" })).toBe(pageKey({ view: "duel" }))
   })

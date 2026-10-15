@@ -1,7 +1,7 @@
 /**
  * «الروي أم الحرف الأخير؟» — the setup screen's live example (v2.md §1).
  *
- * The chain-mode switch is the option the owner could not parse, and no wording
+ * The chain-mode switch is the option nobody could parse, and no wording
  * fixes that on its own: «يُقشَر حرف الوصل» explains a peel to someone who
  * already knows what a peel is. What explains it is a REAL بيت with its two
  * answers side by side — «الزُلالا ← الرويّ ل، والحرف الأخير ا» — so the two
