@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import type { Hono } from "hono"
 
+import { FIRST_DAY } from "../shared/daily.ts"
 import { DailyResponseSchema } from "../shared/schema.ts"
 import { ensureFixtureDb, FIXTURE_DB } from "../test/fixtureDb.ts"
 import { createApp } from "./app.ts"
@@ -139,7 +140,7 @@ describe("بيت اليوم by date on data/fixture.db", () => {
     expect(a).toEqual(b)
     const seen = new Set<string>()
     for (let i = 0; i < 10; i++) {
-      const v = dailyVerse(db, shift("2026-08-01", i), today)
+      const v = dailyVerse(db, shift("2026-08-23", i), today)
       if (v.ok) seen.add(v.verse.sadr)
     }
     expect(seen.size).toBeGreaterThan(1)
@@ -159,6 +160,11 @@ describe("بيت اليوم by date on data/fixture.db", () => {
   it("refuses a future day and a malformed one", () => {
     expect(dailyVerse(db, shift(today, 1), today)).toEqual({ ok: false, reason: "future" })
     expect(dailyVerse(db, "2026-02-30", today)).toEqual({ ok: false, reason: "malformed" })
+  })
+
+  it("has no page before the first day", () => {
+    expect(dailyVerse(db, shift(FIRST_DAY, -1), today)).toEqual({ ok: false, reason: "none" })
+    expect(dailyVerse(db, FIRST_DAY, today).ok).toBe(true)
   })
 
   describe("GET /d/<date>", () => {

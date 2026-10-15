@@ -21,6 +21,7 @@ import { useCollections } from "../store/collectionsStore.ts"
 import { useSettings } from "../store/settingsStore.ts"
 import { toast } from "../store/toastStore.ts"
 import { arabicDay } from "../../shared/format.ts"
+import { FIRST_DAY } from "../../shared/daily.ts"
 import type { DailyResponse } from "../../shared/schema.ts"
 import { albumAction } from "../albums/AlbumPicker.tsx"
 import { headingOf } from "./shared.tsx"
@@ -144,7 +145,7 @@ export function DayView({ date }: { date?: string }) {
 
       <Rule />
       <nav aria-label="الأيام" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "1.5rem" }}>
-        {validDay(day) ? (
+        {validDay(day) && shiftDay(day, -1) >= FIRST_DAY ? (
           <a className="hero__poem" href={routeHash({ view: "day", date: shiftDay(day, -1) })}>
             → اليوم السابق
           </a>

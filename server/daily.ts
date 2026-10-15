@@ -21,6 +21,7 @@ import path from "node:path"
 import { Hono, type Context } from "hono"
 
 import { arabicDay } from "../shared/format.ts"
+import { FIRST_DAY } from "../shared/daily.ts"
 import type { Config } from "./config.ts"
 import type { Db } from "./db.ts"
 import { baitDto } from "./dto.ts"
@@ -52,6 +53,7 @@ export function dailyVerse(db: Db, raw: string, today: string = riyadhDay()): Da
   const date = raw === "today" ? today : parseDay(raw)
   if (date === null) return { ok: false, reason: "malformed" }
   if (date > today) return { ok: false, reason: "future" }
+  if (date < FIRST_DAY) return { ok: false, reason: "none" }
   const row = dailyRow(db, date)
   if (row === undefined) return { ok: false, reason: "none" }
   const b = baitDto(row)
