@@ -11,7 +11,7 @@
  *
  * Every normalisation is delegated: `shared/arabic.ts` is the ONLY normalizer,
  * `shared/meters.ts` / `eras.ts` / `themes.ts` own their vocabularies. A second
- * copy of any of them here would be a bug (CLAUDE.md invariant #1).
+ * copy of any of them here would be a bug (docs/internals.md invariant #1).
  */
 
 import {
@@ -131,7 +131,7 @@ export const UNTITLED = "بلا عنوان"
 /**
  * `https://www.aldiwan.net/poem16182.html` → 16182.
  *
- * Only aldiwan.net yields one: CLAUDE.md's spike finding 1 measured 8 hosts on
+ * Only aldiwan.net yields one: docs/internals.md corpus finding 1 measured 8 hosts on
  * `poem url`, and only 27% of rows are aldiwan's. The other 73% fall back to
  * `q<rowid>` for their `public_id`, so this returning `null` is the COMMON case.
  */
@@ -146,7 +146,7 @@ export function aldiwanIdFrom(url: string | null | undefined): number | null {
 /**
  * `https://www.aldiwan.net/cat-poet-almtnby` → `almtnby` (design-server.md §0).
  *
- * Every other host either has no poet page at all (91,936 rows — spike finding
+ * Every other host either has no poet page at all (91,936 rows — corpus finding
  * 2) or keys it by an opaque numeric id that would make a worse slug than the
  * poet's own name, so this deliberately answers `null` for them and
  * `fallbackPoetSlug` takes over.
@@ -478,7 +478,7 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
   const name = rawName === "" ? UNKNOWN_POET : rawName
   // The alias hop happens HERE, before anything is keyed on the شاعر — the
   // dedup key included, which is how «الخيل» stops showing the same مطلع twice
-  // under two spellings of the same man (CLAUDE.md backlog, poet alias merge).
+  // under two spellings of the same man (docs/internals.md backlog, poet alias merge).
   const nameKey = canonicalNameKey(normalizeArabic(name))
   const dedupKey = dedupKeyOf(nameKey, hemis)
 
@@ -574,7 +574,7 @@ export function transformPoem(raw: RawPoem): TransformedPoem | null {
  *
  * The share comes back with it because it is NOT a data error when it is low:
  * موشحات, شعر حر and مزدوجات are genuinely not monorhyme (84.3% agreement over
- * the whole corpus vs ~90% over the game pool — the arabic agent measured it),
+ * the whole corpus vs ~90% over the game pool),
  * and `game_baits`' `meters.kind='bahr'` filter is what removes those forms.
  */
 export function modalRawiyy(

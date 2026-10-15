@@ -1,5 +1,5 @@
 /**
- * `qarid:v1:settings` — the only slice Phase 0 actually writes.
+ * `qarid:v1:settings` — reading preferences.
  *
  * The shape is SettingsSliceSchema in shared/schema.ts; persistence goes
  * through client/persist.ts, so a hand-edited or stale payload degrades to

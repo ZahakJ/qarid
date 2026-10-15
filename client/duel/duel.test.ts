@@ -394,7 +394,7 @@ describe("the rejection card", () => {
     expect(html).not.toContain("−روح")
   })
 
-  it("renders each tag without throwing, and marks the cost honestly", () => {
+  it("renders each tag without throwing, and marks the cost accurately", () => {
     for (const r of REJECTIONS) {
       const html = renderToStaticMarkup(
         createElement(RejectionCard, {
@@ -516,7 +516,7 @@ describe("the share block", () => {
     expect(text).toContain("ن ← م")
     expect(text).toContain("740")
     expect(text).toContain("6 أبيات")
-    // the owner's numeral call reaches the clipboard too — no Arabic-Indic
+    // the Western-digit rule reaches the clipboard too — no Arabic-Indic
     // digit may ride out of the app in shared text
     expect(text).not.toMatch(/[٠-٩]/)
     // client/bayt/copy.ts states the rule and formatPoem obeys it: one prefix

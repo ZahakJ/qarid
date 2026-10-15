@@ -87,7 +87,7 @@ export function facetParams(q: BrowseQuery): ApiParams {
 
 /**
  * The exact inverse of `facetParams`. Round-tripping these two is what keeps
- * «امسح الكل» and the applied-chips bar honest about which chip a count belongs
+ * «امسح الكل» and the applied-chips bar accurate about which chip a count belongs
  * to; `browseQuery.test.ts` pins it over every facet combination.
  */
 export function fromFacetParams(p: ApiParams): BrowseQuery {

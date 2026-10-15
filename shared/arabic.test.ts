@@ -1,14 +1,11 @@
 /**
- * Normalization is the contract between the index and every query — kalam's
- * test file says it best, and it is even more true here, where the same
+ * Normalization is the contract between the index and every query, and the same
  * functions also decide which letter a مساجلة turns on. If `rawiyyOf` and the
  * client's letter indicator drift, the game rejects correct answers and no
  * test anywhere else notices: a wrong fold just returns zero hits.
  *
- * Golden tables only. Every worked example from design-server.md §2 is below,
- * every case ported from kalam's tests/test_normalize.py is below, and the
- * three peel refinements this project made are pinned with the corpus words
- * that forced them.
+ * Golden tables only: every worked example from design-server.md §2, and the
+ * three peel refinements pinned with the corpus words that forced them.
  */
 
 import { describe, expect, it } from "vitest"
@@ -46,7 +43,7 @@ import { HIJAI_LETTERS } from "./letters.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe("normalizeArabic — the kalam port", () => {
+describe("normalizeArabic", () => {
   it("strips tashkeel", () => {
     expect(normalizeArabic("الرَّحْمَٰنِ الرَّحِيمِ")).toBe("الرحمن الرحيم")
   })
@@ -593,7 +590,7 @@ describe("sortName / shuhraLetter", () => {
   })
 })
 
-describe("sortName — honorifics (CLAUDE.md backlog: the شعراء index)", () => {
+describe("sortName — honorifics (docs/internals.md backlog: the شعراء index)", () => {
   it("files «أ.د/ مصطفى الشليح» under الميم, sort key and letter together", () => {
     expect(sortName("أ.د/ مصطفى الشليح")).toBe("مصطفي الشليح")
     expect(shuhraLetter("أ.د/ مصطفى الشليح")).toBe("م")

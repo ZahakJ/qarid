@@ -543,7 +543,7 @@ a.exchange__who:hover {
 }
 
 /* «خرج عن القيود» — the opponent answered from OUTSIDE the player's عصر/بحر
- * because nothing inside them chained. Warn-toned and quiet: it is an honest
+ * because nothing inside them chained. Warn-toned and quiet: it is an accurate
  * disclosure, not a fault, and it must never outweigh the شاعر's name beside
  * it. `.num`-free, so nothing here needs an LTR run. */
 .exchange__relaxed {
@@ -660,7 +660,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
  *     grid (views.css), and duel.css loads after views.css — so every cell of
  *     that grid was inheriting this 4.25rem gold disc, overflowing its 15.5rem
  *     rail and letting the neighbouring circle swallow the click, which is the
- *     exact failure CLAUDE.md's grid-minimum invariant was written about.
+ *     exact failure docs/internals.md's grid-minimum invariant was written about.
  *     Everything here is scoped under `.letter-ind`, so the two never meet.
  *  2. TRUE CIRCLES. `inline-size` + `aspect-ratio: 1` (not a matched
  *     block-size) — a circle that cannot be distorted by a stretching parent.
@@ -1320,7 +1320,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
  * card — the شعراء index's. The track is wider than the index's 15rem because
  * a مساجلة meets a handful of شعراء, not four hundred, so the cells may
  * breathe; `minmax(0, …)` keeps a long اسم from pushing the grid past the
- * column (the min-content trap in CLAUDE.md). */
+ * column (the min-content trap in docs/internals.md). */
 .met-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
@@ -1516,7 +1516,7 @@ body[data-reduce-motion="1"] .recite[data-reveal] .ajuz {
   }
 
   .duel-hud {
-    /* the masthead wraps to two rows on a phone, so there is no honest offset
+    /* the masthead wraps to two rows on a phone, so there is no fixed offset
        to pin under — the HUD scrolls with the transcript instead */
     position: static;
     gap: var(--sp-3);

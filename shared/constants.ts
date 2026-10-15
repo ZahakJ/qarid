@@ -27,7 +27,7 @@ export const APP_TAGLINE = "ديوان العرب ومساجلته"
  */
 export const UNTITLED = "بلا عنوان"
 
-/** Fixed by the suite; see CLAUDE.md. Never invent another one. */
+/** Fixed by the suite; see docs/internals.md. Never invent another one. */
 export const PORTS = { devApi: 5750, devVite: 5751, preview: 6750, prod: 8010 } as const
 
 /** localStorage namespace. Every key is `qarid:v1:<slice>`. */

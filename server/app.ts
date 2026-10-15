@@ -56,7 +56,7 @@ export function createApp(
      * CORS for the Capacitor app (docs/roadmap-mobile.md §M1), handled in the
      * OUTERMOST middleware for the same reason `Cache-Control` is: an inner
      * middleware's header is dropped when `compress()` rebuilds the response
-     * (the first CLAUDE.md invariant). `Access-Control-Allow-Origin` is ECHOED
+     * (the first docs/internals.md invariant). `Access-Control-Allow-Origin` is ECHOED
      * from a three-entry allowlist, never `*` — a wildcard cannot ride with
      * `Allow-Credentials: true`. A preflight (OPTIONS) from an allowlisted
      * origin is answered here, before the CSRF guard and before any route.
@@ -79,10 +79,9 @@ export function createApp(
     }
 
     /**
-     * Cache-Control on `/api/*`, which had none at all — so Cloudflare cached
-     * nothing and every reload re-derived everything.
+     * Cache-Control on `/api/*`.
      *
-     * The database is a build artefact (CLAUDE.md invariant): `/api/meta`,
+     * The database is a build artefact (docs/internals.md invariant): `/api/meta`,
      * `/api/stats` and `/api/facets` are pure functions of it and cannot change
      * until it is rebuilt, so they get an hour with a day of
      * stale-while-revalidate. Every other read gets a minute — enough to absorb
@@ -151,12 +150,8 @@ export function createApp(
   /**
    * Compression, everywhere — not just `/api/*`.
    *
-   * The client bundle is the biggest thing this server sends and it was going
-   * out raw: a cold `#/` was 11 requests and 727 KB, of which index-*.js is
-   * 453,382 B (135,539 B gzipped) and index-*.css 67,026 B (11,713 B) — ~373 KB
-   * of avoidable transfer per first load. Cloudflare would compress it at the
-   * edge for the public hostname, but not the origin→edge hop, not
-   * `npm run preview` and not a direct hit on 8010.
+   * The client bundle is the biggest thing this server sends; a CDN may
+   * compress it at the edge, but not the origin→edge hop or a direct hit.
    *
    * hono's `compress()` already skips what must not be touched: HEAD, an
    * existing `Content-Encoding`, `206`, bodies under 1 KB, `no-transform`, and
@@ -189,7 +184,7 @@ export function createApp(
     c.res = new Response(null, { status, headers })
   })
 
-  // Every /api route needs the corpus; answer honestly when it is absent.
+  // Every /api route needs the corpus; answer 503 when it is absent.
   // Except the two that do not touch it: accounts live in their own writable
   // database (server/users.ts), so a box with no corpus can still say who you
   // are — and a box with no writable users db still serves the whole ديوان.
@@ -217,7 +212,7 @@ export function createApp(
     profileRoutes(users, config, rooms ? (codes) => notifyRoomsEnded(rooms, codes) : undefined),
   )
 
-  // UGC moderation (Track 3) — report, block, and the owner's admin routes.
+  // UGC moderation — report, block, and the admin routes.
   // Corpus-free like auth/profile: they touch only the writable users database,
   // answer 503 themselves when it is absent, and never read the ديوان.
   app.route("/api/report", reportRoutes(users, config))
@@ -239,7 +234,7 @@ export function createApp(
     // الدواوين need BOTH databases — the writable one holds the shelf, the
     // corpus turns each `h_full` anchor back into a بيت — so they mount here,
     // inside the corpus gate, rather than beside the corpus-free account
-    // routes. A box with no artefact answers 503, honestly: a ديوان whose
+    // routes. A box with no artefact answers 503: a ديوان whose
     // أبيات cannot be resolved is a list of hashes.
     app.route("/api/albums", albumRoutes(db, users, config))
     app.route("/api/poets", poetsRoutes(db, config))
@@ -297,7 +292,7 @@ export function createApp(
       c.header("Cache-Control", "no-cache")
       const publicId = decodeParam(c.req.param("publicId"))
       // No corpus (the `--no-db` shell) means no name to give it; the shell
-      // still serves, because the link must not break just because this box
+      // still serves, because the link must not break just because this server
       // is running without an artefact.
       if (db === null || !PublicPoemIdSchema.safeParse(publicId).success) return c.html(indexHtml)
 
@@ -400,7 +395,7 @@ export function createApp(
   return { app, injectWebSocket }
 }
 
-/** The `/api` prefixes that answer without the corpus artefact (v2.md §4, Track 3). */
+/** The `/api` prefixes that answer without the corpus artefact (v2.md §4, moderation). */
 const CORPUS_FREE = ["/api/auth/", "/api/profile/", "/api/report", "/api/block", "/api/admin"] as const
 
 /** How long one `/api` response may be reused. See the middleware above. */
@@ -409,8 +404,8 @@ function cachePolicy(path: string, method: string): string {
   // Who is signed in is per-reader and per-cookie: a shared cache holding
   // /api/auth/me for a minute would hand one player another player's masthead.
   if (path.startsWith("/api/auth/") || path.startsWith("/api/profile/")) return "private, no-store"
-  // Moderation surfaces are per-reader (your block list, the owner's queue) and
-  // must never be shared-cached (Track 3).
+  // Moderation surfaces are per-reader (your block list, the admin queue) and
+  // must never be shared-cached.
   if (path.startsWith("/api/report") || path.startsWith("/api/block") || path.startsWith("/api/admin"))
     return "private, no-store"
   // A مساجلة room (v2.md §5) is the most per-reader, most live thing this

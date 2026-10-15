@@ -2,7 +2,7 @@
  * THE ONE PLACE الدواوين decide between a bottom sheet and a dialog.
  *
  * The app's rule is «every phone dialog is a bottom sheet, and the desktop never
- * renders a `.sheet` at all» (CLAUDE.md) — two DOMs, one app, and the decision
+ * renders a `.sheet` at all» (docs/internals.md) — two DOMs, one app, and the decision
  * made in JS at each call site so `client/styles/sheet.css` can never reach the
  * desktop. الدواوين have FOUR modal surfaces (the picker, «حرّر الديوان», the
  * delete confirm, and «ديوانٌ جديد» in «دواويني»), and making that decision four

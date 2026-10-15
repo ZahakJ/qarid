@@ -696,7 +696,7 @@ describe("POST /api/game/reply", () => {
     expect(res.status).toBe(400)
   })
 
-  it("never repeats itself across a chain, and stumps honestly when the pool dries", async () => {
+  it("never repeats itself across a chain, and stumps when the pool dries", async () => {
     // The fixture is 202 game أبيات, so a chain on one letter exhausts quickly —
     // which is exactly the pair of properties worth pinning: every reply is new,
     // and the turn after the last one is «أفحمتَ الخصم», not a repeat.
@@ -1296,7 +1296,7 @@ describe("«القيود» with a شاعر", () => {
   // «فحل» is fame <= 2 and fame is a property of the شاعر, so a famous ديوان is
   // EXACTLY zero there — the case «العدد المتاح» would otherwise print as a bare
   // 0 over a duel that plays perfectly well out of the رتبة it relaxes to.
-  it("reports an empty رتبة honestly, with the relaxed pool beside it", async () => {
+  it("reports an empty رتبة, with the relaxed pool beside it", async () => {
     const fame = Number(
       (db.q("SELECT fame FROM poets WHERE slug = ?").get(scoped.slug) as { fame: number }).fame,
     )
@@ -1407,7 +1407,7 @@ describe("«القيود» with a شاعر", () => {
     ).map((r) => Number(r.id))
     expect(mine.length).toBeGreaterThan(0)
     // Every بيت he could legally answer with is already in the transcript, so
-    // the only honest answer is one from outside the قيود.
+    // the only accurate answer is one from outside the قيود.
     const body = GameReplyResponseSchema.parse(
       (
         await post("/api/game/reply", {

@@ -7,7 +7,7 @@
  * with the turn's timer drawn as a hairline arc around it. The typed letter is
  * derived live through `firstLetterOf` from shared/arabic.ts — the SAME
  * function the server uses to judge the answer, which is the whole point of
- * the one-normalizer invariant (CLAUDE.md). The client's verdict is UI sugar:
+ * the one-normalizer invariant (docs/internals.md). The client's verdict is UI sugar:
  * the server stays the authority (amendments.md §13).
  *
  * `alsoAccepted` (the literal final letter, when the روي was peeled off it)

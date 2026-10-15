@@ -12,14 +12,14 @@
  *
  * ── Why this is a route at all, and why it is memoised ──────────────────────
  *
- * Because the honest alternatives were measured on the real artefact
+ * Because the obvious alternatives were measured on the real artefact
  * (`build_id d1a38337`) and both are worse:
  *
  *   `/api/baits?meter=<slug>&limit=1`  — the بيت-mode browse route, fame-first
  *     already. No index leads with `meter_id`, so SQLite skip-scans `gb_rand`
  *     and sorts the survivors in a temp b-tree: **560 ms** for الطويل, 2.3 s to
  *     fill the page. Every `node:sqlite` call blocks the one event loop
- *     (CLAUDE.md), so that is 2.3 seconds of every other visitor's latency, on
+ *     (docs/internals.md), so that is 2.3 seconds of every other visitor's latency, on
  *     every load of this page, forever.
  *
  *   sixteen `/api/poems?meter=<slug>&sort=fame` calls from the client — 45 ms
@@ -49,7 +49,7 @@
  *    content. You cannot hear مُتَفاعِلُنْ in an unvoweled line.
  *  • `bait_count BETWEEN 5 AND 40` — a five-بيت floor keeps out fragments the
  *    scraper cut, and the ceiling keeps out the ديوان-as-one-poem blobs
- *    (CLAUDE.md §The artefact: dctabudhabi files all of المتنبي under one
+ *    (docs/internals.md §The artefact: dctabudhabi files all of المتنبي under one
  *    مطلع). Neither bound is about quality; both are about the row being a
  *    قصيدة.
  *

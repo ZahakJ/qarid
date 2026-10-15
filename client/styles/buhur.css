@@ -3,7 +3,7 @@
  *
  * It loads AFTER views.css, poets.css, app.css, duel.css and room.css — the
  * position that once let duel.css's `.letter-well` reach into the browse rail
- * (CLAUDE.md §Invariants) — so every selector LEADS with one of its own new
+ * (docs/internals.md §Invariants) — so every selector LEADS with one of its own new
  * `.buhur-*` classes and `styles.test.ts` fails the build if one does not. Like
  * anthology.css it also never names `.bayt`, `.sadr`, `.ajuz` or `.bayt-plate`:
  * a lesson FRAMES أبيات, it does not set them. `BaytPlate` and bayt.css stay

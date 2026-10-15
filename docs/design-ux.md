@@ -1,13 +1,13 @@
-# قريض — Frontend UX + Game Design (authoritative)
+# قريض — frontend UX and game design
 
-Ports (verified free in the suite): dev API **5750**, Vite dev **5751**, preview **6750**, prod **8010**. Domain qarid.example.com.
+Ports: dev API **5750**, Vite dev **5751**, preview **6750**, prod **8010**. Domain qarid.example.com.
 
 ## 0. Project shape & identity
-mimema/leyline shape: single npm package, `client/` + `server/` + `shared/` + `tools/`, Vite root `client`, build `outDir: ../dist`, dev proxy `/api → 127.0.0.1:5750`.
+Single npm package, `client/` + `server/` + `shared/` + `tools/`, Vite root `client`, build `outDir: ../dist`, dev proxy `/api → 127.0.0.1:5750`.
 - `<body data-app="qarid">`, `<html lang="ar" dir="rtl">`.
 - `document.body.dataset.appReady = '1'` after first render.
-- localStorage `qarid:v1:*`, hand-rolled `persist.ts` copied from daedalus (`{v,data}` envelope, Zod safeParse, corrupt payloads backed up to `qarid:corrupt-backup:<slice>`, 300ms debounce + `flushNow()` on visibilitychange).
-- Seeded RNG: `shared/rng.ts` = daedalus sfc32 + hashSeed + rngFrom(seed). No Math.random for anything deterministic.
+- localStorage `qarid:v1:*`, hand-rolled `persist.ts` (`{v,data}` envelope, Zod safeParse, corrupt payloads backed up to `qarid:corrupt-backup:<slice>`, 300ms debounce + `flushNow()` on visibilitychange).
+- Seeded RNG: `shared/rng.ts` = sfc32 + hashSeed + rngFrom(seed). No Math.random for anything deterministic.
 
 ### Load-bearing invariant
 **`shared/arabic.ts` is the only normalizer.** Server FTS index, server chain-letter derivation, client live letter indicator, search highlighter, dedup key — all use the same functions. Exports:
@@ -18,11 +18,11 @@ normalize(s)       // strip + fold + collapse whitespace
 lastChainLetter(ajuz)   // letter the NEXT bayt must start with
 firstChainLetter(text)  // folded first letter of player's text
 baytKey(poemId, i) // `${poemId}:${i}`
-foldedIndex(s)     // fold consulted, never materialized → offsets stay in ORIGINAL string (vellum-prod/client/books/search.ts trick) for snippet highlighting
+foldedIndex(s)     // fold consulted, never materialized → offsets stay in ORIGINAL string for snippet highlighting
 ```
 Chain-letter rule (server is authority, client mirrors for preview): strip tashkeel from ajuz, drop trailing non-letters, take last Arabic letter, fold. If it's a bare ا/و/ي acting as وصل (preceding letter is not a chain-terminal), step back one. Server returns `requiredLetter`, `requiredLetterSource: 'rawiyy'|'wasl-stepback'`, `alsoAccepts: string[]`; UI renders letter + one Arabic clause + ghost chips for alsoAccepts.
 
-## 1. Route map (hash router, daedalus flavour: parseHash / routeHash / useRoute / navigate / initRouter)
+## 1. Route map (hash router: parseHash / routeHash / useRoute / navigate / initRouter)
 | Hash | Route |
 |---|---|
 | `#/` | home: daily bayt, omnibox, facet doors, duel CTA |
@@ -45,7 +45,7 @@ Unknown → `#/`. `?` opens HelpOverlay everywhere. Slugs ASCII for era/meter/th
 - Background: slow illumination bloom (two radial gradients gold 22%/14% + lapis 78%/86%, 8% opacity, 40s drift, off under reduced-motion), a static vignette, and a 140px fractal-noise dither at 3.5% over both — without the dither the two ramps are too shallow for 8-bit (six levels across 900px) and quantize into visible plateaus whose step edges read as slanted bars across the page.
 - Two type scales: UI (IBM Plex Sans Arabic) 12/13/14.5/16/18/22/28; VERSE (Amiri) `--fs-bayt-sm: clamp(1.05rem,1rem+.5vw,1.25rem)`, `-md: clamp(1.25rem,1.1rem+1.1vw,1.75rem)`, `-lg: clamp(1.5rem,1.2rem+2.2vw,2.4rem)`, `--lh-bayt: 2.05` (2.30 with tashkeel).
 - Arabic typography rules: NEVER letter-spacing on Arabic; never italic Arabic; logical properties only (start/end, inline-*); `:dir(rtl){font-family:var(--naskh)}` catch-all; ornaments are SVG never font glyphs; ALL numerals Western 0-9 (amendment 25), verse numbers and stats/timers in Plex Mono with tabular-nums.
-- **The numeral line, restated (amendment 25 — owner's call, 2026-08-24): WESTERN DIGITS EVERYWHERE.** Every number this app shows a reader is `0-9` with a comma every three — «239,411 قصيدة», verse number «12», «×2», «951 بيتًا», «24 آب», the إحصاءات tiles and bars, the شعراء letter rail, the clock, the score. One formatter, `shared/format.ts`: `formatCount` (reading scale) and `formatScore`/`formatClock` (the GAME's instruments) now differ only in ROUNDING and in the FACE they are set in — `--font-mono` + `tabular-nums` for the instruments and for the بيت number in the margin, the UI face for prose. There is no `numerals` setting and no Arabic-Indic path left in the code: `toArabicDigits` is gone, `toLatinDigits` survives only to PARSE digits a reader types. What amendment 18 got right and this keeps: `--font-mono` is Plex Mono's LATIN subset, so it is now safe on every number we set — and the Amiri we ship is the ARABIC subset with no Latin figures at all, which is why `.bayt-num` is mono rather than `--font-verse`. Bidi: bare digits inside Arabic need no mark; a NEUTRAL glued to a number does — «×2» in the HUD, «1200 × 630» in the share dialog and «2–3» in the stats histogram each get their own LTR run (`dir="ltr"` / `<bdi dir="ltr">`), and a leading LRM keeps «+152» / «−40» on the right side. Supersedes amendment 18 and the one-line version above.
+- **The numeral line, restated (amendment 25): WESTERN DIGITS EVERYWHERE.** Every number this app shows a reader is `0-9` with a comma every three — «239,411 قصيدة», verse number «12», «×2», «951 بيتًا», «24 آب», the إحصاءات tiles and bars, the شعراء letter rail, the clock, the score. One formatter, `shared/format.ts`: `formatCount` (reading scale) and `formatScore`/`formatClock` (the GAME's instruments) now differ only in ROUNDING and in the FACE they are set in — `--font-mono` + `tabular-nums` for the instruments and for the بيت number in the margin, the UI face for prose. There is no `numerals` setting and no Arabic-Indic path left in the code: `toArabicDigits` is gone, `toLatinDigits` survives only to PARSE digits a reader types. What amendment 18 got right and this keeps: `--font-mono` is Plex Mono's LATIN subset, so it is now safe on every number we set — and the Amiri we ship is the ARABIC subset with no Latin figures at all, which is why `.bayt-num` is mono rather than `--font-verse`. Bidi: bare digits inside Arabic need no mark; a NEUTRAL glued to a number does — «×2» in the HUD, «1200 × 630» in the share dialog and «2–3» in the stats histogram each get their own LTR run (`dir="ltr"` / `<bdi dir="ltr">`), and a leading LRM keeps «+152» / «−40» on the right side. Supersedes amendment 18 and the one-line version above.
 - Chips: one component, 4 variants by shape+SVG mark not hue: بحر pill with tafʿila glyph + tafʿilat popover; غرض filled pill; عصر square-cornered; روي circular 1.9em letter in Amiri, lapis hairline. Active → accent border + accent-dim fill + glow. Facet chips carry counts.
 - Empty states carry real abyat (client/data/flavor.ts): search-none «وما نيلُ المطالبِ بالتمنّي / ولكن تُؤخذُ الدنيا غِلابا» (شوقي); no favorites «إذا لم تستطعْ شيئًا فدعْهُ / وجاوزْهُ إلى ما تستطيعُ»; defeat «ومن يكُ ذا فمٍ مرٍّ مريضٍ / يجدْ مُرًّا به الماءَ الزُّلالا» (المتنبي); facets-zero «قد يُدركُ المتأنّي بعضَ حاجتِهِ / وقد يكونُ مع المستعجلِ الزللُ»; no due cards «العلمُ يُحيي قلوبَ الميّتينَ كما / تُحيي البلادَ إذا ما مَسَّها المطرُ».
 
@@ -56,7 +56,7 @@ Centred column max 46rem: wordmark قريض (Aref Ruqaa, gold, dissolving gold h
 Sticky era chip strip + letter rail (vertical inline-end on wide, horizontal sticky on mobile; counts; click scrolls + writes ?letter= replace). Sections per folded letter (h2 Aref Ruqaa gold) → grid of PoetCard (name, era chip, N قصيدة, 2-line clamped bio). Grouping by shuhra letter: strip leading ال, fold — `sortName()` in shared/arabic.ts, must match server grouping. Virtualized.
 ### Poet `#/poet/<slug>`
 Header (name Aref Ruqaa 2xl, era chip, dates, bio 38rem lh 1.75 clamped 5 lines + المزيد) → signature bayt (BaytPlate, corners) → toolbar (sort الأشهر·الأطول·حسب البحر + meter/theme chips scoped to poet with counts, written to hash) → virtualized diwan rows (title or matlaʿ when untitled — common; meter chip, theme chip, N بيتًا; 76px/92px rows). Breadcrumb الشعراء ← العصر ← الشاعر.
-### Poem `#/poem/<id>` — crown jewel
+### Poem `#/poem/<id>`
 ```css
 .bayt { display:grid; grid-template-columns: 1fr var(--gutter,2.25rem) 1fr; align-items:baseline; }
 .bayt .sadr { justify-self:end; text-align:start } .bayt .ajuz { justify-self:start; text-align:end }
@@ -67,7 +67,7 @@ Header: title or «matlaʿ…», poet link, breadcrumbs; badges: بحر chip →
 **وضع القراءة** (amendment 26): «اقرأ» in the toolbar (a full-measure «اقرأ القصيدة» row on the phone, where the toolbar is not rendered) or `r` → `?read=1`, the قصيدة alone. Every bar stands down (`body[data-immersive="read"]`, the duel's own mechanism), the ink deepens, the أبيات run down one 62rem measure in a scale one step above the page's with a شمسة between each, and a thin gold hairline along the top edge says how much is behind you. Title + شاعر are a quiet heading that fades once you move. A tap brings back one cluster — «رجوع» and the same three sizes — which leaves again after 2.5 s. Escape, browser back and the phone's hardware back all exit, and the page comes back where it was left. Keep-awake is held for the reading and released on exit.
 Copy: prefix U+200F RLM; hemistichs joined ` … ` on one line; alt-click menu البيت · البيت والشاعر · القصيدة كاملة; copies displayed tashkeel state.
 ### Browse `#/browse`
-Two-pane wide / drawer mobile. Facet rail (sticky inline-start): 5 accordions العصر·البحر·الغرض·الروي·حرف البداية; era/meter/theme chip clouds w/ counts; rawiyy + first-letter as 7×4 circular letter grids, count under each, disabled at 0. Counts from single `/api/facets?<query>` refreshed on change. Applied bar of dismissible chips + «امسح الكل». Results: virtualized PoemRow, or BaytPlate list when rawiyy/letter active. Sort الأشهر·الأطول·عشوائي (seeded rngFrom(queryString), stable across pagination). **«الأحدث» is NOT shipped and is struck from this spec (amendment 20):** `arbml/ashaar` carries no date on a قصيدة — only the شاعر's عصر, which is a twelve-value facet, not an ordering — so «الأحدث» could only have sorted by ingest rowid and called it recency. عصر is the facet that answers the question honestly. «المزيد» + intersection autoload, `?p=` in hash. Empty combo → flavor bayt + «جرّب إزالة: X (0 نتيجة)».
+Two-pane wide / drawer mobile. Facet rail (sticky inline-start): 5 accordions العصر·البحر·الغرض·الروي·حرف البداية; era/meter/theme chip clouds w/ counts; rawiyy + first-letter as 7×4 circular letter grids, count under each, disabled at 0. Counts from single `/api/facets?<query>` refreshed on change. Applied bar of dismissible chips + «امسح الكل». Results: virtualized PoemRow, or BaytPlate list when rawiyy/letter active. Sort الأشهر·الأطول·عشوائي (seeded rngFrom(queryString), stable across pagination). No «الأحدث» (amendment 20). «المزيد» + intersection autoload, `?p=` in hash. Empty combo → flavor bayt + «جرّب إزالة: X (0 نتيجة)».
 ### Search `#/search`
 Query echoed; count + timing text-3. Unit = bayt with poem/poet context. Highlight via foldedIndex; »…« as `<mark>` lapis-dim bg, no bold. Facet strip era/meter/theme. Segmented modes كلمات (AND) · عبارة (phrase) · أي كلمة (OR); OR auto-fires when AND returns 0 with note «لا نتيجة بكل الكلمات — هذه نتائج بعضها».
 
@@ -114,11 +114,11 @@ summary terminal: PLAY_AGAIN→dealing, EXIT→idle. failed: RETRY→dealing
 ```
 Scoring: `award = 100 + 10*min(streak,10) + (timerOn ? round(msRemaining/1000)*2 : 0) + round(50*obscurity) - hintsSpentThisExchange`.
 ### Summary `#/duel/summary`
-Headline (Aref Ruqaa): «أفحمتَ الخصم» / «سلسلة من 14 بيتًا» / «انقضت الأرواح». Big numbers النقاط·أطول سلسلة·الأبيات·الوقت. سلسلة الحروف ribbon (gold yours, lapis computer's; tap scrolls). الأبيات: every exchange as BaytPlate with poet, ♥, بطاقة. الشعراء الذين لقيتهم: poet-card grid, new-to-you marked with gold nib, «لقيت 47 شاعرًا من 2,400» (retention mechanic — v1). زدت في ترسانتك letters. Actions: مرة أخرى · احفظ في مجموعة · شارك.
+Headline (Aref Ruqaa): «أفحمتَ الخصم» / «سلسلة من 14 بيتًا» / «انقضت الأرواح». Big numbers النقاط·أطول سلسلة·الأبيات·الوقت. سلسلة الحروف ribbon (gold yours, lapis computer's; tap scrolls). الأبيات: every exchange as BaytPlate with poet, ♥, بطاقة. الشعراء الذين لقيتهم: poet-card grid, new-to-you marked with gold nib, «لقيت 47 شاعرًا من 2,400». زدت في ترسانتك letters. Actions: مرة أخرى · احفظ في مجموعة · شارك.
 
 ## 5. تحفيظ training (v1.5)
 Hub `#/train`: المذاكرة (due count), الترسانة (heatmap thumb + weakest 3), تحدّي اليوم, streak ribbon.
-Drill `#/train/drill`: card = bayt (baytKey). Show sadr; ajuz as ruled blank of honest width; type or «أظهر»; grade `sim = 1 - lev(normalize(typed), normalize(ajuz))/max(len)`: sim==1 → good (easy if <8s); 0.65≤sim<1 → hard + word diff (correct text-1, missing text-3, wrong danger); else again. Reveal shows full bayt, poet, link, «هذا في ترسانتي». New cards from `/api/train/candidates?famous=1&letter=`.
+Drill `#/train/drill`: card = bayt (baytKey). Show sadr; ajuz as a ruled blank of its own width; type or «أظهر»; grade `sim = 1 - lev(normalize(typed), normalize(ajuz))/max(len)`: sim==1 → good (easy if <8s); 0.65≤sim<1 → hard + word diff (correct text-1, missing text-3, wrong danger); else again. Reveal shows full bayt, poet, link, «هذا في ترسانتي». New cards from `/api/train/candidates?famous=1&letter=`.
 Schedule SM-2-lite (client/training/schedule.ts, pure, tested): Card {id, ease 2.3 [1.3,2.8], interval days [1,365], due, reps, lapses, leech, addedAt}. again: reps=0, lapses++, ease-=0.2, due=now+10min, leech at 8 lapses. else reps++, ease += {hard:-0.15,good:0,easy:+0.10}, mod {0.7,1,1.3}, interval = reps==1?1 : reps==2?3 : round(interval*ease*mod), jitter ±10% via rngFrom(`due:${id}:${reps}`), due = startOfDay(now)+interval days. buildQueue: due & !leech sorted asc cap 20; new up to 10/day famous-first biased to arsenal letters with coverage <3; never two consecutive cards from same poem; leeches surfaced on hub (replace/delete). dayKey local YYYY-MM-DD.
 Arsenal `#/train/arsenal`: 7×4 heatmap of 28 folded letters, fill opacity min(1,count/12) accent-dim, count Plex Mono, zero → dashed line-2 border. Per letter مستعمَل (played in duel) and محفوظ (interval ≥ 21). الحروف الضعيفة bottom 5 with «تدرّب» → drill from `/api/poems?firstLetter=L&famous=1`. Ring «تغطية 21 من 28 حرفًا».
 Daily `#/daily`: same opening bayt for everyone from server `rngFrom(\`daily:${YYYY-MM-DD}\`)`; 1 life, no timer; one attempt/day client-enforced; shareable text block «قريض — تحدّي 23 آب / ن → م → ب → ر / سلسلة من 6 أبيات».
@@ -126,7 +126,7 @@ Daily `#/daily`: same opening bayt for everyone from server `rngFrom(\`daily:${Y
 ## 6. Architecture
 ```
 qarid/
-├─ package.json tsconfig.json vite.config.ts CLAUDE.md README.md
+├─ package.json tsconfig.json vite.config.ts README.md
 ├─ shared/ schema.ts arabic.ts(+test) rng.ts constants.ts (CHAIN_LETTERS[28], ERAS, METERS, THEMES slugs)
 ├─ server/ (see design-server.md)
 ├─ tools/ screenshot.mjs smoke-seed.json devshot.mjs
@@ -154,17 +154,7 @@ Loading: skeletons match final geometry (BaytSkeleton = BaytPlate grid with rule
 Hard reqs: CSP includes `font-src 'self' data:`; `await document.fonts.load('400 64px Amiri')` before any canvas paint; home hero gated on document.fonts.ready.
 Ornaments.tsx: inline SVGs Shamsa, Rule, Corner, Nib. Favicon inline SVG gold Nib. No raster images in v1.
 
-## 8. Delight verdicts
-v1: copy-bayt (RLM), favorites, poets-you-met summary grid, hints, near-miss suggestions, tafʿilat popover, بيت/شاعر اليوم, core keyboard shortcuts. v1.5: share cards (canvas 1200×630 + 1080×1080; `ctx.direction='rtl'; ctx.textAlign='right'`), named collections, daily chain, `#/wander` (one bayt, three doors شاعره·بحره·قافيته), sound (default off), full shortcuts + HelpOverlay, training mode, StatsView, RulesView. v2: poet comparison, scansion visualizer, async multiplayer, audio.
-
-## 9. Build order
-Phase 0 skeleton: shared/arabic.ts+tests, rng, schema, persist, router+tests, tokens/base CSS, fonts, App shell with appReady, tools/screenshot.mjs — done bar green on empty app.
-Phase 1 the bayt: BaytPlate + bayt.css both breakpoints, BaytSkeleton, copy, PoemView; screenshot at 1440 and 390 and iterate.
-Phase 2 the browser: api client, libraryStore, PoetsView, PoetView, useWindowedList, Chip/ChipCloud/LetterGrid, BrowseView (URL facets), SearchView (folded highlighting), Omnibox, HomeView.
-Phase 3 the duel: machine.ts+tests headless first, scoring+tests, Setup, LetterIndicator, AnswerInput, RecitationReveal, ExchangeLog, RejectionCard (all outcomes + near-misses), HintPopover, Hud, Summary with poets-met, persistence+resume, smoke seed mid-duel. **v1 ships here.**
-Phase 4 v1.5: training (schedule.ts→Drill→Arsenal→Hub), Daily, share cards, Wander, tiers فحل/سيف, sound, full keymap, Stats, collections, Rules.
-
-## 10. Client assumptions the API must honour
+## 8. Client assumptions the API must honour
 - Poem detail returns `hasTashkeel: boolean` and verses as `{sadr, ajuz}[]` paired server-side.
 - Every bayt-bearing response carries `baytKey`.
 - `/api/game/open` and `/api/game/reply` return `{bayt, requiredLetter, requiredLetterSource, alsoAccepts}`; reply may return `noReply: true` (victory must be reachable).

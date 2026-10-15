@@ -289,7 +289,7 @@ describe("the footer", () => {
     for (const h of PALETTE_KEY_HINTS) expect(h.label).toMatch(/[؀-ۿ]/u)
   })
 
-  it("never uses Arabic-Indic digits in a rendered string (CLAUDE.md)", () => {
+  it("never uses Arabic-Indic digits in a rendered string (docs/internals.md)", () => {
     const strings = [PALETTE_WILDCARD_HINT, PALETTE_ALL_LABEL, ...PALETTE_KEY_HINTS.map((h) => h.label)]
     for (const s of strings) expect(s).not.toMatch(/[٠-٩۰-۹]/u)
   })

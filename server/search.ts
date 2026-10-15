@@ -2,8 +2,7 @@
  * `server/search.ts` — the FTS5 engine behind `GET /api/search`
  * (design-server.md §7 "Search", design-ux.md §3 Search).
  *
- * Ported from `kalam/server/retrieval.py::_keyword_search`, with the two things
- * that make it safe on a 3.57M-بيت index:
+ * Two things make it safe on a 3.57M-بيت index:
  *
  *  1. **The query is never syntax.** `ftsQuery()` in `shared/arabic.ts` is the
  *     ONLY builder: it normalises exactly the way the index was normalised and
@@ -17,7 +16,7 @@
  *     survivors are joined out to poems/poets/meters/eras and filtered. The
  *     joins therefore see ≤400 rows no matter how common the word is — this is
  *     the same "sort narrow, join the survivors" rule `listPoems` and
- *     `/api/baits` follow (CLAUDE.md invariant), applied to a ranked scan.
+ *     `/api/baits` follow (docs/internals.md invariant), applied to a ranked scan.
  *
  * Consequences of (2) worth knowing before you read `total`: the counts this
  * module returns are counts *within the bounded scan*, i.e. `min(matches, 400)`

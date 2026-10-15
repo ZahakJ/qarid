@@ -150,7 +150,7 @@ export function resolveAnthology(db: Db, a: Anthology): AnthologyItem[] {
  * resolving them. Measured cold on the real artefact: 20 ms for المعلقات and
  * 147 ms for the hundred, i.e. one 167 ms synchronous turn in front of the
  * first visitor of every boot, on a server whose whole latency budget is 150 ms
- * (every `node:sqlite` call blocks the one loop — CLAUDE.md). Warmed, that turn
+ * (every `node:sqlite` call blocks the one loop — docs/internals.md). Warmed, that turn
  * is 110 turns of ~1.5 ms and the first request is a map lookup.
  *
  * Like the facet warm it awaits a `setImmediate` before EVERY entry, so the
@@ -224,7 +224,7 @@ function anchorRows(db: Db, entry: AnthologyEntry, cols: string, joins: string, 
  * space before every ة and a comma glued to the قافية — while the 120-بيت copy
  * it would have displaced is clean, if bare. Ranked on تشكيل the shelf's second
  * ode renders with floating diacritics; ranked on length it renders correctly.
- * Four of the ten odes have no بحر at all (39.8 % of قصائد do not, CLAUDE.md
+ * Four of the ten odes have no بحر at all (39.8 % of قصائد do not, docs/internals.md
  * §Corpus quirks), so that rule separates nothing on those and length decides.
  */
 function resolvePoemEntry(db: Db, entry: AnthologyEntry, index: number): AnthologyItem {
@@ -252,7 +252,7 @@ function resolvePoemEntry(db: Db, entry: AnthologyEntry, index: number): Antholo
  *
  * Ranked so the shelf's ♥ / بطاقة / ساجِلني all work on it: a complete بيت
  * before a hemistich the scrape cut, then one the duel can actually serve
- * (`game_baits` — a قصيدة with no بحر is unplayable, CLAUDE.md §Tier pools),
+ * (`game_baits` — a قصيدة with no بحر is unplayable, docs/internals.md §Tier pools),
  * then aldiwan.net, then the lowest id.
  */
 function resolveBaitEntry(db: Db, entry: AnthologyEntry, index: number): AnthologyItem {

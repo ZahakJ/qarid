@@ -1,47 +1,37 @@
-# قريض (Qarid)
+# Internals
 
-Arabic classical poetry corpus browser **and** مساجلة duel at
-**qarid.example.com** — قَرِيض, the old word for verse itself. **238,733
-poems / 3,369,701 أبيات / 6,941 شعراء** in the built artefact (254,630 rows
-read; 15,891 duplicate قصائد and 6 verse-less poems dropped) from `arbml/ashaar`,
-of which **1,713,459 أبيات are game-playable**. Ingested into one read-only
-SQLite artefact, browsed by era/بحر/غرض/روي, searched with FTS5, and played:
-the machine recites a بيت, you must answer with one that starts on its روي.
-Single npm package: Vite 7 + React 19 client, Hono 4
-server run directly by Node 26 (TS type-stripping, **no server build**),
-`node:sqlite` over a gitignored `data/qarid.db`. The only runtime dependency
-past that list is `@hono/node-ws`, which carries v2 §5's مساجلة socket.
+Notes for working on قريض: layout, invariants, measurements, and the traps
+behind them. Read the invariants before changing anything they name.
 
-Ports: dev API **5750**, dev Vite **5751**, smoke/preview **6750**, prod
-**8010** (Cloudflare tunnel `cf-qarid` ingress points at 8010, managed in the
-CF dashboard — keep 8010 or you must edit the dashboard). Never other ports.
-Accent: illumination gold `--accent-rgb: 214, 173, 96` (#d6ad60) on blue-black
-ink, with a single second ink, lapis `--lapis-rgb: 92, 124, 200`, reserved for
-exactly three things (opponent's بيت card, روي underline, search »« markers).
-Verse font **Amiri**, display **Aref Ruqaa**, UI **IBM Plex Sans Arabic**,
-numerals/timers **IBM Plex Mono**. All UI strings Arabic; code English.
-**Numerals are WESTERN 0-9 everywhere** — a deliberate decision
-(amendments §25): «238,733 قصيدة», «951 بيتًا», verse number «12», «×2».
-`shared/format.ts` is the only formatter, it takes no numeral scale, there is
-no `numerals` setting, and `toArabicDigits` no longer exists. Adding an
-Arabic-Indic digit to a rendered string is a regression — `toLatinDigits`
-exists only to PARSE what a reader types. **And a number is never glued to a
-hard-coded noun**: `countedNoun` (and `countedUnit` / `countedNounGenitive` /
-`countedNounWithAdjective`) own العدد والمعدود, because «4 نتيجة», «10 بطاقة»
-and «سلسلة من بيتان» are the loudest way an Arabic interface announces that it
-was assembled rather than written. See the invariant below.
+Ports: dev API 5750, dev Vite 5751, smoke/preview 6750, production 8010.
+
+Accent: gold `--accent-rgb: 214, 173, 96` (#d6ad60) on blue-black ink, with
+one second ink, lapis `--lapis-rgb: 92, 124, 200`, used for exactly three
+things (the opponent's بيت card, the روي underline, search »« markers). Verse
+font Amiri, display Aref Ruqaa, UI IBM Plex Sans Arabic, numerals and timers
+IBM Plex Mono. All UI strings Arabic; code English.
+
+**Numerals are Western 0-9 everywhere** (amendments §25): «238,733 قصيدة»,
+«951 بيتًا», verse number «12», «×2». `shared/format.ts` is the only
+formatter and takes no numeral scale; there is no `numerals` setting and no
+`toArabicDigits`. An Arabic-Indic digit in a rendered string is a regression;
+`toLatinDigits` exists only to parse what a reader types. A number is never
+glued to a hard-coded noun: `countedNoun` (and `countedUnit` /
+`countedNounGenitive` / `countedNounWithAdjective`) own العدد والمعدود, because
+«4 نتيجة», «10 بطاقة» and «سلسلة من بيتان» are wrong Arabic. See the invariant
+below.
 
 ## Commands
 
 - `npm run dev:server` + `npm run dev` — dev pair (vite 5751 proxies `/api`, `/healthz` → 127.0.0.1:5750)
-- `npm run typecheck` / `npm test` / `npm run build` / `npm run smoke` — the done bar
-- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet`. **Measured: 169 s (3 passes), peak RSS 711 MB, 1.48 GiB out** (§5 estimated 15–30 min; hyparquet made it two and a half minutes). Stop any server on the artefact first — it is replaced, not updated. If one is running anyway (another agent, the prod unit), build to a side path and `mv`: `node scripts/ingest/index.ts build data/raw/*.parquet data/qarid.build.db && mv -f data/qarid.build.db data/qarid.db`, then restart the server — a live process keeps the old, deleted inode open.
+- `npm run typecheck` / `npm test` / `npm run build` / `npm run smoke` — the checks
+- `npm run ingest` — build `data/qarid.db` from `data/raw/*.parquet`. 169 s (3 passes), peak RSS 711 MB, 1.48 GiB out. Stop any server on the artefact first — it is replaced, not updated. If one is running anyway, build to a side path and `mv`: `node scripts/ingest/index.ts build data/raw/*.parquet data/qarid.build.db && mv -f data/qarid.build.db data/qarid.db`, then restart the server — a live process keeps the old, deleted inode open.
 - `npm run ingest:fixture` — same `build.ts` over `test/fixtures/ashaar-sample.jsonl` → `data/fixture.db` (tests use the real ingest path)
 - `node scripts/ingest/profile.ts` — re-run the corpus profiler → `data/profile.json` + `data/sample-2000.jsonl` (~3 s)
 - `npm start` — prod server (reads `.env`, defaults PORT 8010)
 - `node tools/screenshot.mjs [--no-build] [--mobile] [--port N] [--db PATH] [--routes …]`
-  — the smoke walk. It starts the REAL server itself and kills only that PID;
-  never `pkill -f server/index.ts`, the suite shares that path. The server reads
+  — the smoke walk. It starts the real server itself and kills only that PID.
+  The server reads
   `dist/index.html` ONCE at boot, so after `npm run build` a long-lived server
   must be restarted or it serves the previous bundle's asset hashes.
   `--mobile` is a PHONE, not a narrow window: `hasTouch` + `isMobile`, so
@@ -110,7 +100,7 @@ was assembled rather than written. See the invariant below.
   `/room/:code/join`, `/room/:code/turn`, `/room/:code/resign`,
   `/room/:code/rematch` — plus the WebSocket `/ws/room/:code`, which is NOT an
   `/api` path (it is an upgrade, and the corpus gate would answer it with JSON
-  no browser reads) · plus the `search` and `game` sub-apps other agents own.
+  no browser reads) · plus the `search` and `game` sub-apps.
   Shared plumbing: `server/dto.ts` is the only place a column name is spelled
   (SQL fragments + row→DTO shaping), `server/query.ts` owns query parsing (zod →
   `400 {error, issues}`), memoised slug→id maps, the poem filter and
@@ -143,11 +133,10 @@ was assembled rather than written. See the invariant below.
   only when it is not the headline already said twice.
 - **A share link is built on `shareOrigin()`, NEVER `location.origin`.** In the
   APK the WebView serves the bundled shell from `https://localhost`
-  (`androidScheme: "https"`, no `server.url`), so every link built on
-  `location` left the phone dead — `https://localhost/#/diwan/…` in the ديوان's
-  case, which shipped that way. `shareOrigin()` (client/platform/native.ts) is
+  (`androidScheme: "https"`, no `server.url`), so a link built on
+  `location` points at the phone itself. `shareOrigin()` (client/platform/native.ts) is
   `API_BASE || location.origin`: the real site on native, same-origin on the
-  web, where a reader on a preview host should share the host he is reading.
+  web.
 - **Three blocks of TEXT leave the app, one pure `share.ts` each**:
   `client/duel/share.ts` (a مساجلة result), `client/albums/share.ts` (a ديوان)
   and `client/poem/share.ts` (a قصيدة — «شارِك القصيدة», on the poem toolbar and
@@ -177,7 +166,7 @@ was assembled rather than written. See the invariant below.
   table both bars read: `tabOf` (which tab a screen belongs to — by CONTENT, so
   #/poets lights الديوان even though its only phone door is المزيد),
   `isTabRoot`, `parentRoute` (the back chevron's fallback) and the tab scroll
-  memory. Three rules that shipped as fixes: the app bar's title is NOT a
+  memory. Three rules: the app bar's title is NOT a
   heading and the page's own `<h1>` is hidden `.sr-only`, never `display:none`;
   a tapped tab keeps `:hover` and base.css's bare `a:hover` is gold at a higher
   specificity than `.tabbar__tab`, so the tab's colour is pinned on `data-on`
@@ -256,7 +245,7 @@ was assembled rather than written. See the invariant below.
     order: التفعيلات as countable CELLS, the مفتاح, a voweled بيت from the
     ديوان, and those same تفعيلات printed again under it — the repeat is the
     teaching device. `?b=<slug>` is a scroll target, not a filter.
-    Two things the §8 screenshots changed and both are load-bearing: the cards
+    Two layout rules are load-bearing: the cards
     are ONE per row at the ديوان's 58rem measure (three-up gave each شطر 150px
     of Amiri and the شاهد broke over three lines), and the card is CENTRED (every
     other band is short, so set against the inline edge they left two thirds of
@@ -309,8 +298,7 @@ was assembled rather than written. See the invariant below.
   shelf FRAMES أبيات, `BaytPlate` sets them. Two things it had to learn from
   `.view__head`: that head is `justify-items: start`, so a panel built on it
   needs `stretch` (a dissolving rule inside one came out zero-wide) and `gap: 0`
-  (its own sp-2 is added to every margin below it). Three more the §8 read of
-  its own screenshots moved. `.dwplay` — the play/memorise colophon at the foot
+  (its own sp-2 is added to every margin below it). Three more: `.dwplay` — the play/memorise colophon at the foot
   of a shelf — is CENTRED: it is 928px of the ديوان's measure at 1440 and every
   child of it is short (title 158, count 161, the three doors 477, the note
   608), so `justify-items: start` left 320px of a corner-pieced frame empty,
@@ -356,19 +344,16 @@ was assembled rather than written. See the invariant below.
   `enforce: "pre"` transform that strips fontsource's `, url(…woff)
   format('woff')` fallback before `vite:css` reads the url()s, so `dist/` is
   woff2-only (1.5 MB → 1.1 MB). Do this at transform time, never in
-  `generateBundle` — see §Backlog for why the hash makes that a trap.
+  `generateBundle` — see §Open items for why the hash makes that a trap.
 - `client/training/` is تحفيظ's brain, all pure and all tested: `schedule.ts`
   (SM-2-lite + `buildQueue`), `grade.ts` (normalized Levenshtein + the word
   diff), `arsenal.ts` (supply / demand / weakness). The views hold no
   arithmetic. `client/store/trainingStore.ts` owns the slice.
   **`buildQueue` takes a `letter`, and it restricts BOTH halves of the plan.**
   `#/train/drill?letter=<L>` is what «ذاكِر حرف ج» in the ترسانة opens, and the
-  letter used to bias only which NEW أبيات were fetched — while the due half was
-  whatever the deck owed, which is full of the cards the PREVIOUS letter's
-  session had just introduced, all of them due immediately. So tapping ظ and
-  then ج drilled ظ both times: the heading changed and the card did not
-  (measured on a real deck). Keying the view on the letter does not fix it; the
-  filter does.
+  due half must be filtered too: otherwise it is full of the cards the previous
+  letter's session just introduced, and tapping ظ then ج drills ظ twice.
+  Keying the view on the letter does not fix it; the filter does.
 - Client route map — `#/` home · `#/poets` · `#/poet/<slug>` ·
   `#/poem/<publicId>?bayt=N&read=1` (`read=1` is وضع القراءة — the flag is a
   switch, and only that one value turns it on) ·
@@ -422,7 +407,7 @@ was assembled rather than written. See the invariant below.
   ⌕ trigger opens the palette instead), and `#/search` is kept for the full
   result list and deep links.
 
-### Invariants (hard-won)
+### Invariants
 
 - **Only the OUTERMOST middleware may set a response header and expect it to
   ship.** `@hono/node-server` swaps in a lazy `Response` whose headers live in a
@@ -569,7 +554,7 @@ was assembled rather than written. See the invariant below.
   a confirmation before the first press, and a block in either direction empties
   the shelf for the blocker. There is still NO global feed and that is the
   decision, not an omission: a wall of strangers' دواوين is a moderation queue
-  (§Backlog). A ديوان itself is UGC for the same reason a display name is — its
+  (§Open items). A ديوان itself is UGC for the same reason a display name is — its
   اسم and وصف are a reader's words on a page carrying his name — so `/api/report`
   takes an `albumCode`, DERIVES the reported account from the shelf's owner
   (never the `targetUsername` beside it, which would let a client file against a
@@ -637,8 +622,7 @@ was assembled rather than written. See the invariant below.
 
 - **صفحة البحور's sixteen شواهد are a MEMO, because the two obvious doors were
   measured and both are worse.** `#/buhur` needs one exemplar بيت per بحر, and
-  the shape that looks right is `/api/baits?meter=<slug>&limit=1` — fame-first
-  already, and shipped. On `build_id d1a38337` it is **560 ms** for الطويل and
+  the shape that looks right is `/api/baits?meter=<slug>&limit=1`. On `build_id d1a38337` it is **560 ms** for الطويل and
   2.3 s to fill the page: no index leads with `meter_id`, so SQLite skip-scans
   `gb_rand` and sorts the survivors in a temp b-tree, and every one of those
   milliseconds is on the one event loop. Sixteen client-side
@@ -649,7 +633,7 @@ was assembled rather than written. See the invariant below.
   total cold** — memoised on the DB HANDLE in a WeakMap (`slugMaps` /
   `facets.ts` / `anthology.ts`'s shape) and pre-warmed by `warmBuhur`, whose
   worst single turn is under `warmFacets`' documented 69 ms. After the warm the
-  page costs the corpus nothing at all. This is §Backlog's rule (c) answered the
+  page costs the corpus nothing at all. This is §Open items's rule (c) answered the
   way that rule says to answer it: a route that can run long needs an index, a
   narrow-subquery sort, or a memo BEFORE it ships.
   The three gates on the example are about TEACHING, not fame: no
@@ -671,8 +655,8 @@ was assembled rather than written. See the invariant below.
 - **Never read the `poem description` column.** It is a 5-level nested DOM
   struct and roughly half the parquet. `readRecords` column-projects the 11
   flat columns; adding the 12th turns a 3-second pass into an OOM.
-- `server/index.ts` binds 127.0.0.1 **and ::1** — cloudflared resolves
-  "localhost" to ::1 first, and dropping the twin bind 502s the tunnel.
+- `server/index.ts` binds 127.0.0.1 **and ::1** — some proxies resolve
+  "localhost" to ::1 first.
 - CSP includes `font-src 'self' data:` — vite inlines small font subsets as
   data: URIs and the smoke test fails on the violation without it.
 - The database is a **build artefact**: opened `readOnly` + `query_only=1`,
@@ -698,8 +682,9 @@ was assembled rather than written. See the invariant below.
   two prefixes exempt from the corpus 503 gate in `app.ts` (they need no
   corpus) and the two that are `private, no-store` (they are per-cookie).
   Passwords are scrypt + `timingSafeEqual`; the sessions table stores only the
-  SHA-256 of the cookie's token. There is no email and therefore no reset —
-  the owner edits a row (README §Accounts). One trap when you SMOKE a
+  SHA-256 of the cookie's token. There is no email; a forgotten password is
+  recovered with the one-time code shown at signup (`POST /api/auth/reset`).
+  One trap when you smoke a
   signed-in flow: the cookie carries `Secure` whenever `PUBLIC_ORIGIN` is https
   (the default), and a browser silently drops a `Secure` cookie from
   `http://127.0.0.1` — so a screenshot run that has to log in must pass
@@ -718,10 +703,8 @@ was assembled rather than written. See the invariant below.
   **`atDoor` says somebody has the room OPEN and has not entered it**, on the
   host's snapshot only and while the room is `waiting` only. It is read off the
   socket hub, not off a row — a keyed guest holds a socket from the moment his
-  lobby paints — because the KEYED link, the normal way into a room, used to be
-  the silent one: he saw «ادخل حين تكون مستعدًّا» while the host still read
-  «تبدأ المساجلة لحظة دخوله», which stopped being true when entering became a
-  button, and both sides waited for the other. The socket's `onOpen` therefore
+  lobby paints — so the host can see a keyed guest who has not pressed «ادخل»
+  yet. The socket's `onOpen` therefore
   broadcasts for a non-seated arrival too, but ONLY on a waiting room — the
   N(N+1)/2 fanout the socket caps guard against is a LIVE room with spectators,
   and a waiting room has two people on it.
@@ -738,10 +721,10 @@ was assembled rather than written. See the invariant below.
   what the other side almost knows). The room's `Cache-Control` lives in
   `cachePolicy` with the rest, `private, no-store`: `you.canPlay` is in the
   payload.
-- **`SameSite=Lax` is not a CSRF defence HERE, because this box is a suite.**
-  SameSite is computed on the REGISTRABLE DOMAIN, so meme., alchemy., vestige.,
-  alexandria. and leyline.example.com are all *same-site* with
-  qarid.example.com and their pages' requests carry `qarid_sess`. Measured
+- **`SameSite=Lax` is not a CSRF defence when sibling subdomains exist.**
+  SameSite is computed on the REGISTRABLE DOMAIN, so any other.example.com is
+  *same-site* with qarid.example.com and its pages' requests carry
+  `qarid_sess`. Measured
   before it was closed: a `text/plain` POST from a sibling renamed a signed-in
   reader's account, and `/api/room/:code/resign` threw their live مساجلة.
   `server/origin.ts` is the guard — `Sec-Fetch-Site` must be `same-origin` or
@@ -753,10 +736,8 @@ was assembled rather than written. See the invariant below.
   at all (curl, a test, a native client) is allowed — it carries nobody's cookie
   by accident.
 - **A room CODE is a name; `rooms.join_key` is the credential.** Six speakable
-  letters are 14³×5³ = 343,000 values, and `joinRoom` used to seat whoever
-  arrived first — so a scan (measured at 6,412 `/state` probes a second before
-  the limiter) could snipe every waiting room and read every live transcript,
-  and the profile page published the codes to unauthenticated readers outright.
+  letters are 14³×5³ = 343,000 values — scannable — so a code alone must never
+  seat anyone or read a transcript.
   The share link is `#/room/<CODE>?k=<24 chars>`; `POST /:code/join` and a
   non-player's `/state` or socket require it, a رجعة's named guest never does
   (his id is on the seat), and `snapshot()` sends `joinKey` and the keyed
@@ -768,8 +749,7 @@ was assembled rather than written. See the invariant below.
   only authentication a WebSocket can have — a browser cannot set a header on
   one, but it sends `qarid_sess` with a same-origin upgrade like any other GET.
   The upgrade is where auth STARTS, not where it ends: the session is re-read
-  on every inbound command (a deleted session row — README §Accounts' only
-  remediation — must reach a live socket), the hub caps sockets per user and
+  on every inbound command (a deleted session row must reach a live socket), the hub caps sockets per user and
   per room, and `onOpen` broadcasts only for a seated player (a spectator's
   arrival is what made attaching N sockets cost N(N+1)/2 full snapshots).
   So the socket URL is always same-origin (`client/store/roomStore.ts`
@@ -813,7 +793,7 @@ was assembled rather than written. See the invariant below.
   server opens that path and MIGRATES it, and its default is the LIVE
   `data/qarid-users.db` — so a test or a tool that boots the real server
   without it runs the working tree's migrations on the production database
-  while the deployed build is still serving it. Measured on 2026-09-12: the
+  while the deployed build is still serving it. This happened once: the
   «booting with no corpus» test in `server/routes/facets.test.ts` pushed the
   live file to `user_version` 11 (dropping `album_baits`) under the v10
   server, and every `/api/albums/*` on the site answered a SQL error until the
@@ -821,7 +801,7 @@ was assembled rather than written. See the invariant below.
   and that test now uses a per-PID scratch file; a new spawn copies one of
   them. `migrate()` refuses to run BACKWARDS by design, so there is no undo —
   only a snapshot taken beforehand (`VACUUM INTO`).
-- **The smoke walk is SIGNED OUT, so no owner-only surface is ever shot.** The
+- **The smoke walk is SIGNED OUT, so no curator-only surface is ever shot.** The
   ديوان's whole editing rail — reorder, remove, «احذفه» — exists only for
   `isOwner` and has never appeared in `screenshots/`. Read those with an
   account before believing a ديوان change is verified; the clarity defects the
@@ -1013,7 +993,7 @@ was assembled rather than written. See the invariant below.
   turn. Verify checks the typed text first and the MATCHED بيت second.
 - Anything a view renders through `BaytPlate` with a ♥ must write to
   `useCollections` (`qarid:v1:favorites`). Component-local favourite state looks
-  identical and persists nothing — that bug shipped once.
+  identical and persists nothing.
 - **`qarid:v1:training` has TWO writers.** `duelStore.recordProfile` writes
   `arsenal[letter].used` at every summary — that is how a مساجلة feeds the
   ترسانة — while `trainingStore` owns the cards. So every train view calls
@@ -1028,17 +1008,15 @@ was assembled rather than written. See the invariant below.
   only the word is missing (a stat tile's caption, `.setup-pool__n`) — it can
   only ever return `few` or `many`, which is exactly why `countedNoun` is wrong
   there; `countedNounGenitive` after a preposition, where المثنى is مجرور
-  («سلسلة من بيتين», not «بيتان» — that one shipped, in the share text that
-  leaves the app); and `countedNounWithAdjective` when a نعت or حال follows,
+  («سلسلة من بيتين», not «بيتان»); and `countedNounWithAdjective` when a نعت or حال follows,
   because it has to agree too («10 أبيات محفوظة» / «12 بيتًا محفوظًا», and
   `formatPlayableBaits` — «24 بيتًا صالحًا للمساجلة» — is that function on the
   ديوان's play door); and
   `countedNounAccusative` after a TRANSITIVE VERB, where the معدود is مفعول به
   («لقيتَ شاعرًا واحدًا», not «لقيتَ شاعر واحد» — the summary's «الشعراء الذين
   لقيتهم», i.e. the first and second summary every new player sees). The
-  test that catches a regression is `shared/format.test.ts`; the shapes that
-  were wrong at v1.1 were 3–10 (جمع القلة) and the dual, i.e. exactly the
-  numbers a real session produces.
+  test is `shared/format.test.ts`; the easy shapes to get wrong are 3–10
+  (جمع القلة) and the dual.
   **And the rule reaches a CONSTANT and a VERB, not only a variable.** The
   الدواوين census found both. A cap printed into a message — «(300 بيتًا)»,
   «(100 ديوانًا)», «ستين حرفًا» — is a number glued to a hand-written noun that
@@ -1055,9 +1033,7 @@ was assembled rather than written. See the invariant below.
   nothing and is true for every count (`importedMessage`'s «عندك من قبل»).
   **`shared/format.ts` also owns the CALENDAR and the لام.** `MONTHS_AR` /
   `arabicDay` / `arabicDate` are the app's one calendar — Levantine («24 آب
-  2026»), because five surfaces write a date and the profile used to keep a
-  second, transliterated table, so «انضمّ في 24 أغسطس» sat one tab away from
-  «تحدّي 24 آب». And `lamPrefix(name)` elides the لام into ال («للأرجاني», never
+  2026»); no surface keeps its own month table. And `lamPrefix(name)` elides the لام into ال («للأرجاني», never
   «لـالأرجاني»): a bare tatweel glued to a name is the typing crutch, and most
   of this corpus's شعراء begin with ال.
 - **A new page starts at its top; a new PAGE of one is where the reader left
@@ -1083,75 +1059,35 @@ was assembled rather than written. See the invariant below.
   المتنبي» (6 قصائد, no bio) and «البحتري» to «يحيى ابن البحتري». The extra
   MATCH is FTS5's own column filter over a 6,941-row index (< 1 ms).
 
-## Spike results
 
-Phase 0, run 2026-08-23 on Node v26.7.0. All three answers are **go** — no
-pivot to better-sqlite3 and no Python escape hatch needed.
+## Corpus findings
 
-**(a) `node:sqlite` has FTS5 — yes.** SQLite 3.53.4, compile options include
-`ENABLE_FTS5`. Verified end to end and asserted in `server/db.test.ts`:
-`CREATE VIRTUAL TABLE … USING fts5(norm, tokenize='unicode61')`, insert with
-explicit rowid, `MATCH` on a quoted term, `MATCH` on a quoted *phrase*,
-`bm25()` ranking, `snippet(t,0,'»','«','…',8)` (returns `»العزم«` around the
-Arabic hit), and `INSERT INTO t(t) VALUES('optimize')`. FTS5 also survives a
-read-only reopen, which is how the server will use it. `better-sqlite3` is
-**not** a dependency and should stay that way.
-
-**(b) hyparquet streams the shards column-projected — yes.** Each shard is 128
-row groups of 1,000 rows. `parquetReadObjects({file, metadata, compressors,
-columns: RAW_COLUMNS, rowStart, rowEnd, rowFormat:'object'})` one row group at
-a time yields the 11 flat columns and nothing else — `'poem description'` is
-absent from the returned objects and its column chunks are never fetched.
-`poem verses` comes back as a plain `string[]`. Both shards, 254,630 rows, in
-**2.3 s at ~300 MB RSS**. `scripts/ingest/parquet_to_jsonl.py` was therefore
-**not written**; the JSONL path in `readRecords` exists for fixtures and the
-2,000-row sample only. Pass `file` as an `AsyncBuffer` from
-`asyncBufferFromFile`, never a path string (hyparquet fails with an opaque
-`DataView` TypeError otherwise).
-
-**(c) corpus profile** — `data/profile.json` + `data/sample-2000.jsonl` (2,000
-evenly spaced full records, raw column names, re-readable by `readRecords`).
-Headline numbers, all confirming design-server.md §0:
-
-| fact | measured |
-|---|---|
-| rows | **254,630** (shard 0: 127,315 · shard 1: 127,315) |
-| hemistichs | 7,714,858 → ~3,857,429 أبيات · mean 30.3 verses/poem |
-| verse counts | zero-verse poems **1** · odd counts **24,378** (→ `is_partial` أبيات) · max **11,608** · 12,324 blank-string hemistichs to drop |
-| `poem meter` | **101** distinct non-null + **101,277** null (39.8%); 65 of 101 prefixed `بحر `; exactly one carries a trailing space: `"بحر مجزوء الرمل "` |
-| `poem theme` | **18** distinct + 187,110 null; the two biggest are the buckets `قصيدة قصيره` (25,911) and `قصيدة عامه` (20,611) |
-| `poet era` | **14** distinct + 107,209 null → 12 after the merges (§4) |
-| `poet location` | **22** distinct + 190,602 null; note `سورية` (4,499) and `سوريا` (2,060) are the same country under two spellings |
-| `poem language type` | `فصيح` 153,722 · null 71,223 · `فصحى` 20,852 · `عامي` 8,503 · `شعبي` 298 · `-` 32 |
-| poets | **7,167** distinct names · 5,357 distinct poet URLs · only **791** carry a description |
-
-Three findings that contradict or extend the design doc — read before writing
-`transform.ts`:
+Measured on the raw `arbml/ashaar` shards before the ingest was written; the
+code cites them by number.
 
 1. **The corpus is not just aldiwan.net.** `poem url` spans 8 hosts:
    poetry.dctabudhabi.ae 91,716 · poetsgate.com 70,681 · **aldiwan.net 69,103**
    · adab.com 20,969 · aldiwanalarabi.com 1,875 · diwany.org 245 · 3 stragglers
    · 38 null. So `aldiwan_id` is derivable for only **27%** of poems and
-   `public_id` falls back to `q<id>` for the other 73% — plan on that being the
-   common case, not the exception.
-2. **`poet url` is null for 91,936 rows** (poetsgate + adab entries have no
+   `public_id` falls back to `q<id>` for the other 73%.
+2. **`poet url` is null for 91,936 rows** (poetsgate and adab entries have no
    poet URL at all), so `poets.slug` cannot come from the URL alone; it needs a
    deterministic fallback slug derived from `name_key`, still UNIQUE.
 3. **772 poet names map to more than one `poet url`** (the same شاعر indexed by
    both aldiwan and dctabudhabi), while **no URL is shared by two names**. Since
-   `name_key` is the poet identity, slug selection must pick one candidate
+   `name_key` is the poet identity, slug selection picks one candidate
    deterministically (prefer the aldiwan.net URL, else lowest-sorting) or the
-   `poets.slug` UNIQUE index will fight the `name_key` UNIQUE index.
+   `poets.slug` UNIQUE index fights the `name_key` UNIQUE index.
 
-Not yet spiked: design-server.md §11(c), the `rawiyyOf` agreement check over
-200 real عجز — it needs `shared/arabic.ts`, which does not exist yet. Run it
-against `data/sample-2000.jsonl` as soon as that file lands.
+`node:sqlite` (SQLite 3.53) has FTS5, including after a read-only reopen
+(asserted in `server/db.test.ts`); `better-sqlite3` is not a dependency.
+hyparquet streams both shards column-projected in 2.3 s at ~300 MB RSS; pass
+`file` as an `AsyncBuffer` from `asyncBufferFromFile`, never a path string, or
+it fails with an opaque `DataView` TypeError.
 
 ## The artefact, measured
 
-`npm run ingest` on 2026-08-26, Node v26.7.0 — the dedup-rank rebuild, built to
-the side path `data/qarid.build.db` and awaiting the owner's swap into
-`data/qarid.db` (a running server holds the old inode; see §Commands):
+`npm run ingest` on Node v26.7.0:
 
 | fact | measured |
 |---|---|
@@ -1163,7 +1099,7 @@ the side path `data/qarid.build.db` and awaiting the owner's swap into
 | `combo_counts` | 19,639 rows · unmapped meters **0** |
 | poet aliases | **56** folded (`shared/poetAliases.ts`), 6,997 → 6,941 شاعر |
 
-Against `build_id bbe2f944` (the 2026-08-24 artefact it replaces): the same
+Against `build_id bbe2f944` (the artefact it replaced): the same
 238,733 قصائد and 6,941 شعراء, **442** of them a different copy — −1,709 أبيات
 and **+3,566 playable** ones. `public_id` moved for the 73% of قصائد that fall
 back to `q<row id>`, as it does on every rebuild.
@@ -1179,7 +1115,7 @@ first-wins in charge, 21,110 أبيات went with the truncated copies it happen
 keep. After pass 0, `SELECT poet_id, مطلع GROUP BY … HAVING COUNT(*) > 1` is
 **empty**.
 
-**A COMPILATION SUSPECT is a whole ديوان indexed as one poem, and it used to win
+**A COMPILATION SUSPECT is a whole ديوان indexed as one poem, and must not win
 on length alone.** dctabudhabi holds all of المتنبي under «على قدر أهل العزم
 تأتي العزائم» — 1,810 hemistichs, no metre, no title — so the artefact kept it
 as a 905-بيت «بلا عنوان», and `game_baits`' `m.kind='bahr'` gate then made every
@@ -1254,10 +1190,8 @@ sorting a narrow subquery instead of the joined rows).
 **Every SQLite call is synchronous on the one event loop.** `node:sqlite`'s
 `StatementSync` blocks, and `server/index.ts` is one process with no worker, so
 latency is additive across concurrent clients: eight concurrent deep
-`/api/baits` pages used to make `/healthz` take 6.6 s (now 114 ms, re-measured
-2026-08-24), one used to make it take 833 ms (now 0.2 ms). The fixes are
-containment, not a cure — see the architecture note in §Backlog for why the
-worker thread stays unbuilt and what would change that.
+`/api/baits` pages cost `/healthz` 114 ms. See §Open items for the worker
+thread.
 
 ### Serving rules the wire enforces
 
@@ -1271,8 +1205,7 @@ worker thread stays unbuilt and what would change that.
 - **`compress()` is mounted on `*`**, not just `/api/*` — the bundle is the
   biggest thing this server sends (index.js 496 KB → 149 KB).
 - **`/api/game/*` bodies are capped at 64 KB** (`MAX_GAME_BODY`), counted off
-  the stream and not just the `Content-Length` header. Six concurrent 67 MB
-  bodies used to add 577 MB of RSS before the schema could reject them.
+  the stream and not just the `Content-Length` header.
 - **A starred term's floor is measured on the token the star EXPANDS, and at
   most `STAR_TERM_CAP` (2) stars are honoured per query.** FTS5 applies `*` to
   the last token only, so counting `PREFIX_MIN_LENGTH` over a whole phrase let
@@ -1321,15 +1254,14 @@ worker thread stays unbuilt and what would change that.
   `po.fame DESC, b.position ASC, b.id ASC` (never rowid), re-ranked on the عجز
   when the player supplied one, and routed to `ambiguous` when the copies fame
   cannot separate would chain on different letters (`exactCopies`/`chainClash`
-  in `server/game.ts`). «قفا نبك من ذكرى حبيب ومنزل» used to resolve to أبو
-  العباس الجراوي and demand ب.
+  in `server/game.ts`).
 - 39.8% of قصائد have no بحر at all — every بحر facet count is a count of the
   60% that do.
 ## Deploy
 
 The server binds loopback only (127.0.0.1 **and** ::1) and serves the built
 client itself, so a deployment is: build, run, and put something in front of it
-for TLS — a reverse proxy or a tunnel, your choice. `deploy/qarid.service` is a
+for TLS — a reverse proxy or a tunnel. `deploy/qarid.service` is a
 systemd **user** unit for exactly that; adjust `WorkingDirectory` and symlink it
 into `~/.config/systemd/user/`.
 
@@ -1338,7 +1270,7 @@ Configuration is `.env` in the checkout (see `.env.example`): `HOST`, `PORT`,
 matters beyond the box — it is what the share links and the Digital Asset Links
 statement are built on, and it has no useful default.
 
-Two rules a deploy has to respect, both learned the hard way:
+Two rules a deploy has to respect:
 
 - **After changing client code: build, THEN restart.** The server reads
   `dist/index.html` once at boot, so a restart-less deploy serves the previous
@@ -1348,7 +1280,7 @@ Two rules a deploy has to respect, both learned the hard way:
   `node scripts/ingest/index.ts build data/raw/*.parquet data/qarid.build.db &&
   mv -f data/qarid.build.db data/qarid.db`, then restart.
 
-Done bar, all four green before any commit that ships:
+Checks:
 
 ```
 npm run typecheck && npm test && npm run build && npm run smoke
@@ -1357,163 +1289,23 @@ npm run typecheck && npm test && npm run build && npm run smoke
 plus, after deploy, `curl http://127.0.0.1:$PORT/healthz` **and**
 `curl "http://[::1]:$PORT/healthz"` (both `ok`) and
 `curl http://127.0.0.1:$PORT/api/meta` (counts, not `meta_unavailable`).
-## Backlog
 
-Known and deliberate, in rough order of what a next pass should take:
+## Open items
 
-- ~~**The v1.1 verification pass.**~~ **DONE** — a whole-app human walk at 1440
-  and at 390 (`hasTouch`) over the built bundle and the real artefact found five
-  things and all five are fixed: (1) العدد والمعدود was hard-coded at fourteen
-  call sites, so a real session read «4 نتيجة», «10 بطاقة في ترسانتك», «أصبتَ 5
-  من 5 كلمة», «مجموعة «س» — 1 بيتًا» and, in the text that LEAVES the app,
-  «سلسلة من بيتان» — now `shared/format.ts`'s four counted-noun functions
-  everywhere (see §Invariants); (2) the شعراء search ranked an obscure namesake
-  above the شاعر you typed; (3) a hash change never reset the scroll, so leaving
-  a scrolled page landed the reader inside the next one and #/browse autoloaded
-  to `?p=4` unread; (4) the شاعر page's own signature بيت was the one بيت with
-  no ♥ / نسخ / بطاقة / ساجِلني rail; (5) `.gitignore` ignored only
-  `screenshots/*.png`, so a smoke run's subfolders were waiting for the next
-  `git add -A`. Everything else on the walk — duel at مبتدئ and فحل (hints,
-  wrong-letter precheck, near-miss, already-used, timeout, `incomplete_bait` as
-  a soft rejection, abandon, the PoetCard grid, share card and text, مرة أخرى,
-  and a hard refresh mid-duel that resumes without spending a life), تحفيظ
-  (typed answers, the word diff, the heatmap, «تدرّب» on a weak letter), التصفح,
-  البحث, التجوال, المختارات + المجموعات, بيت اليوم, الإحصاءات, the keymap and
-  every empty/404 state — behaved, with no console error, no failed request and
-  no horizontal overflow at 390 anywhere.
-- ~~**Poet alias merge.**~~ **DONE** (`build_id bbe2f944`) — `shared/poetAliases.ts`,
-  **56** curated alias → canonical `name_key` pairs applied in `transformPoem`
-  before poet insertion, so poems, أبيات, `game_baits`, `combo_counts` and fame
-  all land on the canonical row. 6,997 → 6,941 شعراء. See §Corpus quirks for the
-  detection query and the traps it returns. Residue, on purpose: the map is
-  curated, so pairs the detector suggested but a human could not confirm
-  («تميم بن أبي» / «تميم بن أبي بن مقبل», «محمد بن عبد الله المعولي», the four
-  «الكوكباني») are still two rows, and a pair whose names share no token at all
-  («أ.د/ مصطفى الشليح» / «مصطفى بن عبد الرحمن الشليح») the detector never sees.
-- ~~**Poet honorifics break the شعراء index.**~~ **DONE** — `stripHonorifics()`
-  in `shared/arabic.ts` runs inside `sortName()`, so `poets.letter` and
-  `poets.sort_key` are derived from the same strip and the rebuild synced them:
-  «أ.د/ مصطفى الشليح» files under الميم, «أ.عبدالله بن يحي علي البت» under
-  العين, 55 شاعر moved in all. The card still shows the source's spelling. Two
-  guards, both load-bearing: a WORD honorific (الدكتور/الشيخ/القاضي/السيد/…) is
-  stripped only when **two or more** name tokens survive it, so «القاضي
-  الفاضل» (685 قصيدة), «القاضي عياض» and «السيد الحميري» keep the title that IS
-  their شهرة; and nothing is ever stripped to a string with no Arabic letter.
-- **ARCHITECTURE NOTE, not a task: the SQLite worker thread stays unbuilt.**
-  `node:sqlite` is synchronous, so every query blocks the one event loop and
-  latency is additive across concurrent clients. The structural answer is a
-  worker thread holding the handle with `server/dto.ts`'s callers turned async
-  — which means async-ing every route, every helper and every test that drives
-  `app.request()`, plus a message hop on the hot path that a 0.4 ms `/api/meta`
-  would feel. **Assessed 2026-08-24 and deliberately deferred.** What the wire
-  actually says: every route is ≤ 23 ms warm on the real corpus, the cold cliff
-  that remains (`?first=`/`?lang=` facets, 94–232 ms) is memoised on first
-  touch, the rail's own 62 combinations are pre-warmed at boot, and the
-  pathological case — eight concurrent deep `/api/baits` pages — costs
-  `/healthz` 114 ms. This is a single-reader site behind one Cloudflare tunnel;
-  a queue that never has two things in it does not need a second thread. The
-  containment is real work already done (five indexes, narrow-subquery sorts,
-  the facet memo + pre-warm), and it is what keeps this true.
-  **Re-measured 2026-08-25 for the public Play launch** (`tools/loadtest.mjs`,
-  full sweep in `docs/load-test.md`): the multi-reader ceiling is graceful, not a
-  cliff — throughput is flat at ~150–200 rps (the one-loop ceiling), `/healthz`
-  holds its 150 ms budget through ~10–15 concurrent corpus readers and first
-  breaches around 20–25, and a 200-way flood gives zero errors, no crash and RSS
-  that rises ~85 MB then goes FLAT. No death spiral, so no valve was shipped: a
-  bounded in-flight gate was built and measured INERT here (a synchronous query
-  serializes requests below userland, so the in-flight counter peaked at exactly
-  1 under an 80-way burst), and an event-loop-lag valve over-shed legitimate load
-  (97 % at concurrency 10) without pulling `/healthz` back under budget. A valve
-  that can't fire or that harms the normal case is over-engineering; the
-  containment above is the right launch-scale posture.
-  **Build it when any ONE of these becomes true**, and not before:
-  (a) the site's LIVE traffic regularly sustains ~20+ simultaneous readers on the
-  expensive query paths — re-run `tools/loadtest.mjs` on the real corpus to
-  confirm the budget is actually breached at the concurrency the site sees, not
-  merely that traffic became public (the launch itself does not fire this: at its
-  realistic niche concurrency the budget holds);
-  (b) any route measures **> 200 ms p95** on the real corpus, or `/healthz`
-  under real sustained load leaves the 150 ms budget;
-  (c) a NEW route lands that can run long by construction — an unmemoisable
-  scan, a user-supplied `LIKE '%…%'`, a per-request aggregate over `game_baits`.
-  Until then the rule to hold is the narrow one: any new route that can run
-  long is a route that can stall every other visitor, so it needs an index, a
-  narrow-subquery sort, or a memo BEFORE it ships.
-- ~~**Filtered `/api/facets` is 100–230 ms on its first call per combination.**~~
-  **DONE** — `warmFacets(db)` pre-warms the 62 single-facet combinations at
-  boot (646 ms, 69 ms worst stall, skipped without a corpus); see §Latency.
-  The `?first=`/`?lang=` shapes are still cold-then-memoised on purpose.
-- ~~**`usedPoemIds` is a no-op for 27% of قصائد.**~~ **DONE** — `PoemRef` now
-  carries BOTH ids (`id` public, `poemId` = `poems.id`), `BAIT_CONTEXT_COLS`
-  selects `p.id`, and `withUsed` reads the internal one instead of parsing the
-  public one. `internalPoemId()` is gone. An aldiwan-keyed قصيدة now excludes
-  itself from the opponent's replies like any other.
-- ~~**`incomplete_bait` still costs a life.**~~ **DONE** — it is a SOFT
-  rejection: out of `COSTS_LIFE`, `softReject` in the machine, and four seconds
-  on screen (`SOFT_REJECT_SLOW`) because the card shows the mutilated ديوان
-  entry. The بيت is real and the player remembered it; the corpus is short a
-  شطر, and charging for the scrape's damage was the bug.
-- ~~**Two additive server fields the client does not read.**~~ **DONE** — an
-  opponent's exchange persists `relaxed` (`ExchangeSchema`, default false) and
-  the card says «خرج عن القيود» once the شاعر is revealed; `poolIsThin()` in
-  DuelSetupView warns off `effectiveTotal ?? total`.
-- ~~**«الشعراء الذين لقيتهم» is chips, not the PoetCard grid.**~~ **DONE** —
-  `GET /api/poets?slugs=a,b,c` (≤ `MAX_POET_SLUGS` = 30, in the order asked,
-  unknown slugs simply absent, the index's own filters ignored) answers the
-  summary's one batch request, and it renders the real `PoetCard` with the gold
-  نِيب on the cell. A failed request falls back to the name-only chip, so an
-  offline summary still names every شاعر.
-- ~~**A duel summary that survived a reload degrades its headline.**~~ **DONE**
-  — `outcome`/`endedAt` are persisted at **`PERSIST_VERSION` 2** with
-  `MIGRATIONS[1]` for the v1 payloads already on disk. That step recovers only
-  what a v1 ending honestly carries (no lives → «انقضت الأرواح»; ten أبيات in
-  المبارزة → «انتهت المبارزة»; `endedAt` from the last بيت) and leaves
-  «انسحبتَ»/«أفحمتَ الخصم» null rather than guessing between them.
-- ~~**`dist` ships 445 KB of `.woff`.**~~ **DONE** — `dropWoffFallbacks()` in
-  `vite.config.ts` strips the `, url(…woff) format('woff')` half of every
-  fontsource `src` in a `enforce: "pre"` **transform**, so the file is never
-  referenced and never emitted. It is not a `generateBundle` filter on purpose:
-  by then the stylesheet's content hash is fixed, and the rewritten CSS would
-  ship under its old hash, `immutable` for a year. `dist` is 1.5 MB → 1.1 MB.
-- ~~**`tools/screenshot.mjs --mobile` sets only a 390 viewport.**~~ **DONE** —
-  the mobile context is `{viewport, hasTouch: true, isMobile: true}`, so
-  `@media (hover:none),(pointer:coarse)` matches and the mobile shots lost the
-  `/` badge and the «Shift+Enter» hint (`.keys-only`, base.css) a phone cannot
-  use.
-- ~~**Cosmetic**: omnibox placeholder truncation, `.train-arsenal-card__body`
-  slack.~~ **DONE** — `OMNIBOX_PLACEHOLDER_NARROW` swaps in under `useNarrow()`
-  (a placeholder is the one string CSS cannot shorten: it clips mid-word, and
-  a `<textarea>` cannot even ellipsise it — which is why the duel's docked
-  answer field has `ANSWER_PLACEHOLDER_NARROW` too), and
-  the ترسانة card is now `26rem | 1fr | 18rem` with the coverage ring pinned
-  `justify-self: start` beside the map it describes, so the slack sits in one
-  middle gap instead of at the far end. `__side` is `display: contents` at wide
-  widths and a real box again below 861px.
-- **الدواوين have no FEED, and that is a decision.** A wall of strangers'
-  دواوين is a moderation queue, and Track 3 already has one. Two of the three
-  doors that do not open it are now built and are the shape any further one
-  should take: an account's PUBLIC دواوين on its own `#/u/<name>` page (its owner
-  PUBLISHED them, and the page already carries his name), and «من مكتبتك» on
-  `#/diwans` — shelves a reader kept, held as an edge so the curator can still
-  close them (see the invariant). What is still open and still cheap: «انسخ
-  الأبيات» on a shelf, which is `formatBayt` over what is already on the screen.
-  What it should NOT add is a feed — and the moderation surface a feed would
-  need is the reason: a reported ديوان today reaches the owner's existing queue
-  with two narrow actions on it (unlist, clear the وصف), which is a queue sized
-  for links passed between readers, not for a public wall.
-- **The المختارات المنظومة canon is a HAND-CURATED table and it should grow.**
-  Ten معلقات and a hundred أبيات سائرة, every one verified against
-  `build_id d1a38337` before it shipped. What is deliberately not there, and why:
-  «ولقد ذكرتك والرماح نواهل» (the corpus files عنترة's own بيت under هدى السعدي
-  alone), «إذا بلغ الفطام لنا صبي» (عمرو بن كلثوم's, filed under عنترة), «إن
-  الشباب والفراغ والجدة» and «ولولا المشقة ساد الناس كلهم» (no copy the anchor
-  can reach). A new shelf is a new entry in `ANTHOLOGIES` and nothing else —
-  the route, the strip, the index and the shelf page are all driven by the
-  table. Verify a new entry the way the existing ones were: the corpus half of
-  `server/routes/anthology.test.ts` resolves the whole canon against
-  `data/qarid.db` and fails on the entry, naming it.
-- **«الأحدث» browse sort does not exist and cannot** — the corpus carries no
-  date on a قصيدة. Struck from design-ux.md §3 (amendment 20).
-- The drill's «هذا في ترسانتي» can double-count a بيت also answered with in a
-  duel. Deliberate: `used` is a claim count, not a distinct-أبيات count, and it
-  is monotone.
+- **SQLite worker thread.** `node:sqlite` is synchronous, so every query blocks
+  the one event loop. Moving the handle to a worker means making every route
+  and helper async. Build it when `/healthz` p95 passes 150 ms at real traffic,
+  a route passes 200 ms p95 on the real corpus, or a route lands that can run
+  long by construction (an unmemoisable scan, a user-supplied `LIKE '%…%'`, a
+  per-request aggregate over `game_baits`). Until then any new route that can
+  run long needs an index, a narrow-subquery sort or a memo. Measurements:
+  `docs/load-test.md`.
+- **No public feed of دواوين.** A ديوان is reached by its link, its owner's
+  `#/u/<name>` page, or «من مكتبتك» on `#/diwans`.
+- **المختارات المنظومة is a hand-curated table.** A new shelf is a new entry in
+  `ANTHOLOGIES`; the corpus half of `server/routes/anthology.test.ts` resolves
+  the canon against `data/qarid.db` and names any entry that fails. Left out
+  because the corpus misattributes them or no copy resolves: «ولقد ذكرتك
+  والرماح نواهل», «إذا بلغ الفطام لنا صبي», «إن الشباب والفراغ والجدة», «ولولا
+  المشقة ساد الناس كلهم».
+- **No «الأحدث» browse sort** — the corpus carries no date on a قصيدة.

@@ -1,5 +1,5 @@
 /**
- * #/stats — إحصاءات الديوان (design-ux.md §8, v1.5 «simple»).
+ * #/stats — إحصاءات الديوان.
  *
  * Everything here comes from ONE request. `/api/stats` is read straight out of
  * `meta.stats_json`, computed once at ingest, so this page costs 0.3 ms on the

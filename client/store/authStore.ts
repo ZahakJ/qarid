@@ -118,7 +118,7 @@ type AuthStore = {
   deleteAccount: (password: string) => Promise<{ ok: true } | { ok: false; message: string }>
   /** the dialog's own Arabic validation writes here (see AuthDialog) */
   setError: (message: string | null) => void
-  /** the profile page renaming its own account keeps the masthead honest */
+  /** the profile page renaming its own account keeps the masthead accurate */
   setUser: (user: AuthUser | null) => void
 }
 
@@ -263,7 +263,7 @@ export const useAuth = create<AuthStore>()((set, get) => ({
  * Did this failure mean «your session is gone»? If so, take it over.
  *
  * Every authed action funnels its catch through here — one handler for /room,
- * /profile and /auth, which is what the audit's finding asked for. A caller
+ * /profile and /auth. A caller
  * that gets `true` back has nothing left to do: the auth slice is cleared (so
  * the app bar stops showing a signed-in avatar over a signed-out session) and
  * the دخول dialog is open with the reason on it, beside its own button. The

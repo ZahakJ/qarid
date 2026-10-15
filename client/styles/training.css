@@ -1,4 +1,4 @@
-/* قريض — Phase 4 (v1.5): التحفيظ, الترسانة, التجوال, and the بطاقة dialog.
+/* قريض — v1.5: التحفيظ, الترسانة, التجوال, and the بطاقة dialog.
  *
  * Loaded last, after bayt.css and views.css, because two rules here are
  * deliberate overrides of the بيت: the ruled blank that stands in for a hidden
@@ -6,7 +6,7 @@
  *
  * Every grid track is `minmax(0, 1fr)`: a grid item's automatic minimum is its
  * min-content width, and one long شطر would otherwise widen the page under RTL
- * (CLAUDE.md invariant, learned on the browse rail).
+ * (docs/internals.md invariant, learned on the browse rail).
  */
 
 /* ── small shared affordances ──────────────────────────────────────── */
@@ -946,8 +946,8 @@ button.heatcell:hover {
   margin-inline: auto;
 }
 
-/* The preview scales to FIT — it never asks the reader to scroll (owner's
- * rule: no new scrollbars). A canvas is a replaced element, so auto sizes
+/* The preview scales to FIT — it never asks the reader to scroll (no new
+ * scrollbars). A canvas is a replaced element, so auto sizes
  * plus max constraints on BOTH axes keep the aspect and pick whichever axis
  * binds; the height cap is what stops the square card overflowing a short
  * viewport. */

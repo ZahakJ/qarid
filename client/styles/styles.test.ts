@@ -182,7 +182,7 @@ describe("anthology.css names only its own classes", () => {
   })
 
   it("leaves the بيت to bayt.css — it frames أبيات, it does not set them", () => {
-    // `BaytPlate` is the only بيت renderer (CLAUDE.md); a shelf that restyled
+    // `BaytPlate` is the only بيت renderer (docs/internals.md); a shelf that restyled
     // `.bayt`, `.sadr` or `.ajuz` would be a second one.
     for (const owned of [".bayt", ".sadr", ".ajuz", ".gutter", ".bayt-plate"]) {
       expect(selectors(anthology).some((s) => s.includes(owned))).toBe(false)

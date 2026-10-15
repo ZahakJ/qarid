@@ -15,7 +15,7 @@ beforeAll(() => {
   w.exec("PRAGMA page_size = 8192")
   w.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
   w.exec("INSERT INTO meta VALUES ('schema_version','1'),('build_id','probe')")
-  // FTS5 is the whole point of the Phase-0 spike — assert it survives a
+  // FTS5 is the whole point of the feasibility check — assert it survives a
   // read-only reopen, bm25 and snippet included.
   w.exec("CREATE VIRTUAL TABLE baits_fts USING fts5(norm, tokenize='unicode61')")
   const ins = w.prepare("INSERT INTO baits_fts(rowid, norm) VALUES (?, ?)")

@@ -33,7 +33,7 @@ import { runSearch } from "../search.ts"
  * second bound rather than the first — sixty per ten seconds is an order of
  * magnitude above the palette's 200 ms debounce and the reader who pages
  * through results, and it keeps four scripted clients from owning the one event
- * loop indefinitely (CLAUDE.md: every SQLite call is synchronous on it).
+ * loop indefinitely (docs/internals.md: every SQLite call is synchronous on it).
  */
 export const SEARCH_RATE_LIMIT = { tokens: 60, windowMs: 10_000 } as const
 

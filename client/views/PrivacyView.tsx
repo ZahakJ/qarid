@@ -1,39 +1,17 @@
 /**
- * #/privacy — the hosted privacy policy (a Google Play requirement for an app
- * with accounts).
- *
- * It is the SAME page whether reached in the native shell, at
- * `https://qarid.example.com/#/privacy`, or from the Play listing — that URL
- * is the stable one the Data Safety form and the store link point at. The page
- * is ARABIC ONLY — the owner's call (2026-08-27): the site is Arabic, and an
- * English half read as assembled. docs/legal/data-safety.md carries the English
- * a Play reviewer might need; the page itself does not.
- *
- * Everything here is the truth about what `server/users.ts` actually stores and
- * `server/ratelimit.ts` actually reads — no collection this app does not do. The
- * owner-only blanks (contact, jurisdiction) are EMPTY constants and are the
- * whole of what a human must fill before publishing — a missing one drops its
- * clause instead of printing a marker; the deletion URL is the live
- * `#/privacy`-sibling `#/u/<name>` settings.
+ * #/privacy — the privacy policy. It describes what `server/users.ts` stores
+ * and `server/ratelimit.ts` reads. The deletion URL is `#/u/<name>`.
  */
 import { Rule } from "../components/Ornaments.tsx"
 import { routeHash } from "../router.ts"
 import { shareOrigin } from "../platform/native.ts"
 
 /**
- * The owner-only blanks. **RELEASE BLOCKER: `OWNER_CONTACT` and
- * `OWNER_JURISDICTION` must carry real values before the Play listing goes
- * public** — see docs/legal/data-safety.md.
- *
- * They are EMPTY, not placeholders. A `[OWNER: …]` token printed on the page is
- * an English word, Latin brackets and a fake email on the one screen a Play
- * reviewer reads, so the page drops the whole clause while a value is missing
- * rather than showing the marker. Filling either constant restores its sentence
- * and nothing else has to change.
+ * Filled in by whoever operates a deployment. An empty value drops its clause.
  */
-const OWNER_CONTACT = ""
-const OWNER_EFFECTIVE = "25 آب 2026"
-const OWNER_JURISDICTION = ""
+const OPERATOR_CONTACT = ""
+const POLICY_EFFECTIVE = "25 آب 2026"
+const OPERATOR_JURISDICTION = ""
 
 export function PrivacyView() {
   return (
@@ -43,7 +21,7 @@ export function PrivacyView() {
         <p className="view__lede">
           قريض ديوانٌ يُتصفَّح بلا حساب. الحساب لمساجلة صديقٍ باسمك ولصفحةٍ تحملُه — وهذا ما نحفظه حينئذٍ، وكيف، وكيف تمحوه.
         </p>
-        <p className="privacy-effective">تاريخ السريان: {OWNER_EFFECTIVE}</p>
+        <p className="privacy-effective">تاريخ السريان: {POLICY_EFFECTIVE}</p>
       </header>
 
       <section className="rule-sec">
@@ -127,10 +105,10 @@ export function PrivacyView() {
         <h2 className="section-title">التواصل والتغيير</h2>
         <Rule />
         <p>
-          {OWNER_CONTACT
-            ? `لأيّ سؤالٍ عن خصوصيتك أو طلبِ حذف: ${OWNER_CONTACT}. `
+          {OPERATOR_CONTACT
+            ? `لأيّ سؤالٍ عن خصوصيتك أو طلبِ حذف: ${OPERATOR_CONTACT}. `
             : "حذفُ حسابك بيدك من صفحتك، فلا يحتاج إلى مراسلتنا. "}
-          {OWNER_JURISDICTION ? `تحكم هذه السياسةَ أنظمةُ ${OWNER_JURISDICTION}. ` : ""}
+          {OPERATOR_JURISDICTION ? `تحكم هذه السياسةَ أنظمةُ ${OPERATOR_JURISDICTION}. ` : ""}
           وإذا تغيّرت السياسة حدّثنا هذه الصفحة وتاريخَ سريانها.
         </p>
         <p className="privacy-back">

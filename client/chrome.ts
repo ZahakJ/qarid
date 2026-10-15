@@ -168,7 +168,7 @@ export function rememberScroll(key: string, y: number): void {
  * Where the window should sit when `route` (identified by `key`) is entered.
  *
  * `native` gates the whole exception: the desktop web has no tab bar, so it has
- * no «return to a tab» gesture either, and CLAUDE.md's rule there stands
+ * no «return to a tab» gesture either, and docs/internals.md's rule there stands
  * unamended — a new page starts at its top, every time.
  */
 export function scrollTargetFor(route: Route, key: string, native: boolean): number {

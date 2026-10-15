@@ -14,7 +14,7 @@
  * and the page itself is one — an ordinal in the margin, the entry in the
  * middle, the curator's rail on the far edge, and a gold hairline dissolving
  * between each pair. The ordinal is `--font-mono` because it is a number
- * (CLAUDE.md: Amiri's arabic subset carries no Latin figures).
+ * (docs/internals.md: Amiri's arabic subset carries no Latin figures).
  *
  * An entry is a قصيدة or a بيت. The بيت is `BaytPlate`'s row, untouched; the
  * قصيدة is this sheet's own card (`.diwan-poem*`), laid out on the SAME three
@@ -1008,7 +1008,7 @@
   margin: 0;
 }
 
-/* The honest number, in the game's own face — it IS an instrument reading. */
+/* The number, in the game's own face — it IS an instrument reading. */
 .dwplay__count {
   font-size: var(--fs-ui-2);
   color: var(--text-1);

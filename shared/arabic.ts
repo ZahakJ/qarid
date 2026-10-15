@@ -1,7 +1,7 @@
 /**
  * قريض — the ONE Arabic text layer.
  *
- * Load-bearing invariant (CLAUDE.md, design-ux.md §0): this file is the only
+ * Load-bearing invariant (docs/internals.md, design-ux.md §0): this file is the only
  * normalizer in the project. The FTS index, the روي derivation at ingest, the
  * `dedup_key`, the server's chain-letter authority, the client's live letter
  * indicator and the search highlighter all call these functions. A second copy
@@ -10,7 +10,7 @@
  * return nothing with no error to catch it.
  *
  * Two different foldings live here on purpose:
- *   · `normalizeArabic` — the kalam port. Index/query form. Folds أإآٱ→ا, ى→ي,
+ *   · `normalizeArabic` — index/query form. Folds أإآٱ→ا, ى→ي,
  *     ة→ه, ؤ→و, ئ→ي but LEAVES a bare ء alone, because a standalone hamza is a
  *     word people search for.
  *   · `foldLetter` — the 28-letter alphabet. Chain form. Also folds ء→ا,
@@ -38,7 +38,7 @@ const HAS_ARABIC_RE = /[ء-غف-ي]/
 const TASHKEEL_RE = /[\u064B-\u0655\u0670\u06D6-\u06ED\u0640\u200B-\u200F]/g
 
 /**
- * The wider mark set kalam's `_DIACRITICS` strips — everything TASHKEEL_RE
+ * The wider mark set — everything TASHKEEL_RE
  * removes plus U+0656–U+065F (the modern Quranic annotation additions) and the
  * Arabic Extended-A mark block U+08E3–U+08FF. `normalizeArabic` uses this one;
  * `stripTashkeel` uses the narrower display-safe one.
@@ -68,7 +68,7 @@ export function stripTashkeel(s: string): string {
   return s.replace(TASHKEEL_RE, "")
 }
 
-/** kalam's wider mark strip — tashkeel plus the extended annotation blocks. */
+/** The wider mark strip — tashkeel plus the extended annotation blocks. */
 export function stripMarks(s: string): string {
   return s.replace(MARKS_RE, "")
 }
@@ -121,7 +121,7 @@ const LETTER_FOLD: Readonly<Record<string, string>> = {
   // A قصيدة همزية rhymes رَجائي with الرَجاءِ and the poet did not think
   // one ended on ياء; splitting them cost 173 of the 354 disagreements measured
   // over data/sample-2000.jsonl. This is the CHAIN alphabet only — `foldLetters`
-  // and therefore the FTS index keep kalam's ؤ→و / ئ→ي exactly as they were.
+  // and therefore the FTS index keep ؤ→و / ئ→ي.
   "ء": "ا", // ء  bare hamza
   "ؤ": "ا", // ؤ  waw hamza
   "ئ": "ا", // ئ  yeh hamza
@@ -171,9 +171,8 @@ export function cleanText(s: string | null | undefined): string {
 }
 
 /**
- * `normalizeArabic(s)` — the index/query form. A direct port of kalam's
- * `ingest/normalize.py::normalize_arabic`, plus the NFKC pass design-server.md
- * §2 adds (kalam's corpus is already normalised; aldiwan's is not).
+ * `normalizeArabic(s)` — the index/query form, with the NFKC pass of
+ * design-server.md §2 (aldiwan's text carries presentation forms).
  *
  * Lossy on purpose and idempotent by construction: indexing normalises once,
  * `ftsQuery` may normalise twice, and both sides must land on the same string.
@@ -411,7 +410,7 @@ function sanitizeTerm(s: string): string {
  * without one — fails on a بيت that is otherwise a perfect match. 33 of the
  * 19,664 مطالع on ألف carry such a mark. Both sides of a prefix comparison go
  * through this, and it stays in `shared/arabic.ts` for the usual reason: a
- * second spelling of "strip what is not a word" is a bug (CLAUDE.md invariant).
+ * second spelling of "strip what is not a word" is a bug (docs/internals.md invariant).
  */
 export function bareWords(s: string | null | undefined): string {
   return sanitizeTerm(normalizeArabic(s))
@@ -426,7 +425,7 @@ export function bareWords(s: string | null | undefined): string {
  * data/qarid.db (3.37M أبيات), ranked, `LIMIT 400`: «الذي»* 41 ms · «الحب»* 30 ms
  * · «قلبي»* 21 ms · «كانت»* 15 ms, all four ≤ 41 ms; but «الح»* 141 ms, «الذ»*
  * 58 ms, and at two letters «ال»* is **2,058 ms** — two seconds of a blocked
- * event loop (every SQLite call is synchronous, CLAUDE.md) for one keystroke.
+ * event loop (every SQLite call is synchronous, docs/internals.md) for one keystroke.
  * Four characters is where the cliff ends, so a shorter starred word is
  * searched as the whole word it is: «ال*» finds «ال», not every ألف لام.
  */
@@ -468,7 +467,7 @@ export interface FtsQueryOptions {
 }
 
 /**
- * `ftsQuery(q, mode)` — kalam's `fts_query`, port and contract both.
+ * `ftsQuery(q, mode)`.
  *
  * The quoting trick is the whole security model: EVERY term is wrapped in
  * double quotes, so `AND`, `OR`, `NOT`, `NEAR`, `*`, `^`, `:` and `-` reach
@@ -570,7 +569,7 @@ export function fnv1a64Signed(s: string): bigint {
  * string, computed from the بيت's own text.
  *
  * `public_id` is `q<row id>` for 73 % of قصائد and every id in the artefact
- * MOVES on a rebuild (CLAUDE.md §The artefact), so a table of ids in the
+ * MOVES on a rebuild (docs/internals.md §The artefact), so a table of ids in the
  * writable database rots at the next `npm run ingest`. Content does not: this
  * is exactly the hash `scripts/ingest/transform.ts` writes into `baits.h_full`
  * — one normalizer, one hash, spelled once — and `baits_hfull` indexes it, so
@@ -704,7 +703,7 @@ const NAME_SEP_RUN_RE = /^[\s.\/\\|,،؛:_\-–—]+/
 
 /**
  * «أ.د/ مصطفى الشليح» → «مصطفى الشليح», so the شاعر files under الميم instead
- * of leading the ألف section (CLAUDE.md backlog: "poet honorifics break the
+ * of leading the ألف section (docs/internals.md backlog: "poet honorifics break the
  * شعراء index"). «أ.عبدالله بن يحي علي البت» is the other shape the corpus
  * carries — the initial glued straight onto the name with no space at all.
  *
@@ -791,8 +790,7 @@ export interface FoldMatch {
 /**
  * Fold a string while REMEMBERING where every folded character came from.
  *
- * The trick is vellum-prod/client/books/search.ts's, and it exists because the
- * obvious thing does not work: normalise-then-indexOf finds the hit but the
+ * The obvious thing does not work: normalise-then-indexOf finds the hit but the
  * offsets it reports point into the normalised string, which is not the string
  * on screen. Marks were deleted, whitespace was collapsed — the offsets no
  * longer name anything real, and you cannot turn the hit back into a highlight.

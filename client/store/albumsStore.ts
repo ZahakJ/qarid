@@ -250,7 +250,7 @@ export const useAlbums = create<AlbumsStore>()((set, get) => ({
 }))
 
 /**
- * What the toast says, and it says the honest thing in every case.
+ * What the toast says, and it says the accurate thing in every case.
  *
  * «أُضيف» over a duplicate is a lie a reader catches immediately (the count on
  * the card did not move), and a bare «تمّ» says nothing at all. A قصيدة is one

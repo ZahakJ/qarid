@@ -5,7 +5,7 @@
  * called. `poets.name_key` (= `normalizeArabic(name)`) is the identity, so
  * «المتنبي» and «أبو الطيب المتنبي» normalize APART and land as two rows: two
  * cards in الشعراء, two slugs, two fame verdicts, and the same مطلع showing up
- * twice in البحث under two names. That was CLAUDE.md's first backlog item.
+ * twice in البحث under two names. That was docs/internals.md's first backlog item.
  *
  * The fix is here rather than in a view for the reason the backlog gives: the
  * merge has to happen BEFORE `poems.poet_id` is handed out, so poems, أبيات,

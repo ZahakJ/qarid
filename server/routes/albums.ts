@@ -53,7 +53,7 @@
  * `GET /api/profile/:username` carries the account's `public` دواوين. It is not
  * an enumeration of a reader's shelves — `unlisted` ones stay invisible there,
  * and «مفتوح» is the state whose whole meaning is «show this on my page». There
- * is still no global feed; see §Backlog in CLAUDE.md for why.
+ * is still no global feed; see §Backlog in docs/internals.md for why.
  */
 
 import { Hono, type Context } from "hono"

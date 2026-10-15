@@ -11,7 +11,7 @@
  *    punctuation. Both hemistichs are centred, the way a ديوان sets them.
  *  • **Wait for the face.** `document.fonts.load('400 64px Amiri')` must resolve
  *    BEFORE the first `fillText`, or the card ships in a fallback naskh and the
- *    reader never sees Amiri (CLAUDE.md §7 hard requirement).
+ *    reader never sees Amiri (design-ux.md §7 hard requirement).
  *  • Never letter-space, never italicise, never scale the glyphs non-uniformly:
  *    the fit loop shrinks the FONT SIZE, it does not squeeze the text.
  */
@@ -203,7 +203,7 @@ export function renderCard(bayt: CardBayt, shape: CardShape = "wide"): HTMLCanva
   }
 
   // ── the mark ───────────────────────────────────────────────────────────
-  // «قريض» alone — a seal, not an address (owner's call: no URL on the card;
+  // «قريض» alone — a seal, not an address (no URL on the card;
   // the name carries it). Aref Ruqaa hangs deep below its baseline, so the
   // clearance is measured from the DESCENDER to the gold frame, not from the
   // baseline to the canvas edge — at the old h−6.2% the ق tail grazed the

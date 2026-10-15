@@ -121,7 +121,7 @@ describe("row counts", () => {
     expect(count("SELECT COUNT(*) n FROM poems")).toBe(count("SELECT COUNT(DISTINCT public_id) n FROM poems"))
     const aldiwan = one<{ public_id: string }>("SELECT public_id FROM poems WHERE aldiwan_id = 16182")
     expect(aldiwan!.public_id).toBe("16182")
-    // CLAUDE.md finding 1: the q<id> fallback is the COMMON case, not the exception
+    // docs/internals.md finding 1: the q<id> fallback is the COMMON case, not the exception
     expect(count("SELECT COUNT(*) n FROM poems WHERE aldiwan_id IS NULL AND public_id NOT LIKE 'q%'")).toBe(0)
   })
 
@@ -365,7 +365,7 @@ describe("dedup — the best copy wins", () => {
     expect(one<{ slug: string }>("SELECT slug FROM poets WHERE name = 'المتنبي'")!.slug).toMatch(/^[a-z0-9-]+$/)
   })
 
-  it("folds an alias spelling onto the canonical شاعر (CLAUDE.md backlog)", () => {
+  it("folds an alias spelling onto the canonical شاعر (docs/internals.md backlog)", () => {
     // The fixture carries «المتنبي» twice and «أبو الطيب المتنبي» once. Before
     // the alias table those were two rows, two slugs and two cards.
     expect(count("SELECT COUNT(*) n FROM poets WHERE name LIKE '%المتنبي%'")).toBe(1)

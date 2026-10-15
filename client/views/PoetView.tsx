@@ -8,7 +8,7 @@
  * with their counts → the ديوان itself, windowed.
  *
  * The medallion's letter is `poet.letter` as the ingest derived it — the same
- * letter his card is filed under in #/poets, never recomputed here (CLAUDE.md
+ * letter his card is filed under in #/poets, never recomputed here (docs/internals.md
  * invariant). Every section arrives on the §6 stagger, eight steps at most, and
  * the numbers count up only when motion is allowed.
  *
@@ -296,7 +296,7 @@ export function PoetView({ slug }: { slug: string }) {
           {/* The rail the same بيت gets everywhere else it appears — بيت اليوم,
               التجوال, a قصيدة row. Without it the شاعر's own signature بيت was
               the one بيت in قريض a reader could not save, copy or share. ♥ goes
-              through `useCollections` (CLAUDE.md invariant: component-local
+              through `useCollections` (docs/internals.md invariant: component-local
               favourite state persists nothing). */}
           <BaytPlate
             variant="plate"

@@ -4,7 +4,7 @@
  *
  * It loads AFTER views.css, poets.css, app.css, duel.css and room.css, which
  * is the position that once let duel.css's `.letter-well` reach into the
- * browse rail (CLAUDE.md §Invariants). So every selector in this file leads
+ * browse rail (docs/internals.md §Invariants). So every selector in this file leads
  * with one of its OWN new classes — `.anth-*` — and `styles.test.ts` fails the
  * build if one does not. It names no class any earlier sheet owns.
  *
@@ -292,7 +292,7 @@
 }
 
 /* A ringed numeral, the way a folio is marked. Mono because the Amiri we ship
-   is the `arabic` subset and carries no Latin figures (CLAUDE.md §Western
+   is the `arabic` subset and carries no Latin figures (docs/internals.md §Western
    digits) — a numeral set in the verse face falls through to the OS serif. */
 .anth-ode__ord,
 .anth-bayt__ord {
@@ -463,7 +463,7 @@
   color: var(--accent);
 }
 
-/* ══ the honest gap ════════════════════════════════════════════════════ */
+/* ══ the gap ════════════════════════════════════════════════════════ */
 
 /* «ليست في الديوان» is a FACT the shelf reports, not an error it apologises
    for — so it is a dashed marker in the meta band's own colour, not a red

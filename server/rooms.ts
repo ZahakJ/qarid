@@ -819,7 +819,7 @@ export function userIdForSeat(room: RoomRow, seat: RoomSeat): number | null {
  * function then judged the STALE `turn_deadline_at` against a transcript it
  * read fresh, and ended the match `timeout` against the player who had just
  * been handed a full clock — measured, reproducible over a real socket, and a
- * direct contradiction of CLAUDE.md's «the only thing that can end a turn
+ * direct contradiction of docs/internals.md's «the only thing that can end a turn
  * unanswered is a timestamp in the database»: the timestamp used was one the
  * database no longer held. The caller's snapshot is now a hint about WHICH row,
  * never about what is in it.
@@ -1087,7 +1087,7 @@ export function recordKnock(deps: RoomDeps, room: RoomRow, user: UserRow, now = 
   if (room.status !== "waiting") return { ok: false, code: room.status === "active" ? "room_full" : "room_not_active" }
   if (room.guestUserId !== null) return { ok: false, code: "room_full" }
   // A block either way means the door does not even acknowledge the knock
-  // (Track 3) — same vague `blocked` the join path answers, for the same reason.
+  // — same vague `blocked` the join path answers, for the same reason.
   if (blockExistsBetween(deps.users, room.hostUserId, user.id)) return { ok: false, code: "blocked" }
   const existing = pendingKnock(deps.users, room.id)
   if (existing && existing.userId !== user.id) return { ok: false, code: "room_busy" }
@@ -1112,7 +1112,7 @@ export function acceptKnock(deps: RoomDeps, room: RoomRow, host: UserRow, now = 
   if (room.guestUserId !== null) return { ok: false, code: "room_full" }
   const knock = pendingKnock(deps.users, room.id)
   if (!knock) return { ok: false, code: "no_knock" }
-  // A block created after the knock landed (Track 3): the host cannot seat
+  // A block created after the knock landed: the host cannot seat
   // someone a block now stands between. The pending knock is left as-is; the
   // host may reject it.
   if (blockExistsBetween(deps.users, host.id, knock.userId)) return { ok: false, code: "blocked" }
@@ -1155,7 +1155,7 @@ export type JoinOutcome =
 /**
  * Sit down (v2.md §5: «Guest opens link → joins. Server flips to active»).
  *
- * Four honest answers, and only one of them is an error: you are the host
+ * Four answers, and only one of them is an error: you are the host
  * (nothing happens), you just took the empty seat (the room starts), the room
  * is full and you are watching, or the room is a رجعة whose seat is reserved
  * for somebody else.
@@ -1173,7 +1173,7 @@ export function joinRoom(
     return seat !== null ? { ok: true, room, joined: false } : { ok: false, code: "room_full" }
   }
   if (seat === "host") return { ok: true, room, joined: false }
-  // A BLOCK either way shuts the seat (Track 3, «cannot be matched with them»).
+  // A BLOCK either way shuts the seat («cannot be matched with them»).
   // Checked before the key so the reason a blocked stranger cannot sit down is
   // never «wrong key» — and the symmetric read means a blocked player learns
   // nothing about which direction the block runs.
@@ -1238,7 +1238,7 @@ export function rematchRoom(deps: RoomDeps, room: RoomRow, user: UserRow, now = 
   }
   if (room.guestUserId === null) return { ok: false, code: "not_a_player" }
   // A رجعة seats the two same players again (swapped). If either has since
-  // blocked the other (Track 3), there is no rematch to open.
+  // blocked the other, there is no rematch to open.
   if (blockExistsBetween(deps.users, room.hostUserId, room.guestUserId)) return { ok: false, code: "blocked" }
 
   const played = chainTurns(roomTurns(deps.users, room.id))

@@ -64,7 +64,7 @@ const dateLabel = arabicDate
  *
  * The نعت has to agree with the معدود, which is exactly the agreement that
  * breaks when a phrase is assembled by concatenation — «3 محفوظًا» was what the
- * ترسانة cell's tooltip said (CLAUDE.md, العدد والمعدود live in format.ts).
+ * ترسانة cell's tooltip said (docs/internals.md, العدد والمعدود live in format.ts).
  */
 const MAHFUZ = { one: "محفوظ", two: "محفوظان", few: "محفوظة", many: "محفوظًا" } as const
 
@@ -86,7 +86,7 @@ export function ProfileView({ username }: { username: string }) {
   const signOut = useAuth((s) => s.signOut)
   const me = useAuth((s) => s.user)
   // `qarid:v1:training` has two writers, so every training-aware view reloads
-  // on mount (CLAUDE.md) — otherwise «زامِن» could publish a stale ترسانة.
+  // on mount (docs/internals.md) — otherwise «زامِن» could publish a stale ترسانة.
   const reload = useTraining((s) => s.reload)
 
   // The tab and the phone app bar both say WHOSE page this is — «المضيف —
@@ -292,7 +292,7 @@ export function ProfileView({ username }: { username: string }) {
           </div>
         ) : me ? (
           // Someone else's page, and you are signed in: the quiet «أبلغ» / «احظر»
-          // pair (Track 3). Blocking is private, so the button reflects only your
+          // pair. Blocking is private, so the button reflects only your
           // own state, carried in `youBlocked`.
           <div className="profile-hero__acts">
             <ModerationActions
@@ -377,7 +377,7 @@ export function ProfileView({ username }: { username: string }) {
                   {m.opponent ?? (m.status === "waiting" ? "بانتظار خصم" : "لاعب محذوف")}
                 </span>
                 {/* «3 أبيات», never a bare «3» — a digit standing alone in a
-                    ledger row names nothing (CLAUDE.md, العدد والمعدود). */}
+                    ledger row names nothing (docs/internals.md, العدد والمعدود). */}
                 <span className="match-row__turns num">{countedNoun(m.turns, BAYT_FORMS)}</span>
                 <span className="match-row__when">{dateLabel(m.endedAt ?? m.createdAt)}</span>
               </li>

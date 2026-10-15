@@ -183,7 +183,7 @@ export function paletteAction(e: KeyLike, hasCursor = false): PaletteAction | nu
 
 /**
  * Does this keystroke open the palette? Ctrl+K and Ctrl+F, plus their Cmd
- * twins — the owner asked for the browser's own find to be hijacked (v2.md §3).
+ * twins — they deliberately take over the browser's own find (v2.md §3).
  *
  * Matched through `logicalKey`, so it fires on an Arabic layout too: Ctrl+K
  * reports «ن» there and Ctrl+F reports «ب», and a map written in Latin letters

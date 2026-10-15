@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  /* a flex item's automatic minimum is min-content (CLAUDE.md); this row
+  /* a flex item's automatic minimum is min-content (docs/internals.md); this row
      carries a name that may be long, so it must be allowed to shrink */
   min-inline-size: 0;
 }
@@ -65,7 +65,7 @@
 }
 
 /* The نِيب disc: a perfect circle at every size, so `aspect-ratio` + a fixed
-   inline-size rather than padding (the letter-well lesson, CLAUDE.md). */
+   inline-size rather than padding (the letter-well lesson, docs/internals.md). */
 .masthead__disc {
   display: grid;
   place-items: center;
@@ -614,7 +614,7 @@
   border: 1px solid var(--line-1);
   border-radius: var(--r-1);
   background: var(--bg-1);
-  /* a grid item's automatic minimum is min-content (CLAUDE.md) */
+  /* a grid item's automatic minimum is min-content (docs/internals.md) */
   min-inline-size: 0;
 }
 
@@ -693,7 +693,7 @@
   }
 }
 
-/* ══ avatars (owner's request — custom profile pictures) ═══════════════════
+/* ══ avatars — custom profile pictures ════════════════════════════════════
  *
  * One rule paints every uploaded picture: it fills whatever disc it is dropped
  * into (masthead, hero, seat) as a circle, keeping that disc's own gold ring.
@@ -719,7 +719,7 @@
 
 /* ── the own-profile control ─────────────────────────────────────────── */
 
-/* The picture IS the button (owner's call): the hero disc as a real <button>,
+/* The picture IS the button: the hero disc as a real <button>,
    wearing a small camera badge where the نيب sits for visitors. */
 button.avatar-disc {
   padding: 0;
@@ -1049,7 +1049,7 @@ button.avatar-disc:focus-visible {
   color: var(--accent);
 }
 
-/* ── UGC moderation (Track 3) ─────────────────────────────────────────────
+/* ── UGC moderation ─────────────────────────────────────────────
  * The «أبلغ» / «احظر» pair on a profile and in a room, and the «المحظورون»
  * settings list. All new classes — nothing here re-declares a name an earlier
  * sheet owns (styles.test.ts). The report note is the one field that grows. */

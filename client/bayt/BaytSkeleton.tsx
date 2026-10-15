@@ -4,7 +4,7 @@
  * §6: skeletons match final geometry, nothing spins under 200 ms).
  *
  * The bar widths are a fixed pseudo-random walk, not `Math.random` — a
- * skeleton that reshuffles on every re-render reads as noise (and CLAUDE.md
+ * skeleton that reshuffles on every re-render reads as noise (and docs/internals.md
  * bans Math.random for anything that should be stable).
  */
 import type { BaytSize } from "./BaytPlate.tsx"

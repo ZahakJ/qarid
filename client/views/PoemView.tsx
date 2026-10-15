@@ -1,5 +1,5 @@
 /**
- * #/poem/<id> — the crown jewel (design-ux.md §3 Poem, amendments.md §12).
+ * #/poem/<id> (design-ux.md §3 Poem, amendments.md §12).
  *
  * What this view owes the reader:
  *  • the قصيدة as a printed ديوان page: two hemistichs on the outer margins,
@@ -344,7 +344,7 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
 
   const closeReader = useCallback(() => {
     // Back, when back is the reading we pushed — that keeps the history stack
-    // honest for the browser's button and the hardware one alike. A reading
+    // accurate for the browser's button and the hardware one alike. A reading
     // opened COLD from a shared link has nothing behind it, so it is replaced
     // rather than walked out of (`navDepth`, the app bar's own rule).
     if (navDepth() > 0) history.back()

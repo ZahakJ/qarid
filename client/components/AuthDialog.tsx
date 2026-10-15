@@ -7,7 +7,7 @@
  * in this browser. An account is for مساجلة with a friend, and for a page with
  * your name on it.)
  *
- * There is no email, so recovery is a CODE, not a link (Play launch): a strong
+ * There is no email, so recovery is a CODE, not a link: a strong
  * string shown ONCE at registration and stored server-side only as a scrypt
  * hash. «نسيت كلمة السر؟» opens the reset form (username + that code + a new
  * password); a successful register or reset flips this card to the once-shown

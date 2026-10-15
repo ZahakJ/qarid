@@ -3,8 +3,7 @@
  * drops to 18% opacity rather than disappearing, so the row never reflows —
  * plus the streak, the score and the count of أبيات said.
  *
- * ONE numeral scale in this strip — and, since the owner's 2026-08-24 call,
- * one in the whole app: Western digits everywhere («×7», «320», «5 أبيات»).
+ * ONE numeral scale in this strip, and one in the whole app: Western digits everywhere («×7», «320», «5 أبيات»).
  * The strip once carried three scales inside 400px, and the same score the
  * player watched as «320» all duel was shown as «٥٣٤» on the summary. What is
  * left of that rule is only the FONT: the HUD, the clock and the summary's big

@@ -1,6 +1,6 @@
 /**
  * The corpus cache. In memory ONLY: 255K poems never go near localStorage
- * (CLAUDE.md invariant), and a قصيدة you read two minutes ago is worth a
+ * (docs/internals.md invariant), and a قصيدة you read two minutes ago is worth a
  * re-render, not a persistence layer.
  *
  * Three LRUs at the sizes design-ux.md §6 fixes — poems 200, poets 400,
@@ -62,7 +62,7 @@ type LibraryStore = {
   similar: Lru<SimilarPoemsResponse>
   meta: MetaResponse | null
   setMeta: (m: MetaResponse) => void
-  /** drop everything — test seam, and the only honest response to a rebuild */
+  /** drop everything — test seam, and the response to a rebuild */
   clear: () => void
 }
 

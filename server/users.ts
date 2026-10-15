@@ -9,11 +9,11 @@
  *
  * Three things this module owns and nothing else may re-implement:
  *
- *  1. THE SCHEMA, including the tables §5's multiplayer agent will write logic
- *     against (`rooms`, `match_turns`). They are created HERE, at migration 1,
+ *  1. THE SCHEMA, including the tables multiplayer writes (`rooms`,
+ *     `match_turns`). They are created HERE, at migration 1,
  *     precisely so that landing multiplayer is a code change and not a data
  *     migration — and so the profile page can already count matches (it reads
- *     zero, honestly, until the first room is played).
+ *     zero until the first room is played).
  *  2. PASSWORDS. `node:crypto` scrypt with a per-user salt, compared with
  *     `timingSafeEqual`, encoded in one self-describing string so the cost
  *     parameters can be raised later without a flag day.
@@ -22,7 +22,7 @@
  *
  * Everything here is synchronous (node:sqlite is) except the two scrypt
  * functions, which are deliberately async: scrypt at N=16384 is ~60 ms of
- * blocking CPU and this server has one event loop (CLAUDE.md).
+ * blocking CPU and this server has one event loop (docs/internals.md).
  *
  * BOOT IS TOLERANT, exactly like the corpus: `openUsersDbIfWritable` returns
  * null when the file cannot be created or the directory is read-only, the
@@ -80,8 +80,8 @@ export type UsersDb = {
  * reads while a turn is being written); `synchronous = NORMAL` because a lost
  * final commit after a power cut costs one duel turn, not a corpus;
  * `foreign_keys = ON` because every table here hangs off `users(id)` and a
- * deleted account must not leave sessions behind (v2.md §4: "owner can delete a
- * row"); `busy_timeout` so a concurrent writer waits instead of throwing.
+ * deleted account must not leave sessions behind; `busy_timeout` so a
+ * concurrent writer waits instead of throwing.
  */
 export const WRITE_PRAGMAS = [
   "PRAGMA journal_mode = WAL",
@@ -126,8 +126,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
         updated_at INTEGER NOT NULL
       );
 
-      -- ── v2.md §5: مساجلة rooms. Created now, written by the multiplayer
-      -- agent. Every column that section names is here, plus the four the
+      -- ── v2.md §5: مساجلة rooms. Every column that section names is here, plus the four the
       -- server-authoritative clock needs (started_at/ended_at/turn_deadline_at/
       -- updated_at) and strikes, which §5 makes configurable 1–3 at creation.
       CREATE TABLE rooms (
@@ -208,7 +207,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
   },
 
   /*
-   * 3 → 4: `room_knocks` — knock-to-join (owner's «أملِ عليه الرمز»).
+   * 3 → 4: `room_knocks` — knock-to-join.
    *
    * The keyed link stays the instant door; this is the OTHER door, for a guest
    * who reached the room by voice (the six spoken letters, no key). A knock is
@@ -234,7 +233,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
   },
 
   /*
-   * 4 → 5: `user_avatars` — a custom profile picture (owner's request).
+   * 4 → 5: `user_avatars` — a custom profile picture.
    *
    * The BYTES live in a BLOB beside the mime and a short etag (a hash of the
    * bytes), so the serve route can lock the `Content-Type` to the STORED value
@@ -259,10 +258,9 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
   },
 
   /*
-   * 5 → 6: `user_recovery` — a no-email password recovery code (Play launch).
+   * 5 → 6: `user_recovery` — a no-email password recovery code.
    *
-   * قريض has no email, so it had no reset at all — fine for one owner, painful
-   * for a public user who forgets a password. The answer is a RECOVERY CODE:
+   * قريض has no email, so a forgotten password is reset with a RECOVERY CODE:
    * strong entropy, shown ONCE at signup, and stored here ONLY as a scrypt hash
    * (`code_hash`) — never the plaintext, never a log, never a URL. It is the
    * exact twin of `pass_hash`: a dumped `qarid-users.db` yields neither a live
@@ -289,7 +287,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
   },
 
   /*
-   * 6 → 7: UGC moderation — reports, blocks, and account suspension (Track 3).
+   * 6 → 7: UGC moderation — reports, blocks, and account suspension.
    *
    * A public app with user content and live 1v1 play needs three things, and
    * they are three tables (plus one column) so each has exactly the lifecycle it
@@ -297,7 +295,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
    *
    *  • `user_reports` — one row per report a player files against another. The
    *    REPORTER is `ON DELETE SET NULL`, so a report survives its author closing
-   *    their account (the owner still needs to see it); the TARGET is
+   *    their account (an admin still needs to see it); the TARGET is
    *    `ON DELETE CASCADE`, because a report about a deleted account is moot. The
    *    reason is a closed enum on the wire (`ReportReasonSchema`) but stored as
    *    free TEXT — the database is not the place to re-encode an app-level enum,
@@ -360,7 +358,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
    *    added.
    *
    * Why not `bait_id`. `public_id` is `q<row id>` for 73 % of قصائد and every id
-   * in the artefact moves on `npm run ingest` (CLAUDE.md §The artefact: the last
+   * in the artefact moves on `npm run ingest` (docs/internals.md §The artefact: the last
    * rebuild moved 442 قصائد and renumbered the 73 %). A ديوان keyed on ids would
    * therefore quietly re-point at other people's poetry — the worst possible
    * failure for a collection whose entire value is that the reader chose these
@@ -416,7 +414,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
    *    ديوان takes every row that pointed at it.
    *  • `user_reports.target_album_id` — a report about a ديوان rather than about
    *    an account. `target_id` stays NOT NULL and still names the OWNER, because
-   *    every moderation action the owner already has (reset the name, suspend,
+   *    every moderation action an admin already has (reset the name, suspend,
    *    remove the avatar) targets an account and a shelf has a person behind it;
    *    the album column is what the two NEW actions take. `ON DELETE CASCADE` on
    *    the album, for the same reason the target is: a report about a ديوان its
@@ -453,7 +451,7 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
    *
    * `ON DELETE SET NULL`, not CASCADE: deleting a ديوان must not delete the
    * مساجلات played in it. The room simply loses the constraint and finishes as
-   * an ordinary one — honest, since the shelf it was played inside no longer
+   * an ordinary one — accurate, since the shelf it was played inside no longer
    * exists, and the snapshot says so by carrying a null `album`.
    */
   (raw) => {
@@ -569,7 +567,7 @@ export function openUsersDb(dbPath: string): UsersDb {
     // reads fine — it fails at the first INSERT, i.e. in front of a reader who
     // just typed a password. `BEGIN IMMEDIATE` takes the write lock (and in WAL
     // creates the -wal/-shm sidecars) without changing a byte, so the failure
-    // happens here, at boot, where it becomes one honest log line.
+    // happens here, at boot, where it becomes one log line.
     raw.exec("BEGIN IMMEDIATE")
     raw.exec("COMMIT")
   } catch (err) {
@@ -617,7 +615,7 @@ export function openUsersDbIfWritable(dbPath: string): UsersDb | null {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * scrypt parameters. N=16384/r=8/p=1 is ~16 MB and ~60 ms per hash on this box
+ * scrypt parameters. N=16384/r=8/p=1 is ~16 MB and ~60 ms per hash on a desktop CPU
  * — the standard interactive setting, and well inside node's 32 MB default
  * `maxmem`. They are stored IN the hash string, so raising them later
  * re-verifies old passwords with their own parameters.
@@ -685,7 +683,7 @@ export function dummyPasswordHash(): Promise<string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Recovery codes (no-email password recovery — Play launch)
+// Recovery codes (no-email password recovery)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -859,7 +857,7 @@ export type UserRow = {
   pass_hash: string
   created_at: number
   last_seen: number
-  /** 0 = active; an epoch-ms timestamp in the future = suspended until then (Track 3) */
+  /** 0 = active; an epoch-ms timestamp in the future = suspended until then */
   suspended_until: number
 }
 
@@ -1137,7 +1135,7 @@ export function getArsenal(db: UsersDb, userId: number): { snapshot: string; upd
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Avatars (owner's request — a custom profile picture)
+// Avatars — a custom profile picture
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -1217,7 +1215,7 @@ export function deleteAvatar(db: UsersDb, userId: number): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// UGC moderation — reports, blocks, suspension (Track 3)
+// UGC moderation — reports, blocks, suspension
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** File one report of `targetId` by `reporterId`. Free of any dedupe on purpose:
@@ -1265,7 +1263,7 @@ export type ReportRow = {
 }
 
 /**
- * The owner's report queue. `status` filters it — «open» is the working set,
+ * The admin report queue. `status` filters it — «open» is the working set,
  * «all» the archive. Newest first, capped. It joins the reporter and target
  * usernames (a report about a since-deleted account shows a null name, never a
  * dangling id) and reports whether the target still has an avatar and a live
@@ -1327,7 +1325,7 @@ export function resolveReport(db: UsersDb, id: number, now: number): boolean {
   )
 }
 
-/** How many reports are still open — the badge the owner watches. */
+/** How many reports are still open — the badge an admin watches. */
 export function openReportCount(db: UsersDb): number {
   const row = db.q("SELECT COUNT(*) AS n FROM user_reports WHERE status = 'open'").get() as { n: number }
   return Number(row?.n ?? 0)
@@ -1423,9 +1421,8 @@ export type DuelStatsRow = {
 /**
  * The profile's duel numbers, read straight off `rooms` / `match_turns`.
  *
- * Every one of these returns 0 today because no room has been played — and
- * that is the point: they are queries, not placeholders, so the day §5's
- * multiplayer agent writes the first row the profile page is already correct.
+ * With no room played every one of these returns 0: they are queries, not
+ * placeholders.
  * `bestChain` is the longest run of ACCEPTED turns this player strung together
  * inside one room, which is the multiplayer twin of أطول سلسلة.
  */
@@ -1751,7 +1748,7 @@ export type AlbumEntryInsert =
  *
  * `INSERT OR IGNORE` against `UNIQUE(album_id, anchor)` is what makes a second
  * «أضِف القصيدة» a duplicate rather than a failed request — and the returned
- * count is the honest «أُضيف» the toast says.
+ * count is the accurate «أُضيف» the toast says.
  */
 export function addAlbumEntries(db: UsersDb, albumId: number, items: readonly AlbumEntryInsert[], now: number): number {
   if (items.length === 0) return 0

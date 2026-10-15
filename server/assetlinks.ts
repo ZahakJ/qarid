@@ -6,13 +6,8 @@
  * (`android:autoVerify` on the intent-filter) instead of the browser.
  *
  * The statement names the app's package and the SHA-256 fingerprint of the
- * RELEASE signing certificate in `~/keystores/qarid-release.keystore`. If the
- * app is ever re-signed with a different key, this fingerprint must change to
- * match or verification fails silently (the link falls back to the browser).
- *
- * It is a constant, not derived from anything at runtime — there is no keystore
- * on the server — so it is stated here and asserted by `assetlinks.test` against
- * the same source of truth the build uses.
+ * release signing certificate. If they do not match the installed APK,
+ * verification fails silently and the link opens in the browser.
  */
 
 /**
@@ -25,11 +20,8 @@
  *                        `apksigner verify --print-certs` (or `keytool -list
  *                        -v`) prints it
  *
- * Left unset, the statement still serializes — with the placeholders below —
- * and Android simply fails to verify the link, falling back to the browser.
- * That is the correct behaviour for a checkout that has no app: a wrong
- * fingerprint and a missing one both mean "not my app", and neither is worth
- * refusing to boot over.
+ * Left unset, the statement serializes with the placeholders below and
+ * Android falls back to the browser.
  */
 export const ANDROID_PACKAGE = process.env.ANDROID_PACKAGE ?? "com.example.qarid"
 

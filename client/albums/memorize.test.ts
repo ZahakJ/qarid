@@ -1,5 +1,5 @@
 /**
- * «أضِفه إلى التحفيظ» — the gathering, the seeds, the honest count, and the
+ * «أضِفه إلى التحفيظ» — the gathering, the seeds, the accurate count, and the
  * invariant the import is most likely to break: `qarid:v1:training` HAS TWO
  * WRITERS.
  *
@@ -163,7 +163,7 @@ describe("memorizeSeeds", () => {
 })
 
 describe("the sentence it reports", () => {
-  it("says the honest split, and counts the معدود", () => {
+  it("says the accurate split, and counts the معدود", () => {
     expect(importedMessage(24, 6)).toBe("أُضيف 24 بيتًا، و6 أبيات عندك من قبل")
     expect(importedMessage(2, 1)).toBe("أُضيف بيتان، وبيت واحد عندك من قبل")
     expect(importedMessage(5, 0)).toBe("أُضيف 5 أبيات إلى التحفيظ")

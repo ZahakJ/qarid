@@ -8,8 +8,8 @@
  *
  * What an account is FOR, so nothing here grows past it: identity for §5's 1v1
  * مساجلة rooms, plus a page with your name on it. Solo play stays in
- * localStorage and needs no account at all. There is no email, so there is no
- * password reset and no address to leak — the owner deletes a row (README).
+ * localStorage and needs no account at all. There is no email and no address
+ * to leak; a forgotten password is recovered with the one-time recovery code.
  *
  * The session cookie is `qarid_sess`: HttpOnly (script cannot read it),
  * SameSite=Lax (a cross-site POST cannot ride it, a normal link still can),
@@ -18,7 +18,7 @@
  *
  * Rate limits are per v2.md §4: registration 5/hour/IP, login 10/hour/IP —
  * keyed by `clientKey`, which reads CF-Connecting-IP first because Cloudflare
- * APPENDS to a client-supplied X-Forwarded-For (CLAUDE.md).
+ * APPENDS to a client-supplied X-Forwarded-For (docs/internals.md).
  */
 
 import { Hono, type Context } from "hono"
@@ -97,7 +97,7 @@ export const RESET_LIMIT = { tokens: 10, windowMs: 60 * 60 * 1000 } as const
  * Read a JSON body without ever holding more than `MAX_AUTH_BODY` of it.
  * `Content-Length` is a claim (a chunked request carries none), so the stream
  * is counted as it arrives too. An absent body parses as `{}` and the schema
- * then produces the honest field-level 400.
+ * then produces the accurate field-level 400.
  *
  * A BODY MUST DECLARE ITSELF `application/json`, and that is a security check,
  * not tidiness. `text/plain`, `application/x-www-form-urlencoded` and
@@ -189,8 +189,8 @@ export function authUser(row: UserRow, db: UsersDb | null = null): AuthUser {
 /**
  * Whether the cookie must carry `Secure`.
  *
- * Keyed on PUBLIC_ORIGIN, not on NODE_ENV: the site is served to the world by
- * cloudflared over https while the origin itself is plain http on 127.0.0.1, so
+ * Keyed on PUBLIC_ORIGIN, not on NODE_ENV: behind a TLS proxy the origin itself is
+ * plain http on 127.0.0.1, so
  * "is this request encrypted" is the wrong question — "will the browser that
  * holds this cookie ever speak to us over https" is the right one. A dev box on
  * http://localhost:5751 gets a cookie without `Secure`, which is the only way
@@ -411,9 +411,9 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
       return c.json({ error: "bad_credentials", message: "الاسم أو كلمة السر غير صحيحة" }, 401)
     }
 
-    // A suspended account (Track 3) is refused AFTER the password check, so the
+    // A suspended account is refused AFTER the password check, so the
     // «suspended» answer is never an oracle for a wrong password. The credential
-    // was right; the door is shut by the owner, not by the login form.
+    // was right; the door is shut by an admin, not by the login form.
     const nowSuspend = Date.now()
     if (isSuspended(row, nowSuspend)) {
       return c.json({ error: "account_suspended", message: "أُوقف هذا الحساب مؤقتًا" }, 403)
@@ -474,7 +474,7 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
   /**
    * POST /api/auth/reset — set a new password with the recovery code, UN-authed.
    *
-   * The no-email reset (Play launch). The whole route is built to be neither a
+   * The no-email reset. The whole route is built to be neither a
    * user-enumeration oracle nor a code-guessing tool:
    *
    *  • UNKNOWN USER and WRONG CODE return the SAME 401 `bad_recovery`, and an

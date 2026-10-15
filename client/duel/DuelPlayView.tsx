@@ -332,7 +332,7 @@ export function DuelPlayView() {
             />
           </div>
           {/* «يُقبل الصدر وحده» used to live here, at the far end of the row,
-              and v2.md §1 is the owner reporting that he never found it. It is
+              where nobody found it (v2.md §1). It is
               now `.answer__help`, directly under the field. What is left here
               is keyboard-only, so a thumb sees an empty row rather than two key
               names it cannot press (`.keys-only`, base.css). */}

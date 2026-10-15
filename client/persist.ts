@@ -8,7 +8,7 @@
  *
  * The slice names, their keys, the version and the migration chain all come
  * from shared/schema.ts — this module owns the mechanism, never the shapes.
- * The 255K-poem corpus never comes near localStorage (CLAUDE.md invariant):
+ * The 255K-poem corpus never comes near localStorage (docs/internals.md invariant):
  * only settings, duel, training, profile and denormalized favorites do.
  */
 import type { z } from "zod"

@@ -48,7 +48,7 @@ export function parseParam<S extends z.ZodType>(c: Context, schema: S, value: st
 
 /**
  * Path params arrive percent-encoded whenever the slug is Arabic — and 73% of
- * poet slugs are (CLAUDE.md spike finding 2). Hono decodes for us; this is the
+ * poet slugs are (docs/internals.md corpus finding 2). Hono decodes for us; this is the
  * belt-and-braces pass for a client that double-encoded, and it never throws on
  * a malformed sequence.
  */
@@ -248,7 +248,7 @@ export const BUCKET_COUNT = 1000
 
 /**
  * A deterministic bucket for a seed, or a genuinely random one when no seed was
- * given. Never `ORDER BY RANDOM()` — see CLAUDE.md; on 2M+ rows that sorts 2M+
+ * given. Never `ORDER BY RANDOM()` — see docs/internals.md; on 2M+ rows that sorts 2M+
  * rows, whereas the bucket column turns the same job into an index range scan.
  */
 export function seedBucket(seed: string | undefined): number {

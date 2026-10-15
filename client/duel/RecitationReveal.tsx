@@ -6,7 +6,7 @@
  *    completes**; any key/tap skips; instant under reduced-motion."
  *
  * IMPLEMENTATION NOTE — the reveal is a stepped MASK, not per-word spans.
- * `BaytPlate` is the only بيت renderer in قريض (CLAUDE.md invariant), and
+ * `BaytPlate` is the only بيت renderer in قريض (docs/internals.md invariant), and
  * wrapping every word in its own element here would be a second renderer with
  * its own line-breaking. So the plate renders the whole بيت exactly as it will
  * finally read, and this component animates a `mask-image` across each hemistich

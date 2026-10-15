@@ -6,7 +6,7 @@
 <title>قَريض — ديوان الشعر العربي ومساجلته</title>
 <meta name="description" content="3,369,701 بيتًا لـ6,941 شاعرًا في مِعلَمٍ واحد للقراءة فقط: يُتصفَّح بالعصر والبحر والغرض والرويّ، ويُبحث فيه، وتُلعب عليه مساجلةٌ يُجاب فيها على الرويّ.">
 <meta property="og:title" content="قَريض — ديوان الشعر العربي ومساجلته">
-<meta property="og:description" content="ثلاثة ملايين بيت وثلث، تُقرأ وتُبحث — ومساجلةٌ يحكم فيها الحاسوب على مذهب القدماء.">
+<meta property="og:description" content="ديوانٌ للشعر العربيّ يُتصفَّح ويُبحث فيه، ومساجلةٌ على الرويّ.">
 <meta property="og:image" content="https://zahakj.github.io/qarid/media/social-preview.png">
 <meta property="og:url" content="https://zahakj.github.io/qarid/">
 <meta property="og:type" content="website">
@@ -14,7 +14,6 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%2307080c'/%3E%3Cpath d='M6 21c5.4-1.8 9.4-6.4 11.4-13.2L21 11c-2 7.4-6.8 10.9-15 12Z' fill='%23d6ad60'/%3E%3C/svg%3E">
 <style>
-/* كلُّ شيءٍ من الأصل نفسه: خطّان وصورٌ، ولا مضيفَ ثالث. */
 @font-face{font-family:Amiri;src:url(assets/amiri.woff2) format('woff2');font-weight:400;font-display:swap}
 @font-face{font-family:'Aref Ruqaa';src:url(assets/aref-ruqaa.woff2) format('woff2');font-weight:400;font-display:swap}
 
@@ -114,10 +113,6 @@ footer{color:var(--muted);font-size:.9rem;padding:3rem 0 4rem;text-align:center}
   أنا ابنُ الفَيافي أنا ابنُ القَوافي &nbsp;⁂&nbsp; أنا ابنُ السُروجِ أنا ابنُ الرِعا<span class="rawiyy">نِ</span>
   <span class="by">المتنبي · الرويُّ <b class="rawiyy">النون</b></span>
 </div>
-<p>
-  من 3,369,701 بيتٍ يصلح للمساجلة 1,713,459: البيتُ يحتاج شطرَيه ورويًّا يُستخرج،
-  والمتنُ مكشوطٌ فكثيرٌ منه لا يستوفي.
-</p>
 
 <h2>ما فيه</h2>
 <div class="grid">
@@ -145,7 +140,6 @@ footer{color:var(--muted);font-size:.9rem;padding:3rem 0 4rem;text-align:center}
   <img src="media/poem-phone.png" alt="القصيدة على الهاتف">
   <img src="media/duel-phone.png" alt="المساجلة على الهاتف">
 </div>
-<p style="text-align:center;color:var(--muted);font-size:.9rem">على الهاتف، من بناءٍ حقيقيٍّ لا من نافذةٍ مضيَّقة.</p>
 
 <h2 id="corpus">المتن</h2>
 <p>
@@ -159,37 +153,29 @@ footer{color:var(--muted);font-size:.9rem;padding:3rem 0 4rem;text-align:center}
   <tr><th>الصالح للمساجلة</th><td><span class="num">1,713,459</span> بيتًا — له شطران ورويٌّ يُستخرج</td></tr>
   <tr><th>بلا بحر</th><td><span class="num">39.8%</span> من القصائد</td></tr>
 </table>
-<p>
-  والمتنُ مكشوطٌ ويظهر ذلك: عناوينُ كثيرةٌ هي المطلعُ منزوعَ التشكيل، وأبياتٌ فقدت
-  شطرًا في الطريق. يُتعامل مع ذلك ولا يُدّعى خلافُه، وما يُحسن أن يُعرف قبل «إصلاحه»
-  مدوَّنٌ في <code>CLAUDE.md</code>.
-</p>
 
 <h2 id="run">التشغيل</h2>
-<p>حزمةُ npm واحدة، وثلاثُ تبعيّاتٍ للخادم، ولا بناءَ له: TypeScript يُشغَّل مباشرةً على Node 24 فما فوق.</p>
+<p>يلزم Node 24 فما فوق.</p>
 <pre><code>git clone https://github.com/ZahakJ/qarid &amp;&amp; cd qarid
 npm install
-cp .env.example .env          # ثم يُضبط PUBLIC_ORIGIN
-
-# ملفّات arbml/ashaar (parquet) في data/raw/ ثم:
-npm run ingest                # نحو 3 دقائق، 700 م.ب ذروةً، 1.6 غ.ب ناتجًا
-
-npm run dev:server &amp; npm run dev</code></pre>
-<p>وبلا متن: <code>npm run ingest:fixture</code> يبني عيّنةً من ملفّات الاختبار في ثوانٍ، ويعمل عليها كلُّ شيء.</p>
+cp .env.example .env          # اضبط PUBLIC_ORIGIN
+npm run ingest:fetch          # arbml/ashaar → data/raw/
+npm run ingest                # data/qarid.db، نحو 3 دقائق
+npm run dev:server &amp; npm run dev   # http://127.0.0.1:5751</code></pre>
+<p>بلا متن: <code>npm run ingest:fixture</code> يبني عيّنةً صغيرة.</p>
 <p>
   في الإنتاج يربط الخادمُ على loopback وحده ويقدّم العميلَ المبنيَّ بنفسه؛ يُوضع أمامه
-  وكيلٌ أو نفقٌ للـTLS. و<code>deploy/qarid.service</code> وحدةُ systemd للمستخدم، بلا جذر.
+  وكيلٌ أو نفقٌ للـTLS. و<code>deploy/qarid.service</code> وحدةُ systemd للمستخدم.
 </p>
-<p>وحدُّ الإنجاز أربعةٌ كلُّها خضراء:</p>
+<p>الفحوص:</p>
 <pre><code>npm run typecheck &amp;&amp; npm test &amp;&amp; npm run build &amp;&amp; npm run smoke</code></pre>
 
 <h3>البناء</h3>
 <table>
-  <tr><th>المتن</th><td>مِعلَمُ SQLite واحدٌ للقراءة فقط، على مرورَين، بفهرس FTS5. يُفتح <code>readOnly</code> فتُرمى الكتابةُ العارضةُ بدل أن تُفسده.</td></tr>
-  <tr><th>الخادم</th><td>Hono على <code>node:sqlite</code>. بلا بناء. التطبيقُ بلا استماع، فتُقاد الاختباراتُ داخل العمليّة.</td></tr>
+  <tr><th>المتن</th><td>مِعلَمُ SQLite واحدٌ للقراءة فقط، بفهرس FTS5.</td></tr>
+  <tr><th>الخادم</th><td>Hono على <code>node:sqlite</code>، يُشغَّل TypeScript مباشرةً بلا بناء.</td></tr>
   <tr><th>العميل</th><td>Vite وReact، توجيهٌ بالكسر، من اليمين إلى اليسار. أميري للشعر، وعارف رقعة للعناوين.</td></tr>
   <tr><th>المشترك</th><td>مُطبِّعٌ عربيٌّ واحد، ومنسِّقُ أعدادٍ واحد، ومولِّدٌ عشوائيٌّ مبذور، ومخطّطاتُ zod مرجعًا لكلِّ ما على السلك.</td></tr>
-  <tr><th>الاختبار</th><td><span class="num">1,583</span> اختبارًا، ومشيٌ يشغّل الخادمَ الحقيقيَّ على <span class="num">29</span> مسارًا بعرضَي الحاسوب والهاتف، ويفشل على أيّ خطأٍ في السجلّ.</td></tr>
 </table>
 
 <h2>الرخصة</h2>

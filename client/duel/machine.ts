@@ -263,7 +263,7 @@ function pauseIsPlayers(s: DuelState): boolean {
   return s.phase === "rejected" || s.phase === "disambiguating"
 }
 
-/** The honest remaining ms, with the player's own pause capped. */
+/** The remaining ms, with the player's own pause capped. */
 function liveRemaining(s: DuelState, now: number): number {
   if (s.deadline === null) return 0
   if (s.pausedAt === null) return Math.max(0, s.deadline - now)
@@ -326,10 +326,10 @@ function startClock(s: DuelState, now: number): Pick<DuelState, "deadline" | "pa
 }
 
 /**
- * The most a single pause may credit back. Every honest pause is short — the
+ * The most a single pause may credit back. Every genuine pause is short — the
  * verify round-trip is ~11 ms on the real corpus and the longest soft card is
  * the four-second «أرِني أين قيل» — so five seconds covers all of them and
- * refuses the one that is not honest: parking on a `near_miss` card.
+ * refuses the one that is not: parking on a `near_miss` card.
  */
 export const MAX_PAUSE_CREDIT_MS = 5_000
 
@@ -379,7 +379,7 @@ function exchangeOf(served: ServedBait, side: "player" | "opponent", now: number
  * that is precisely what `bait.poem.poemId` is (`PoemRefSchema`). It used to be
  * derived by parsing the PUBLIC id — which is `q<rowid>` for the 73% of قصائد
  * with no aldiwan page but the bare aldiwan number for the other 27%
- * (CLAUDE.md spike finding 1). On those, parsing gave either nothing (so the
+ * (docs/internals.md corpus finding 1). On those, parsing gave either nothing (so the
  * exclusion silently did not happen) or an unrelated poem's id. Reading the
  * field the server already sends makes poem-level exclusion true for all of
  * them.

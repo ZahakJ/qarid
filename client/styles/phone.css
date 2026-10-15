@@ -1,4 +1,4 @@
-/* قريض — the PHONE's SCREEN PATTERNS (phase 2 of docs/roadmap-mobile.md).
+/* قريض — the PHONE's SCREEN PATTERNS (docs/roadmap-mobile.md §M1.5).
  *
  * chrome.css is the two BARS. This sheet is what the screens between them do
  * when the reader is holding a phone rather than sitting at a desk: the docked
@@ -429,7 +429,7 @@ body[data-chrome="native"][data-immersive="game"] .room-acts {
      in a row is wide. Measured without it: the single implicit `auto` column
      came out 453px inside a 390px screen, and under RTL that pushed the whole
      screen 63px off the inline-end edge — «إلغاء» was at x = −47. Same family as
-     `.letter-well` and `.masthead__nav` (CLAUDE.md §Invariants). */
+     `.letter-well` and `.masthead__nav` (docs/internals.md §Invariants). */
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--bg-0);
@@ -671,7 +671,7 @@ body[data-chrome="native"] .bayt-act:active {
  * Only the ones that DO something: `Chip` renders a `<span>` when it has no
  * handler (a قصيدة's بحر badge is a label, not a control), and growing those
  * would push every list row's meta band past `--meta-band` and stagger the
- * windowed lists — the exact geometry CLAUDE.md's meta-band invariant is about.
+ * windowed lists — the exact geometry docs/internals.md's meta-band invariant is about.
  */
 body[data-chrome="native"] button.chip,
 body[data-chrome="native"] .era-chip,
@@ -746,7 +746,7 @@ body[data-chrome="native"] .buhur-card__n {
 
 /* ── the meta band: a TARGET that grows without the box growing ───────────
  *
- * `--meta-band` is a contract (CLAUDE.md): a `.prow`/`.bcard` lives in a
+ * `--meta-band` is a contract (docs/internals.md): a `.prow`/`.bcard` lives in a
  * fixed-height slot with `overflow: hidden`, and the moment a chip in its meta
  * band is taller than the band the row is clipped and the whole list staggers.
  * So these targets CANNOT take `min-block-size` — and they were the ones most
@@ -868,7 +868,7 @@ body[data-chrome="native"] .wt__dot[data-active="1"] {
   background-color: var(--accent);
 }
 
-/* A checkbox is ~17px in every engine and cannot be resized honestly. Its
+/* A checkbox is ~17px in every engine and cannot be resized cleanly. Its
    `<label>` — «الوقت», «وضع التدريب» in the duel setup — is the target, and the
    box rides inside it. */
 body[data-chrome="native"] .switch {

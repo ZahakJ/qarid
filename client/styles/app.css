@@ -1,7 +1,7 @@
 /* قريض — application shell: masthead, wordmark, nav, view scaffolding. */
 
 /* The column is PINNED, for the same reason `.view` pins its own (see
- * app.css's `.view` and the CLAUDE.md invariant): an implicit `auto` grid track
+ * app.css's `.view` and the docs/internals.md invariant): an implicit `auto` grid track
  * is sized to its widest item's MAX-content and is not clamped to the grid
  * container, so one child that would rather be wider — the masthead's six nav
  * links on a 390px phone — silently widens the shell, and every row under it,
@@ -170,31 +170,6 @@
   text-align: center;
 }
 
-/* ── Phase-0 placeholder body ───────────────────────────────────────── */
-.stub {
-  display: grid;
-  gap: var(--sp-3);
-  padding: var(--sp-6);
-  border: 1px dashed var(--line-2);
-  border-radius: var(--r-3);
-  background: rgba(255, 255, 255, 0.012);
-  color: var(--text-2);
-  font-size: var(--fs-ui-2);
-}
-
-/* The hash is ASCII inside an RTL block. `isolate` alone is not enough: the
- * leading `#/` are neutrals, so they take the paragraph direction and `#/duel`
- * renders as `duel/#`. The run needs its own LTR direction; `justify-self`
- * keeps the box itself at the inline-start (right) edge. */
-.stub__route {
-  font-family: var(--font-mono);
-  font-size: var(--fs-ui-1);
-  color: var(--text-3);
-  direction: ltr;
-  unicode-bidi: isolate;
-  justify-self: start;
-}
-
 .doors {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
@@ -290,7 +265,7 @@
      * the nav refuses to shrink, `overflow-x: auto` never engages, and the
      * whole DOCUMENT is dragged 100px wider than the phone — every view on the
      * site, not just this bar. (Same family as the letter-well note in
-     * CLAUDE.md.) It is declared once, at the end of this rule. */
+     * docs/internals.md.) It is declared once, at the end of this rule. */
     overflow-x: auto;
     scrollbar-width: none;
     /* both edges dissolve, so the row says for itself that it continues */

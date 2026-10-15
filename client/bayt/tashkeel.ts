@@ -1,6 +1,6 @@
 /**
  * Display-state helpers for a بيت. Everything here delegates to
- * `shared/arabic.ts` — the ONE normalizer (CLAUDE.md invariant). There is no
+ * `shared/arabic.ts` — the ONE normalizer (docs/internals.md invariant). There is no
  * second "strip tashkeel" in the client and there must never be one.
  *
  * `stripTashkeel` also removes tatweel and the zero-width/bidi run (U+200B–

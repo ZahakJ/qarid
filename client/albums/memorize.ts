@@ -21,7 +21,7 @@
  *  • WHAT THE TOAST SAYS. The deck is local and the reader may have met these
  *    أبيات in a duel, in the drill, or in this same ديوان last week; a flat
  *    «أُضيف 30» over a deck that took six would be a lie the reader can check.
- *    So the split is honest — «أُضيف 24 بيتًا، و6 أبيات عندك من قبل» — and العدد
+ *    So the split is accurate — «أُضيف 24 بيتًا، و6 أبيات عندك من قبل» — and العدد
  *    والمعدود go through `shared/format.ts` like every other counted phrase.
  *
  * The dedupe itself is `trainingStore.introduce`'s: it skips a seed whose `id`

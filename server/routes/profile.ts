@@ -6,10 +6,9 @@
  *   POST /api/profile/arsenal     opt-in ترسانة snapshot (≤ 8 KB)
  *
  * The duel numbers are read off `rooms` / `match_turns` — the tables
- * `server/users.ts` creates at migration 1 and §5's multiplayer agent will
- * write. They are real queries over empty tables today, which is why the page
- * says «لا مساجلات بعد» rather than «قريبًا»: the day the first room is played
- * this page is already correct.
+ * `server/users.ts` creates at migration 1 and the rooms write. With no rooms
+ * played they are real queries over empty tables, which is why the page says
+ * «لا مساجلات بعد» rather than «قريبًا».
  *
  * SOLO play is not here and never will be. `qarid:v1:profile` in the reader's
  * own browser stays the source of truth for the single-player record (v2.md

@@ -1,5 +1,5 @@
 /**
- * No-email password recovery (Play launch).
+ * No-email password recovery.
  *
  * A recovery code is shown ONCE at registration and stored only as a scrypt
  * hash. `POST /api/auth/reset` sets a new password with it, revokes every

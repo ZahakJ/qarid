@@ -382,14 +382,14 @@ export function getProfile(username: string, o?: Opts): Promise<ProfileResponse>
   return request(`/api/profile/${encodeURIComponent(username)}`, ProfileResponseSchema, init(o))
 }
 
-// ── moderation (Track 3) ────────────────────────────────────────────────────
+// ── moderation ────────────────────────────────────────────────────
 //
 // Report and block are logged-in, per-cookie writes behind the same CSRF
 // originGuard and `application/json` body reader as auth/profile. Blocking is
 // PRIVATE — the blocked account is never told — so nothing here surfaces the
 // action to anyone but the reader who took it.
 
-/** Report another account to the owner. `note`/`context` are optional breadcrumbs. */
+/** Report another account to the admins. `note`/`context` are optional breadcrumbs. */
 export function reportUser(
   body: {
     targetUsername?: string
@@ -443,7 +443,7 @@ export function deleteAccount(password: string, o?: Opts): Promise<AccountDelete
 }
 
 /**
- * Upload YOUR OWN avatar (owner's request). The `blob` is the already-cropped,
+ * Upload YOUR OWN avatar. The `blob` is the already-cropped,
  * already-resized image the ProfileView produced with a canvas — the server
  * validates it by magic bytes, caps its size, and answers with the new
  * versioned URL. `Content-Type` is the blob's real type (an image type, not a

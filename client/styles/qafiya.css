@@ -3,7 +3,7 @@
  *
  * It loads AFTER views.css, poets.css, app.css, duel.css and room.css, which
  * is the position that once let duel.css's `.letter-well` reach into the browse
- * rail (CLAUDE.md §Invariants). So every selector here LEADS with one of its
+ * rail (docs/internals.md §Invariants). So every selector here LEADS with one of its
  * own new `.qaf-*` classes, and `styles.test.ts` fails the build if one does
  * not. In particular it never names `.letter-well`, `.letter-grid` or `.chip`
  * bare: the 28-cell well and the four chips on this page are the SAME

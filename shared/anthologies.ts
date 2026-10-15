@@ -7,7 +7,7 @@
  * is deliberate and it is the whole design:
  *
  *   - `public_id` moves on every rebuild for the 73 % of قصائد that fall back
- *     to `q<row id>` (CLAUDE.md §The artefact), so a table of ids would rot on
+ *     to `q<row id>` (docs/internals.md §The artefact), so a table of ids would rot on
  *     the next `npm run ingest`. A مطلع does not move.
  *   - the resolution needs no re-ingest and no new column: it rides the
  *     `baits_fts` index the search box already uses, and the anchor is folded
@@ -22,7 +22,7 @@
  * `shared/poetAliases.ts`, the same key `poets.name_key` is UNIQUE on — the
  * `famousPoets.ts` pattern. And the شاعر is part of the ANCHOR, not decoration:
  * 21,739 صدور in the corpus carry a different روي under a different شاعر
- * (CLAUDE.md §Corpus quirks), and «على قدر أهل العزم» alone appears under six
+ * (docs/internals.md §Corpus quirks), and «على قدر أهل العزم» alone appears under six
  * names. Anchored on the words alone, «سئمت تكاليف الحياة» resolves to أبو نصر
  * النحاس and «أقيموا بني أمي» to ابن عديّم الرواحي — both real rows, neither
  * the poet the anthology is naming.

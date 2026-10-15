@@ -90,7 +90,7 @@ describe("aldiwanIdFrom", () => {
   })
 
   it("answers null for the seven other hosts and for junk", () => {
-    // CLAUDE.md spike finding 1 — 73% of the corpus lives on these
+    // docs/internals.md corpus finding 1 — 73% of the corpus lives on these
     expect(aldiwanIdFrom("https://poetry.dctabudhabi.ae/diwan/poem/38716")).toBeNull()
     expect(aldiwanIdFrom("https://www.poetsgate.com/ViewPoem.aspx?id=204454")).toBeNull()
     expect(aldiwanIdFrom("http://www.adab.com/modules.php?name=Sh3er&doWhat=shqas&qid=1")).toBeNull()

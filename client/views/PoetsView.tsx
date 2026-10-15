@@ -15,7 +15,7 @@
  *  • it does not compute the grouping letter. `poets.letter` was written at
  *    ingest by `firstLetterOf(sortName(name))`, so المتنبي files under الميم
  *    and الأخطل under الألف; recomputing it here would be a second normalizer
- *    (CLAUDE.md invariant) and the two would drift on the first odd nisba.
+ *    (docs/internals.md invariant) and the two would drift on the first odd nisba.
  *  • it does not load all 6,941 شعراء. Pages of 100 arrive as the reader
  *    approaches the end, and the rendered rows are windowed on top of that —
  *    the list is long enough that both are needed.

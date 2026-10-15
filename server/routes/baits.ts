@@ -18,7 +18,7 @@
  * opens agree by construction.
  *
  * `ORDER BY RANDOM()` appears nowhere: on 2.2M rows it sorts 2.2M rows. Every
- * sample here is a wrap-around window over `bucket` (CLAUDE.md invariant).
+ * sample here is a wrap-around window over `bucket` (docs/internals.md invariant).
  */
 
 import { Hono } from "hono"

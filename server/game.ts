@@ -19,7 +19,7 @@
  *
  *  2. **Answering with a بيت that starts on the right letter, is not one already
  *     played, and matches the tier.** That is a sampling problem over 1.76M rows
- *     and the two CLAUDE.md invariants apply with full force: never
+ *     and the two docs/internals.md invariants apply with full force: never
  *     `ORDER BY RANDOM()` (sample a wrap-around window over `gb.bucket`), and
  *     never sort joined rows (sort a narrow `game_baits`-only subquery and join
  *     the ≤40 survivors out). `combo_counts` (amendment 2) turns "is this
@@ -28,7 +28,7 @@
  *
  * Nothing here spells a column name that `server/dto.ts` already spells, and
  * nothing here re-implements normalization — `shared/arabic.ts` is the only
- * text layer (CLAUDE.md invariant).
+ * text layer (docs/internals.md invariant).
  */
 
 import { COMBO_ANY, COMBO_NONE, TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
@@ -351,7 +351,7 @@ export function comboByLetter(db: Db, cond: GbCond, tier: Difficulty): Map<strin
 }
 
 /**
- * The same per-letter counts, but HONEST about every «قيد» — including the
+ * The same per-letter counts, but ACCURATE about every «قيد» — including the
  * three `combo_counts` has no key for (`theme`, `poet`, `lang`).
  *
  * `combo_counts` is keyed on (letter, عصر, بحر, tier) only, so the moment a
@@ -606,7 +606,7 @@ function branchesFor(
  *
  * Three things are load-bearing and each was measured:
  *  • `ORDER BY RANDOM()` over 1.76M rows sorts 1.76M rows; the `bucket` column
- *    turns the same job into an index range scan of 40 (CLAUDE.md invariant).
+ *    turns the same job into an index range scan of 40 (docs/internals.md invariant).
  *  • Sorting the JOINED rows — the obvious way to write this — cost 2.6 seconds
  *    on the unfiltered pool, because SQLite materialises every join before the
  *    LIMIT can bite. So the sort happens over a narrow `(bait_id, bucket, rand)`
@@ -886,7 +886,7 @@ function baitRowById(db: Db, id: number): Row | undefined {
  * The floor drops rather than emit a useless query, so a بيت made entirely of
  * short words still gets its OR pass, just slowly. Quoting stays where it
  * belongs — the selected terms are handed back to `ftsQuery`, never quoted here
- * (shared/arabic.ts is the only text layer, CLAUDE.md invariant).
+ * (shared/arabic.ts is the only text layer, docs/internals.md invariant).
  */
 export const OR_TERM_MIN_LENGTH = 4
 export const OR_TERM_CAP = 8
@@ -920,7 +920,7 @@ function ftsCandidates(db: Db, match: string, n: number): number[] {
  * duplicate-قصيدة case (byte-identical text under two ids — the corpus has
  * plenty) is already accepted upstream; what is left is two genuinely different
  * أبيات that a fuzzy score cannot separate, and asking the player which one they
- * meant is the only honest answer. A wide band here would turn "I recognise your
+ * meant is the only accurate answer. A wide band here would turn "I recognise your
  * بيت" into "pick one of four", which reads as a rejection.
  */
 export const AMBIGUOUS_BAND = 0.02
@@ -995,7 +995,7 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
 
   // 3. The exact ladder. `h_full`/`h_sadr` are fnv1a64 over the SAME normalized
   //    string `scripts/ingest/transform.ts` hashed, which is why this works at
-  //    all — one normalizer, one hash, no drift (CLAUDE.md invariant).
+  //    all — one normalizer, one hash, no drift (docs/internals.md invariant).
   //
   //    Both rungs return every copy the corpus holds, RANKED (see `exactCopies`)
   //    — never "whichever id is lowest". The صدر rung then gets two more passes:
@@ -1376,7 +1376,7 @@ function settle(
  * 95,065-بيت مشاهير pool — about 15 MB of strings.
  *
  * The slice is the tier the duel itself calls مبتدئ (`fame = 3 AND position <= 2`
- * — «أشهر الشعراء، ومطالع القصائد»), which is also the honest answer to v2.md's
+ * — «أشهر الشعراء، ومطالع القصائد»), which is also the accurate answer to v2.md's
  * «ranked by fame»: a tutorial suggests أبيات a reader might actually know. A
  * letter too thin to teach with widens one tier (see `assistTier`), and the
  * count that decides comes from `combo_counts`, so choosing costs one point
@@ -1445,7 +1445,7 @@ export function assistTier(db: Db, letter: string): Difficulty {
  * pull 460,743 rows into the process.
  *
  * `baits_fts.norm` is the normalised text `scripts/ingest/build.ts` wrote with
- * the same `normalizeArabic` this file imports (CLAUDE.md's one-normalizer
+ * the same `normalizeArabic` this file imports (docs/internals.md's one-normalizer
  * invariant), so nothing is re-normalised here — only `bareWords`, which both
  * sides of every comparison run through.
  */

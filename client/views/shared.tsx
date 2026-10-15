@@ -123,7 +123,7 @@ export function PoemRow({
  * under — set in Aref Ruqaa inside a hairline ring and half off the corner
  * the ترجمة never reaches, the way a ختم sits on a folio (poets.css draws it).
  * It is `poet.letter` as the ingest derived it, never recomputed here
- * (CLAUDE.md invariant), and `aria-hidden`: it is illumination, not content.
+ * (docs/internals.md invariant), and `aria-hidden`: it is illumination, not content.
  */
 export function PoetCard({ poet }: { poet: PoetSummary }) {
   return (

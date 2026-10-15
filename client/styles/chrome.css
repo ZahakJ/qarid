@@ -16,7 +16,7 @@
  * 2. IT NEVER NAMES A BARE CLASS ANOTHER SHEET OWNS. This file loads after
  *    views.css, poets.css, app.css, duel.css and room.css, so an un-scoped
  *    `.view__title` here would be exactly the `.letter-well` accident again
- *    (CLAUDE.md §Invariants). Its own components carry NEW names — `.appbar*`,
+ *    (docs/internals.md §Invariants). Its own components carry NEW names — `.appbar*`,
  *    `.tabbar*`, `.morelist`, `.moregroup*`, `.morerow*`, `.moreabout*` — and
  *    every rule that touches an existing class is scoped under the body
  *    attribute, which is also what makes desktop pixel-identical: with no
@@ -71,7 +71,7 @@ body[data-chrome="native"] {
 
 /* An equal share each, and `min-inline-size: 0` because a flex item's automatic
    minimum is its min-content width — «المساجلة» is the widest label and would
-   otherwise take more than its fifth (CLAUDE.md §Invariants). */
+   otherwise take more than its fifth (docs/internals.md §Invariants). */
 .tabbar__cell {
   flex: 1 1 0;
   min-inline-size: 0;
@@ -430,7 +430,7 @@ body[data-chrome="native"] {
 }
 
 /* An ASCII version string inside an RTL line: its own run, or the dots and the
-   digits change sides (CLAUDE.md §Western digits). */
+   digits change sides (docs/internals.md §Western digits). */
 .moreabout__v {
   font-family: var(--font-mono);
   font-size: var(--fs-ui-1);

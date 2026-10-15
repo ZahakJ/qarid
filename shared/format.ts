@@ -3,7 +3,7 @@
  *
  * **One scale: WESTERN (Latin) digits with a comma every three, everywhere** —
  * «239,411 قصيدة», verse number «12», «×7», «951 بيتًا», the daily share text,
- * stats, timers. Owner decision, 2026-08-24 (design-ux.md §2): the app used to
+ * stats, timers (design-ux.md §2, amendment 25). The app used to
  * split its numbers in two — Arabic-Indic ٠١٢٣ for anything a reader read as
  * part of the Arabic page, Latin for timers and scores — and the split is gone.
  * There is no `numerals` setting any more; there is nothing to choose between.
@@ -176,7 +176,7 @@ export function formatBaits(n: number): string {
 
 /**
  * «بيتٌ واحد صالح للمساجلة» · «بيتان صالحان» · «6 أبيات صالحة» · «24 بيتًا
- * صالحًا للمساجلة» — the honest count on a ديوان's play door.
+ * صالحًا للمساجلة» — the accurate count on a ديوان's play door.
  *
  * A shelf's `count` is not what a مساجلة can serve: 39.8 % of قصائد carry no
  * بحر and the pool admits only `kind='bahr'`, so the door has to say the
@@ -266,7 +266,7 @@ export function formatMissingPoems(n: number): string {
  *
  * A ديوان is a playlist of قصائد with the odd single بيت on it, and the two are
  * counted separately because they are two different things: «19 مدخلًا» would
- * be honest and meaningless. Each half goes through its own counted noun, so
+ * be accurate and meaningless. Each half goes through its own counted noun, so
  * every shape a real shelf produces (one, two, 3–10, 11+) agrees; and an empty
  * shelf is said in words rather than as a zero glued to a noun.
  */

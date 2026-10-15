@@ -1,5 +1,5 @@
 /**
- * The one place the avatar fallback lives (owner's request — profile pictures).
+ * The one place the avatar fallback lives.
  *
  * A user either has an uploaded picture — a versioned URL the server hands us on
  * the AuthUser / RoomPlayer DTO — or they do not, and then the app draws the

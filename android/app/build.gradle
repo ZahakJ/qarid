@@ -1,23 +1,16 @@
 apply plugin: 'com.android.application'
 
-// Release signing (docs/roadmap-mobile.md §M1). The keystore and its passwords
-// live OUTSIDE the repo — android/keystore.properties is gitignored and points
-// at ~/keystores/qarid-release.keystore. When it is absent (a fresh clone, a
-// contributor with no key) the release simply builds UNSIGNED rather than
-// failing, and `assembleDebug` is unaffected. Passwords never enter git.
+// Release signing. android/keystore.properties (gitignored) points at a
+// keystore outside the repo. Without it the release builds unsigned and
+// `assembleDebug` is unaffected.
 def keystorePropsFile = rootProject.file("keystore.properties")
 def keystoreProps = new Properties()
 if (keystorePropsFile.exists()) {
     keystoreProps.load(new FileInputStream(keystorePropsFile))
 }
 
-// App IDENTITY, on the same principle as the signing block above: the package
-// id, the App-Links host and the signing fingerprint describe WHOSE app this
-// is, not how it is built, so they do not belong in a public checkout either.
-// android/identity.properties is gitignored; identity.properties.example shows
-// the three keys. Absent, the placeholders below build a perfectly working app
-// that simply is not anybody's — `com.example.qarid` will not install beside a
-// real one and Play refuses it, which is the right kind of loud.
+// App identity: android/identity.properties (gitignored; see
+// identity.properties.example). Absent, the placeholders below are used.
 def identityPropsFile = rootProject.file("identity.properties")
 def identityProps = new Properties()
 if (identityPropsFile.exists()) {
@@ -26,9 +19,7 @@ if (identityPropsFile.exists()) {
 def qaridAppId = identityProps.getProperty("applicationId") ?: "com.example.qarid"
 def qaridLinkHost = identityProps.getProperty("appLinkHost") ?: "qarid.example.com"
 
-// The version, from a tracked file rather than a literal here: bumping a
-// release should be a one-line diff in version.properties, not an edit inside
-// a Gradle block that also holds signing and identity.
+// The version lives in version.properties.
 def versionPropsFile = rootProject.file("version.properties")
 def versionProps = new Properties()
 if (versionPropsFile.exists()) {

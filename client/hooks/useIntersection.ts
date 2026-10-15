@@ -1,7 +1,7 @@
 /**
  * «المزيد» autoload: fire `onEnter` when a sentinel comes within `rootMargin`
  * of the viewport. Used by browse, the poets index and a poet's ديوان; the
- * poem page has its own copy from Phase 1 and is left alone.
+ * poem page has its own copy.
  *
  * The button stays in the DOM next to the sentinel — an IntersectionObserver
  * that a browser extension has disabled must not be the only way to page.

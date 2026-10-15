@@ -17,7 +17,7 @@
  * and computes `baitAnchor` itself, so no caller has to know that a ديوان is
  * keyed on content — and a بيت with no عجز (24,378 قصائد end on one) simply
  * produces no anchor and no action, rather than a button that fails on press.
- * A قصيدة travels as its public id — the one thing the poem page honestly
+ * A قصيدة travels as its public id — the one thing the poem page accurately
  * knows — and the SERVER derives its durable anchor from the dedup key.
  */
 import { useState } from "react"
@@ -54,7 +54,7 @@ export function openAlbumPickerForPoem(poem: Pick<PoemSummary, "id">, label = "�
 
 /**
  * The handler a `BaytPlate` gets, or undefined when this بيت cannot be
- * anchored. Returning `undefined` is what keeps the rail honest: `BaytActions`
+ * anchored. Returning `undefined` is what keeps the rail accurate: `BaytActions`
  * renders no button for an action with no handler, so a partial بيت has four
  * affordances and not a fifth that apologises.
  */

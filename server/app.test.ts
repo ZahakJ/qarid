@@ -578,7 +578,7 @@ describe("read API on data/fixture.db", () => {
     it("answers without a seed too, and 404s an empty pool", async () => {
       const any = await get("/api/baits/random", BaitDtoSchema)
       expect(any.id).toBeGreaterThan(0)
-      // ز has no easy-tier أبيات in the fixture (CLAUDE.md fixture probes)
+      // ز has no easy-tier أبيات in the fixture (docs/internals.md fixture probes)
       const empty = await raw("/api/baits/random?first=ز&rhyme=ظ")
       expect(empty.status).toBe(404)
       expect(empty.body).toEqual({ error: "no_bait" })

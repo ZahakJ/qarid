@@ -7,7 +7,7 @@
  *   GET /api/poets/:slug/poems  that poet's ديوان, filtered and sorted
  *
  * `:slug` is NOT ascii: 91,936 rows carry no `poet url`, so the fallback slug
- * is an Arabic hyphenation of the name (CLAUDE.md spike finding 2) and every
+ * is an Arabic hyphenation of the name (docs/internals.md corpus finding 2) and every
  * link to it arrives percent-encoded. `decodeParam` is the only door.
  */
 

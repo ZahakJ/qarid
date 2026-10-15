@@ -9,7 +9,7 @@
  * the one you are holding.
  *
  * Everything is one call to `/api/baits/random`, which samples the precomputed
- * `bucket` window (never `ORDER BY RANDOM()` — CLAUDE.md invariant), so a door
+ * `bucket` window (never `ORDER BY RANDOM()` — docs/internals.md invariant), so a door
  * costs a couple of index range scans however deep the walk goes.
  *
  * The trail is kept so «رجوع» walks BACK rather than re-rolling: a بيت you

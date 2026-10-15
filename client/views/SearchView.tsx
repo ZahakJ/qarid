@@ -164,7 +164,7 @@ export function SearchView({ q, page }: { q: string; page: number }) {
     [meta],
   )
   // /api/search takes a رويّ but has no facet COUNTS of its own; the corpus-wide
-  // per-letter tallies from /api/meta are the honest thing to show, and they are
+  // per-letter tallies from /api/meta are the accurate thing to show, and they are
   // what stops a letter with no قصائد at all from looking clickable.
   const rhymeCounts = useMemo(
     () => (meta?.letters ?? []).map((l) => ({ letter: l.letter, count: l.endsWith })),

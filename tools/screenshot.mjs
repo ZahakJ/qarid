@@ -17,11 +17,10 @@
  * fail with a clear message telling you which npm script builds one. `--no-db`
  * deliberately points the server at a path that does not exist, so
  * `openDbIfPresent` returns null, /api/* answers 503 and only the static shell
- * is exercised — that is the Phase-0 mode, before any ingest has run.
+ * is exercised, as on a box where no ingest has run.
  *
  * Port 6750 is the DEFAULT (dev API 5750 / vite 5751 / preview-smoke 6750 /
- * prod 8010); `--port N` moves it, which is how a build agent shoots its own
- * work without colliding with the human's smoke run. `--poem ID` pins the
+ * prod 8010); `--port N` moves it, so two smoke runs can work side by side. `--poem ID` pins the
  * قصيدة route to one public id instead of "whatever /api/poems returns first",
  * so a layout iteration keeps shooting the same page.
  *
@@ -247,9 +246,9 @@ try {
     ["anthology-muallaqat", "/#/anthology/muallaqat"],
     ["anthology-sair", "/#/anthology/sair"],
     // الدواوين, SIGNED OUT — the state every first visitor meets, and the one
-    // this walk can reach without a session. The owner and visitor shelf
-    // surfaces need a session and a shelf with أبيات on it, so they have their
-    // own §8 pass. `#/diwan/<unknown>` is deliberately NOT here: it is a real
+    // this walk can reach without a session. The curator and visitor shelf
+    // surfaces need a session and a shelf with أبيات on it, so they are shot
+    // separately. `#/diwan/<unknown>` is deliberately NOT here: it is a real
     // state, but it answers 404 by design (a private shelf and a wrong code are
     // one answer, server/routes/albums.ts) and this walk fails on any console
     // error rather than keeping a list of the ones that are expected.

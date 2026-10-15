@@ -6,7 +6,7 @@
  * of a lives strip, a code to hand over, and a line saying whose turn it is.
  *
  * Every bare class here is new (`.room-*`, `.seat*`, `.friend-*`): nothing in
- * this file re-declares a class views.css already owns (CLAUDE.md's stylesheet
+ * this file re-declares a class views.css already owns (docs/internals.md's stylesheet
  * -order invariant). Spacing is the one 4/8 scale and the radii are --r-1/--r-2
  * (--r-3 only where an overlay card already uses it); the only intrinsic sizes
  * are the two circles, which carry `aspect-ratio` rather than a padding guess.
@@ -850,7 +850,7 @@ a.seat__name:hover {
   }
 }
 
-/* Report / block the opponent (Track 3) — a quiet row under the two seats, on
+/* Report / block the opponent — a quiet row under the two seats, on
  * the far (out) edge so it never competes with the seats it hangs beneath. */
 .room-opponent-mod {
   display: flex;

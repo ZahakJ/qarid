@@ -430,7 +430,7 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
   const openAuth = useAuth((s) => s.openDialog)
   const [, tock] = useReducer((n: number) => n + 1, 0)
   const [precheck, setPrecheck] = useState<string | null>(null)
-  // Whether YOU have blocked your opponent (Track 3). Starts false — a block
+  // Whether YOU have blocked your opponent. Starts false — a block
   // would have kept the two of you from ever being seated together — and flips
   // when you block them mid-room (which does not end this match, only bars a
   // future join/knock/رجعة).
@@ -704,7 +704,7 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
         />
       ) : null}
 
-      {/* Report / block the OPPONENT (Track 3): only a seated player, only when
+      {/* Report / block the OPPONENT: only a seated player, only when
           the other seat holds a real (not deleted) account that is not you. A
           spectator vets nobody, and blocking is private.
           Mid-play on a phone this rail is stood down for vertical economy —
@@ -852,7 +852,7 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
               livesLeft={strikesLeft}
               strike={rejection.kind === "wrong_letter" || rejection.kind === "not_found"}
               // «بقيت ضربتان», never «بقي 2» — the معدود is not optional
-              // (CLAUDE.md, العدد والمعدود live in shared/format.ts)
+              // (docs/internals.md, العدد والمعدود live in shared/format.ts)
               costLabel={`‎−ضربة · ${strikesLeft === 0 ? "ولا ضربة بعدها" : `بقيت ${countedNoun(strikesLeft, DARBA_FORMS)}`}`}
               onFill={(text) => setDraft(text)}
               onCommit={(bait) => void submit(copyableBayt(bait.sadr, bait.ajuz))}

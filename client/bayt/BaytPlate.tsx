@@ -1,5 +1,5 @@
 /**
- * BaytPlate — THE only بيت renderer in قريض (CLAUDE.md, design-ux.md §6).
+ * BaytPlate — THE only بيت renderer in قريض (docs/internals.md, design-ux.md §6).
  * Poem page, home hero, search hit, duel exchange, summary, drill card: all of
  * them come through here. A second place that lays out a صدر and a عجز is a bug.
  *
@@ -60,7 +60,7 @@ export type BaytPlateProps = {
   tashkeel?: boolean
   /**
    * The drill card (design-ux.md §5): keep the بيت's geometry but replace the
-   * عجز with a ruled blank of its own honest width. The عجز TEXT never reaches
+   * عجز with a ruled blank of its own width. The عجز TEXT never reaches
    * the DOM in this mode — the answer is not hidden behind a colour, it is
    * simply not there to inspect.
    */
@@ -126,7 +126,7 @@ function Ajuz({
  * demanded 16em of a 340px phone and dragged the whole DOCUMENT sideways.
  * A percentage resolves against the track and contributes nothing to intrinsic
  * sizing, so the blank can never widen the page it sits on. The length is still
- * honest: it rises with the عجز's own character count until it fills the track.
+ * accurate: it rises with the عجز's own character count until it fills the track.
  */
 function blankWidth(ajuz: string): number {
   return Math.min(100, Math.max(18, ajuz.trim().length * 2.4))

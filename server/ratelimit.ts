@@ -92,7 +92,7 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
     for (const [key, b] of buckets) {
       const elapsed = Math.max(0, t - b.at)
       // The refill this bucket would GET if it were touched now — the only
-      // honest reading of "has been idle long enough to carry no information".
+      // accurate reading of "has been idle long enough to carry no information".
       if (elapsed >= windowMs && b.tokens + elapsed * perMs >= capacity) buckets.delete(key)
     }
   }
@@ -112,7 +112,7 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
       b.tokens -= 1
       return { ok: true, retryMs: 0 }
     }
-    // Time until one whole token exists again — the honest Retry-After.
+    // Time until one whole token exists again — the accurate Retry-After.
     return { ok: false, retryMs: Math.ceil((1 - b.tokens) / perMs) }
   }
 
@@ -137,19 +137,13 @@ export function createRateLimiter(opts: RateLimitOptions): RateLimiter {
  * The caller's identity — and every part of this order is about which bytes the
  * caller controls.
  *
- * qarid only ever answers through the `cf-qarid` tunnel on 127.0.0.1 (CLAUDE.md
- * deploy), so some forwarded header has to be believed or every request would
- * share one bucket keyed `127.0.0.1` and the first player would rate-limit the
- * rest of the world. But NOT the left-most `X-Forwarded-For` hop, which is what
- * this used to read: Cloudflare APPENDS the true client IP to a client-supplied
- * `X-Forwarded-For` rather than replacing it, so the left-most element is
- * whatever the attacker typed. Measured against the real server: 25 POSTs with
- * one fixed XFF gave 12×200 then 13×429 (the bucket works), while 60 POSTs with
- * a rotating left-most hop gave 59×200 — the limiter keyed on attacker input
- * and handed out a fresh bucket per request.
+ * The server listens on loopback behind a proxy, so some forwarded header has
+ * to be believed or every request would share one bucket keyed `127.0.0.1`.
+ * But not the left-most `X-Forwarded-For` hop: proxies such as Cloudflare
+ * APPEND the true client IP to a client-supplied `X-Forwarded-For`, so the
+ * left-most element is whatever the client typed.
  *
- * So: `CF-Connecting-IP` first (the edge overwrites it and it cannot be spoofed
- * through the tunnel), then `X-Real-IP`, then the RIGHT-most `X-Forwarded-For`
+ * So: `CF-Connecting-IP` first (the edge overwrites it), then `X-Real-IP`, then the RIGHT-most `X-Forwarded-For`
  * hop — the one the last trusted proxy appended — and only then the socket.
  *
  * `app.request()` in a test has no socket at all — hence the `local` fallback,

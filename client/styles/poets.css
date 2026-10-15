@@ -1,5 +1,5 @@
 /* قريض — الشعراء: the index, the شاعر page, and the two ornaments they share
- * (v2.md §6 «POETS tab super epic», §8 design bar).
+ * (v2.md §6, §8).
  *
  * Loaded after views.css and before motion.css, and it owns EVERY selector on
  * these two routes — `.poets-*`, `.pcard*`, `.letter-rail*`, `.letter-head*`,
@@ -159,7 +159,7 @@
   align-content: end;
   gap: 1px;
   min-block-size: var(--rail-key-h);
-  /* a grid item's automatic minimum is its min-content width (CLAUDE.md) */
+  /* a grid item's automatic minimum is its min-content width (docs/internals.md) */
   min-inline-size: 0;
   padding-block: var(--sp-1);
   border: 0;

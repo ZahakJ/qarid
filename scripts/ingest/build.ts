@@ -242,7 +242,7 @@ interface Pass1Result {
  * first (`pickDedupWinner`), and pass 1 keeps exactly those rows.
  *
  * The cost is one extra read of the sources: `readRecords` is column-projected
- * (CLAUDE.md invariant — never the `poem description` column), and this pass
+ * (docs/internals.md invariant — never the `poem description` column), and this pass
  * cleans one hemistich and one poet name per row rather than transforming
  * anything — plus, on the 4% of rows over `RHYME_SCAN_MIN` hemistichs, the
  * `rawiyyOf` sweep the compilation rule reads. Measured on the 254,630-row
@@ -464,7 +464,7 @@ function idOrNull(map: Map<string, number>, slug: string | null): number | null 
  * card should read.
  *
  * The canonical spelling wins outright and brings its letter, sort key and
- * slug with it (CLAUDE.md's alias backlog: "slug = canonical's"), because
+ * slug with it (docs/internals.md's alias backlog: "slug = canonical's"), because
  * `nameKey` is the canonical key and a card reading «أبو الطيب المتنبي» over
  * `poets.name_key = 'المتنبي'` would be the same duplicate wearing one row.
  * Description and fame are maxima and are handled below and in `fameOf`.
@@ -627,7 +627,7 @@ function writePoets(db: DatabaseSync, lookups: Lookups, poets: Map<string, PoetA
   )
   const insFts = db.prepare("INSERT INTO poets_fts (rowid, norm_name, norm_desc) VALUES (?, ?, ?)")
 
-  // CLAUDE.md spike finding 3: 772 names carry more than one poet url, so the
+  // docs/internals.md corpus finding 3: 772 names carry more than one poet url, so the
   // slug is chosen — aldiwan's ascii slug when there is one (they sort first
   // because they are the only ones `poetSlugFrom` returns), else the شاعر's own
   // name, and a numeric suffix breaks the rare remaining collision.

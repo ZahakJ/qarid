@@ -2,7 +2,7 @@
  * THE CENTRED DIALOG'S SCRIM — and the one thing every `.overlay` in قريض must
  * do: be a PORTAL onto `document.body`.
  *
- * ── THE TRAP (CLAUDE.md §Invariants, and it bit five dialogs) ──────────────
+ * ── THE TRAP (docs/internals.md §Invariants, and it bit five dialogs) ──────────────
  *
  * `position: fixed` is measured against the viewport ONLY while no ancestor has
  * a transform. motion.css gives `.route-swap` — the wrapper App.tsx puts around

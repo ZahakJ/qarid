@@ -68,7 +68,7 @@ export function trainRoutes(db: Db, _config: Config): Hono {
 
     const start = seedBucket(q.seed) % BUCKET_COUNT
     // The sort runs over `game_baits` ALONE and only the ≤10 survivors are
-    // joined out — the house rule every other route follows (CLAUDE.md). Sorting
+    // joined out — the house rule every other route follows (docs/internals.md). Sorting
     // the joined rows instead made SQLite materialise the whole fame-3 slice
     // (208,180 أبيات × four joins) before the LIMIT could bite: p50 153 ms,
     // against 10 ms for the same answer.

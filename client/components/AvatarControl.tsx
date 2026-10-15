@@ -1,7 +1,7 @@
 /**
- * The own-profile avatar control (owner's request — profile pictures).
+ * The own-profile avatar control.
  *
- * THE PICTURE IS THE BUTTON (owner's second request): the hero disc itself is
+ * THE PICTURE IS THE BUTTON: the hero disc itself is
  * the affordance, wearing a small camera badge where the decorative نيب sits on
  * everyone else's page. Tapping it opens the file picker straight away when
  * there is no picture; when there is one, it opens a two-action chooser —
@@ -152,7 +152,7 @@ export function AvatarControl({
     try {
       const blob = await exportCrop(editing.bitmap, metrics.s, offset)
       if (blob.size > MAX_AVATAR_BYTES) {
-        // Practically unreachable at 256² — but honest if it ever fires.
+        // Practically unreachable at 256² — but correct if it ever fires.
         setError("الصورة كبيرة بعد التصغير — جرّب صورة أبسط.")
         setBusy(false)
         return

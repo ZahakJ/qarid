@@ -39,7 +39,7 @@
   display: grid;
   /* The column is PINNED — an implicit `auto` grid track is sized to its
    * widest item's MAX-content and is NOT clamped to the grid container
-   * (CLAUDE.md, the same trap `.app` documents). Without it the footer's
+   * (docs/internals.md, the same trap `.app` documents). Without it the footer's
    * max-content (475px) sized the whole panel, and `overflow: hidden` turned
    * that into a scroll container `scrollIntoView` then shoved sideways: the
    * overlay rendered 20px off its own left edge on a 390px phone. */

@@ -168,7 +168,7 @@ function isSlug(v: string | undefined): v is string {
 }
 
 /** Poet slugs are NOT ascii — 92K rows have no poet url, so the fallback slug
- * is derived from the Arabic name_key (CLAUDE.md spike finding 2). */
+ * is derived from the Arabic name_key (docs/internals.md corpus finding 2). */
 function isPoetSlug(v: string | undefined): v is string {
   return v !== undefined && PoetSlugSchema.safeParse(v).success
 }

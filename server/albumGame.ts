@@ -16,7 +16,7 @@
  *
  * A shelf holds `count` ENTRIES — قصائد whole, and single أبيات. `resolved` is
  * how many of them today's artefact can still find (a rebuild may have dropped
- * a قصيدة; the shelf still prints those from its snapshot — CLAUDE.md's anchor
+ * a قصيدة; the shelf still prints those from its snapshot — docs/internals.md's anchor
  * invariant). `baits` is the أبيات those entries amount to once every قصيدة is
  * opened. `playable` is how many of THOSE `game_baits` will serve, and it is
  * the only one a duel can honour: 39.8 % of قصائد carry no بحر and the pool

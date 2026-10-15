@@ -57,7 +57,7 @@ export type Slug = z.infer<typeof SlugSchema>
 
 /**
  * Poet slug. NOT ascii-constrained: 91,936 rows carry no `poet url` at all
- * (CLAUDE.md spike finding 2) so the fallback slug is derived from the Arabic
+ * (docs/internals.md corpus finding 2) so the fallback slug is derived from the Arabic
  * `name_key`. Only path-hostile characters are excluded.
  */
 export const PoetSlugSchema = z
@@ -68,7 +68,7 @@ export const PoetSlugSchema = z
 
 /**
  * Public poem id: `String(aldiwan_id)` when derivable (27% of rows), else
- * `q<rowid>` (design-server.md §5, CLAUDE.md spike finding 1).
+ * `q<rowid>` (design-server.md §5, docs/internals.md corpus finding 1).
  */
 export const PublicPoemIdSchema = z
   .string()
@@ -89,7 +89,7 @@ export type BaytKey = z.infer<typeof BaytKeySchema>
  *
  * A room code is six letters because it is spoken aloud in the minute before a
  * مساجلة, and `rooms.join_key` is the credential that six-letter name is not
- * (CLAUDE.md). A ديوان has no second credential and no knock: an unlisted
+ * (docs/internals.md). A ديوان has no second credential and no knock: an unlisted
  * ديوان is reachable by exactly the people its owner handed the link to, so the
  * CODE IS the capability and it has to be wide enough to be one. 14⁵ × 5⁵ =
  * 1.68 billion, against 343,000 for a room — and it is still speakable, because
@@ -404,7 +404,7 @@ export const PoetSummarySchema = z.object({
   letter: ArabicLetterSchema,
   era: EraRefSchema.nullable(),
   location: z.string().nullable(),
-  /** short bio; null for the ~89% with none (CLAUDE.md: only 791 poets carry one) */
+  /** short bio; null for the ~89% with none (docs/internals.md: only 791 poets carry one) */
   description: z.string().nullable(),
   fame: FameSchema,
   poemCount: z.number().int().nonnegative(),
@@ -779,7 +779,7 @@ export type PoemsResponse = z.infer<typeof PoemsResponseSchema>
 /**
  * GET /api/poems/:publicId. `baits` is the FIRST PAGE only (≤200) — `total` is
  * the whole poem, the rest comes from /baits. Every entry is a paired
- * `{sadr, ajuz|null}` bayt, never a flat hemistich list (design-ux.md §10).
+ * `{sadr, ajuz|null}` bayt, never a flat hemistich list (design-ux.md §8).
  */
 export const PoemDetailResponseSchema = z.object({
   poem: PoemDetailSchema,
@@ -1018,7 +1018,7 @@ export const GamePoolResponseSchema = z.object({
   /**
    * What the duel can ACTUALLY draw on: `pickBait` relaxes one tier when the
    * chosen one is dry (server/game.ts `RELAX`), and every arrow points at a
-   * strictly larger pool, so the honest answer to «هل هذه القيود صالحة للعب؟»
+   * strictly larger pool, so the accurate answer to «هل هذه القيود صالحة للعب؟»
    * is this number, not `total`. Equal to `total` at «سيف», which relaxes
    * nowhere. `byLetter` stays the chosen tier's own count — it is the shape of
    * the pool, and the relax is a fallback, not a promise.
@@ -1085,7 +1085,7 @@ export type GameFilters = z.infer<typeof GameFiltersSchema>
  * when the pool inside it runs dry («خرج عن القيود»). The ديوان is not dropped
  * — leaving it would mean reciting a بيت that is not in the shelf the reader
  * chose, which is the whole feature — so a dry letter concedes instead
- * («أفحمتَ الخصم»), which is what a ديوان of thirty أبيات honestly owes.
+ * («أفحمتَ الخصم»), which is what a ديوان of thirty أبيات accurately owes.
  */
 const poolBaitIds = z
   .array(z.number().int().positive())
@@ -1437,7 +1437,7 @@ export const MIGRATIONS: Record<number, (data: unknown) => unknown> = {
    * أبيات in المبارزة is a finished مبارزة, and everything else stayed
    * genuinely ambiguous (انسحبتَ and أفحمتَ الخصم both end with lives to
    * spare), so it is left null rather than guessed. `endedAt` falls back to the
-   * last بيت's timestamp — the honest floor on when the مساجلة stopped.
+   * last بيت's timestamp — the accurate floor on when the مساجلة stopped.
    */
   1: (data: unknown): unknown => {
     if (typeof data !== "object" || data === null || !("session" in data)) return data
@@ -1642,7 +1642,7 @@ export const DuelSessionSliceSchema = z.object({
   /* Both are PERSISTED — that is the whole point: nothing else in a finished
    * session tells «أفحمتَ الخصم» from «انسحبتَ». They arrived at v2, and both
    * default to null so a raw v1 payload still parses; what `MIGRATIONS[1]`
-   * adds on top is the part of a v1 ending that can honestly be recovered. */
+   * adds on top is the part of a v1 ending that can accurately be recovered. */
   outcome: DuelOutcomeSchema.default(null),
   endedAt: z.number().int().nonnegative().nullable().default(null),
 })
@@ -1847,7 +1847,7 @@ export type AlbumEntryKind = z.infer<typeof AlbumEntryKindSchema>
  * the owner's profile says it exists.
  *
  * There is no «discover» surface and deliberately so: a shelf of strangers'
- * دواوين is a moderation queue, and Track 3 already has one.
+ * دواوين is a moderation queue, and the app already has one.
  */
 export const AlbumVisibilitySchema = z.enum(["private", "unlisted", "public"])
 export type AlbumVisibility = z.infer<typeof AlbumVisibilitySchema>
@@ -1950,7 +1950,7 @@ export type AlbumSummary = z.infer<typeof AlbumSummarySchema>
  * A ديوان somebody ELSE compiled, kept on your shelf — «من مكتبتك».
  *
  * The row survives its shelf being closed. A curator may take a ديوان back to
- * `private` after you saved it, and the honest thing then is neither to delete
+ * `private` after you saved it, and the accurate thing then is neither to delete
  * your row silently nor to keep printing a title he retracted: the entry stays,
  * `album` is null, and `gated` says which of the two reasons it is. Nothing of
  * the shelf — not its title, not its count, not its curator — crosses that gate.
@@ -2014,7 +2014,7 @@ export type AlbumPatchInput = z.input<typeof AlbumPatchRequestSchema>
 
 /**
  * POST /api/albums/:code/entries — add قصائد and أبيات, each named by what the
- * client can honestly know about it.
+ * client can accurately know about it.
  *
  * A بيت is sent as its content hash (`baitAnchor`); a قصيدة as its PUBLIC id,
  * which is true today and is exactly what the poem page has. The SERVER
@@ -2038,7 +2038,7 @@ export type AlbumAddEntriesRequest = z.infer<typeof AlbumAddEntriesRequestSchema
 /**
  * What an add answered: the shelf as it now stands, and how many of the sent
  * items actually landed. A second «أضِف القصيدة» is a duplicate, and «هذه
- * القصيدة في الديوان أصلًا» is the only honest thing to say about it.
+ * القصيدة في الديوان أصلًا» is the only accurate thing to say about it.
  */
 export const AlbumAddEntriesResponseSchema = z.object({
   album: AlbumSummarySchema,
@@ -2360,7 +2360,7 @@ export const ProfileResponseSchema = z.object({
   recent: z.array(ProfileMatchSchema),
   arsenal: ArsenalSnapshotSchema.nullable(),
   /**
-   * Whether the SIGNED-IN reader has blocked this account (v2.md Track 3). It is
+   * Whether the SIGNED-IN reader has blocked this account. It is
    * a fact about the viewer, not the profile — false for a signed-out reader and
    * on your own page — so it never tells the blocked user they were blocked
    * (blocking is private); it only lets the «احظر» button render as «ألغِ الحظر»
@@ -2375,7 +2375,7 @@ export const ProfileResponseSchema = z.object({
    * deliberately absent here, because listing it would hand out the very
    * capability its owner chose not to publish. A signed-out reader sees the
    * same list — published is published. What DOES empty it is a block in either
-   * direction (Track 3): a shelf is a person speaking, and a blocked person does
+   * direction: a shelf is a person speaking, and a blocked person does
    * not speak on the blocker's screen.
    */
   albums: z.array(AlbumSummarySchema).default([]),
@@ -2431,12 +2431,12 @@ export const MAX_ARSENAL_BYTES = 8 * 1024
 export const PROFILE_MATCHES_LIMIT = 10
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 12.5 UGC moderation — report, block, and the owner's admin routes (Track 3)
+// 12.5 UGC moderation — report, block, and the admin routes
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
  * Why one player is reporting another. A closed enum, not free text: the note is
- * where anything specific goes, and a fixed set is what lets the owner triage a
+ * where anything specific goes, and a fixed set is what lets an admin triage a
  * queue at a glance. The Arabic labels live in the client (`REPORT_REASONS`);
  * these machine values are what the wire and the database carry.
  */
@@ -2451,12 +2451,12 @@ export const ReportReasonSchema = z.enum([
 export type ReportReason = z.infer<typeof ReportReasonSchema>
 
 /**
- * POST /api/report — a logged-in reader reports another account (Track 3).
+ * POST /api/report — a logged-in reader reports another account.
  *
  * `targetUsername` is strict (`UsernameSchema`): a report names a real account,
  * and the client always has the exact handle in hand. `note` is optional free
  * text the reader adds; `context` is a short breadcrumb the client sets so the
- * owner knows WHERE the report came from — «الملف» from a profile page, the room
+ * admin knows WHERE the report came from — «الملف» from a profile page, the room
  * code from a مساجلة — and is never trusted for anything but display.
  */
 export const ReportRequestSchema = z
@@ -2512,7 +2512,7 @@ export type BlockMutationResponse = z.infer<typeof BlockMutationResponseSchema>
  */
 export const PLACEHOLDER_DISPLAY_NAME = "لاعب"
 
-/** One report as the owner's admin queue shows it. */
+/** One report as the admin queue shows it. */
 export const AdminReportSchema = z.object({
   id: z.number().int().positive(),
   reporter: z.string().nullable(),
@@ -2527,7 +2527,7 @@ export const AdminReportSchema = z.object({
   targetSuspendedUntil: z.number().int().nonnegative(),
   /**
    * The ديوان this report is about, when it is about one — the code the two
-   * album actions take, plus enough of it (اسم, وصف, من يراه) for the owner to
+   * album actions take, plus enough of it (اسم, وصف, من يراه) for an admin to
    * judge without opening the shelf. Null for a report about an account.
    */
   album: z
@@ -2637,7 +2637,7 @@ export const ROOM_STRIKES_DEFAULT = 3
 export const MAX_ROOM_TURNS = 400
 
 /**
- * KNOCK-TO-JOIN (owner's «أملِ عليه الرمز», restored securely).
+ * KNOCK-TO-JOIN (restored securely).
  *
  * The keyed link is still the instant door: a guest who opens `#/room/<code>?k=`
  * joins with «ادخل المساجلة» and no knock. But a logged-in guest who reaches a
@@ -2811,12 +2811,12 @@ export const RoomStateSchema = z.object({
    * A ديوان room is the memorization contest: the opening بيت comes off the
    * shelf and BOTH players must answer with أبيات that are on it, checked
    * server-side by the same anchor the shelf is built on (`baitAnchor` over the
-   * MATCHED بيت, never an id — CLAUDE.md's «CANON ANCHORS BY CONTENT»). It is
+   * MATCHED بيت, never an id — docs/internals.md's «CANON ANCHORS BY CONTENT»). It is
    * on the snapshot rather than derived because every screen in the room has to
    * name it: the lobby, the HUD, the refusal card and the ending.
    *
    * It goes null if the curator deletes the shelf mid-match (`ON DELETE SET
-   * NULL`), and the room then finishes as an ordinary مساجلة — the honest
+   * NULL`), and the room then finishes as an ordinary مساجلة — the accurate
    * outcome, since the constraint it was played under no longer exists.
    */
   album: z.object({ code: AlbumCodeSchema, title: z.string() }).nullable().default(null),
@@ -2972,7 +2972,7 @@ export const ROOM_ERRORS: Record<string, string> = {
   cannot_knock: "لا يمكنك الطرق على هذه الغرفة",
   room_busy: "على الباب طارقٌ قبلك — انتظر حتى يُبتّ أمره",
   knock_rejected: "لم يأذن لك صاحب الغرفة بالدخول",
-  // A block stands between these two accounts (Track 3). Deliberately vague — it
+  // A block stands between these two accounts. Deliberately vague — it
   // never says WHO blocked WHOM, so a blocked player cannot confirm the block by
   // probing a room. It reads to either side as an ordinary «this door is shut».
   blocked: "تعذّر الدخول إلى هذه الغرفة",

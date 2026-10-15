@@ -1,6 +1,5 @@
-# Who this build of the app IS. Copy to `identity.properties` (gitignored) and
-# fill in your own; without it the build uses placeholders and the app is
-# nobody's — which is what a public checkout should be.
+# Copy to `identity.properties` (gitignored) and fill in. Without it the build
+# uses these placeholders.
 #
 #   applicationId  your Android package id, reverse-domain, e.g. com.acme.qarid
 #                  Must match capacitor.config.ts's appId — export the same
@@ -12,8 +11,7 @@
 applicationId=com.example.qarid
 appLinkHost=qarid.example.com
 
-# Two more values the app build needs that are NOT in this file, because Gradle
-# never sees them — the web bundle does. Export both when you build:
+# The web bundle needs two more, exported at build time:
 #
 #   VITE_API_BASE=https://your.host      the deployment the shell talks to
 #   QARID_APP_ID=<applicationId above>   keeps capacitor.config.ts in step

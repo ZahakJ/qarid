@@ -37,7 +37,7 @@
  * in the view or component sheet without either of them being edited.
  *
  * The CSP allows `font-src 'self' data:` because vite inlines the small
- * subsets as data: URIs (CLAUDE.md invariant).
+ * subsets as data: URIs (docs/internals.md invariant).
  */
 
 // verse — Amiri

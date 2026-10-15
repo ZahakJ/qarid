@@ -32,7 +32,7 @@ export class ApiError extends Error {
   /**
    * SECONDS from the server's `Retry-After`, on a 429 that carries one.
    *
-   * `server/ratelimit.ts` computes the honest wait — «time until one whole
+   * `server/ratelimit.ts` computes the accurate wait — «time until one whole
    * token exists again» — and the client used to throw it away, so «أمهِل
    * قليلًا» stood for anything from a second to three minutes and the reader
    * guessed-and-retried, re-arming the limiter each time.

@@ -9,7 +9,7 @@
  * تشكيل, an أ written ا, a ة written ه and a doubled space are all free. That
  * is not leniency for its own sake: the corpus itself spells the same عجز four
  * ways, and `shared/arabic.ts` is the only place in قريض allowed to decide that
- * two spellings are one word (CLAUDE.md invariant).
+ * two spellings are one word (docs/internals.md invariant).
  *
  * The thresholds are the design's:
  *   sim == 1              → good, and easy when it came back inside 8 seconds

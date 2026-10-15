@@ -1,24 +1,11 @@
 /**
- * tools/loadtest.mjs — the concurrency probe behind docs/load-test.md and the
- * §Backlog worker-thread trigger.
+ * tools/loadtest.mjs — concurrency sweep with a /healthz probe (docs/load-test.md).
+ * Point it at a server on the real corpus, not production.
  *
- * It sweeps offered concurrency over a realistic route mix (mostly cheap/cached
- * reads, some deep/expensive corpus queries) and, alongside it, runs a dedicated
- * /healthz prober — the liveness route touches no database, so its latency under
- * load is the pure head-of-line-blocking cost the synchronous single-loop design
- * imposes. When /healthz p95 leaves its 150 ms budget, that is trigger (b) for
- * the deferred SQLite worker thread (CLAUDE.md §Backlog).
- *
- * It is a MEASUREMENT tool, not a server change: point it at a server you own
- * (never prod :8010) that is reading the real corpus.
- *
- *   # start a server you own on a high port with a scratch users db, then:
  *   BASE=http://127.0.0.1:6760 node tools/loadtest.mjs
  *   LEVELS=1,5,10,25,50,100 DUR=4000 node tools/loadtest.mjs
  *
- * Closed-loop workers (one in-flight request each, N of them = N offered
- * concurrency). The mix weights approximate a real session: browse/read/search
- * dominate, deep baits pages and training pulls are the occasional heavy tail.
+ * N closed-loop workers, one request in flight each.
  */
 
 const BASE = process.env.BASE || "http://127.0.0.1:6760"

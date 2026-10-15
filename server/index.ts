@@ -22,8 +22,8 @@ const primary = serve({ fetch: app.fetch, hostname: config.host, port: config.po
 // the adapter or a مساجلة room falls back to polling on that address alone.
 injectWebSocket(primary)
 
-// cloudflared resolves "localhost" to ::1 first — bind the IPv6 loopback too,
-// or the tunnel 502s. Still loopback-only; nothing external can reach either.
+// Some proxies resolve "localhost" to ::1 first, so bind the IPv6 loopback too.
+// Still loopback-only.
 if (config.host === "127.0.0.1") {
   const secondary = serve({ fetch: app.fetch, hostname: "::1", port: config.port }, (info) => {
     console.log(`[qarid] listening on http://[${info.address}]:${info.port}`)

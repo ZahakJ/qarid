@@ -1,6 +1,5 @@
 /**
- * The duel reducer, headless (design-ux.md §9 Phase 3: "machine.ts+tests
- * headless first"). Every transition in the §4.3 diagram is exercised here,
+ * The duel reducer, headless. Every transition in the design-ux.md §4 diagram is exercised here,
  * plus the four rules that are easy to get wrong: the paused clock, the time
  * given back after a slow verify, network errors costing no life, and hints
  * being charged exactly once.
@@ -823,7 +822,7 @@ describe("persistence", () => {
 /**
  * `outcome` and `endedAt` arrived at PERSIST_VERSION 2. Both directions have to
  * hold: a v1 payload still parses (and gives up what little of its ending can
- * honestly be recovered), and a v2 payload round-trips untouched.
+ * accurately be recovered), and a v2 payload round-trips untouched.
  */
 describe("the v1 → v2 duel migration", () => {
   /** what `persist.ts` would have had on disk before the two fields existed */
@@ -860,7 +859,7 @@ describe("the v1 → v2 duel migration", () => {
 
   it("refuses to GUESS between «انسحبتَ» and «أفحمتَ الخصم»", () => {
     // both end with lives to spare and leave no other trace; null keeps the
-    // honest «سلسلة من N بيتًا» rather than inventing a headline
+    // accurate «سلسلة من N بيتًا» rather than inventing a headline
     const walked = reduce(awaiting(), { type: "ABANDON", now: T0 + 30_000 })
     const migrated = DuelSliceSchema.parse(step(v1Of(walked)))
     expect(migrated.session?.outcome).toBeNull()

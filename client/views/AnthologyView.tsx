@@ -6,7 +6,7 @@
  * `/api/anthologies` (never at ingest — see that file's header).
  *
  *   `AnthologyIndexView`  the two shelf cards, each a framed panel with its own
- *                         شمسة, tagline, blurb and honest count.
+ *                         شمسة, tagline, blurb and accurate count.
  *   `AnthologyShelfView`  one shelf. المعلقات renders قصيدة cards — ordinal,
  *                         name, شاعر, مطلع through `BaytPlate` — and مئة بيت
  *                         سائر renders BaytPlate ROWS, so ♥ / بطاقة / ساجِلني

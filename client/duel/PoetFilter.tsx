@@ -4,7 +4,7 @@
  * العصر and البحر are twelve and sixteen chips, so they are laid out whole. A
  * شاعر is 6,941 of them, so this control is a SEARCH, and it rides the exact
  * path the palette's شعراء group already rides — `/api/search?scope=poets`,
- * ranked name-hit → fame → bm25 by `rankedPoetRefs` (CLAUDE.md: bm25 alone put
+ * ranked name-hit → fame → bm25 by `rankedPoetRefs` (docs/internals.md: bm25 alone put
  * «المشوق الشامي صديق المتنبي» above «المتنبي»). That ranking is the whole
  * usability of this field: a reader types «المتنبي» and the first row is him.
  *

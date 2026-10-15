@@ -1,6 +1,6 @@
 /**
  * The 7×4 circular letter grid — الروي and حرف البداية in the browse facet rail,
- * and the shape the arsenal heatmap will reuse in Phase 4 (design-ux.md §3, §5).
+ * and the shape the arsenal heatmap reuses (design-ux.md §3, §5).
  *
  * Every cell is a روي-style well: a 1.9em circle in Amiri behind a lapis
  * hairline, with its count in Plex Mono underneath. All 28 letters are always

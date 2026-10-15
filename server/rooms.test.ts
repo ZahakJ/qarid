@@ -60,7 +60,7 @@ import {
 /**
  * The WebSocket suite binds a REAL socket, and it takes whatever the OS hands
  * it (`PORT=0`, read back off `server.address()`). A fixed port would make the
- * whole file fail whenever anything else on the box — another agent's dev
+ * whole file fail whenever anything else on the machine — a dev
  * server, a screenshot run, a second copy of this suite — happened to hold it,
  * and the failure would look like a room bug.
  */
@@ -100,7 +100,7 @@ let config: Config
  * that plays six matches would 429 itself halfway through and the failure
  * would look like a room bug. One address per player is also what the wire
  * actually looks like: `CF-Connecting-IP` is the header the limiter keys on,
- * because Cloudflare APPENDS to a client-supplied XFF (CLAUDE.md).
+ * because Cloudflare APPENDS to a client-supplied XFF (docs/internals.md).
  */
 type Player = { username: string; displayName: string; token: string; ip: string }
 
