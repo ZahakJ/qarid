@@ -27,6 +27,9 @@ import { poetsRoutes } from "./routes/poets.ts"
 import { profileRoutes } from "./routes/profile.ts"
 import { albumRoutes } from "./routes/albums.ts"
 import { mountRoomSocket, notifyRoomsEnded, roomDeps, roomRoutes } from "./routes/rooms.ts"
+import { matchRoutes, mountMatchSocket } from "./routes/match.ts"
+import { matchDeps } from "./match/service.ts"
+import { memoryMatchStore, type MatchStore } from "./match/store.ts"
 import { searchRoutes } from "./routes/search.ts"
 import { statsRoutes } from "./routes/stats.ts"
 import { trainRoutes } from "./routes/train.ts"
@@ -47,6 +50,8 @@ export function createApp(
   config: Config,
   db: Db | null,
   users: UsersDb | null = null,
+  /** where account-less matches persist; in memory unless the caller opens a file */
+  extras: { matchStore?: MatchStore } = {},
 ): { app: Hono; injectWebSocket: (server: UpgradableServer) => void } {
   const app = new Hono()
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app })
@@ -264,6 +269,11 @@ export function createApp(
       app.route("/api/room", roomRoutes(rooms))
       mountRoomSocket(app, rooms, upgradeWebSocket)
     }
+
+    // The account-less مساجلة (docs/online-match.md): corpus only, no accounts.
+    const matches = matchDeps(db, config, extras.matchStore ?? memoryMatchStore())
+    app.route("/api/match", matchRoutes(matches))
+    mountMatchSocket(app, matches, upgradeWebSocket)
   }
 
   // بيت اليوم's shareable page `/d/<date>` and its card `/og/daily/<date>.png`
@@ -422,6 +432,7 @@ function cachePolicy(path: string, method: string): string {
   // turn. Sixty seconds of shared cache on `GET /api/room/:code/state` would
   // hand one player the other player's screen, a minute late.
   if (path.startsWith("/api/room")) return "private, no-store"
+  if (path.startsWith("/api/match")) return "private, no-store"
   // A ديوان is per-reader in both directions: `isOwner` rides in the payload and
   // a `private` shelf is visible to exactly one session. Sixty seconds of shared
   // cache on `GET /api/albums/:code` would hand a stranger an owner's edit rail

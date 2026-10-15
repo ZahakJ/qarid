@@ -63,7 +63,7 @@ export const CAPACITOR_ORIGINS: ReadonlySet<string> = new Set([
 
 /** Methods and headers a preflight from the allowlist is answered with. */
 export const CORS_ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-export const CORS_ALLOW_HEADERS = "Authorization, Content-Type, X-Client"
+export const CORS_ALLOW_HEADERS = "Authorization, Content-Type, X-Client, X-Match-Seat"
 
 /** The exact `Origin` to echo back, or null when it is not on the allowlist. */
 export function allowlistedOrigin(origin: string | undefined): string | null {
