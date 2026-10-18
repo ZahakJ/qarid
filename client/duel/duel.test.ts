@@ -20,7 +20,7 @@ import { REVEAL, revealTiming, wordCount } from "./RecitationReveal.tsx"
 import { ExchangeLog, poetRevealed } from "./ExchangeLog.tsx"
 import { COSTS_LIFE, RejectionCard, titleOf } from "./RejectionCard.tsx"
 import { LetterIndicator, clauseFor, typedLetter, verdictOf } from "./LetterIndicator.tsx"
-import { letterRibbon, shareText } from "./share.ts"
+import { betweenHead, letterRibbon, seatTranscript, shareText, transcriptText } from "./share.ts"
 import { dailyConfig, playedToday, riyadhDay } from "./daily.ts"
 import { headlineOf, lettersGained, poetsOf } from "./DuelSummaryView.tsx"
 import { pricedHint } from "./scoring.ts"
@@ -485,6 +485,65 @@ describe("the summary's reads", () => {
       ex({ side: "player", baytKey: "q103:1", sadr: "مِثلُكَ لا يُنسى" }),
     ])
     expect(lettersGained(s)).toEqual(["م"])
+  })
+})
+
+// ── the whole مساجلة as text («شارك الأبيات») ────────────────────────────
+
+describe("the مساجلة transcript", () => {
+  const khayl = { sadr: "الخَيلُ وَاللَيلُ وَالبَيداءُ تَعرِفُني", ajuz: "وَالسَيفُ وَالرُمحُ وَالقِرطاسُ وَالقَلَمُ" }
+
+  it("puts every بيت under who SAID it, then who wrote it — copy.ts's rules 1 and 2", () => {
+    const text = transcriptText({
+      head: "قريض — مساجلة: كرم وزيد",
+      turns: [
+        { who: "كرم", ...khayl, poet: "المتنبي" },
+        { who: "زيد", sadr: "صدر", ajuz: null, poet: null },
+      ],
+      tail: "الغلبة: كرم · بيتان",
+    })
+    const lines = text.split("\n")
+    // rule 1: every line, blank ones too, opens with U+200F
+    for (const line of lines) expect(line.startsWith(RLM)).toBe(true)
+    expect(lines.map((l) => l.slice(1))).toEqual([
+      "قريض — مساجلة: كرم وزيد",
+      "",
+      "كرم:",
+      // rule 2: صدر … عجز on ONE line
+      `${khayl.sadr} … ${khayl.ajuz}`,
+      "— المتنبي",
+      "",
+      "زيد:",
+      "صدر",
+      "",
+      "الغلبة: كرم · بيتان",
+    ])
+  })
+
+  it("leaves strikes out, names both seats and the winner, in Western digits", () => {
+    const text = seatTranscript({
+      turns: [
+        { seat: "host", bait: { ...khayl, poet: { name: "المتنبي" } } },
+        { seat: "guest", bait: null },
+        { seat: "guest", bait: { sadr: "مَلَأنا البَرَّ", ajuz: "حَتّى ضاقَ عَنّا", poet: null } },
+      ],
+      nameOf: (seat) => (seat === "host" ? "كرم" : "الأمير"),
+      winner: "الأمير",
+      tashkeel: false,
+    })
+    expect(text).toContain("قريض — مساجلة: كرم والأمير")
+    expect(text).toContain(`${RLM}كرم:\n${RLM}الخيل والليل والبيداء تعرفني … والسيف والرمح والقرطاس والقلم`)
+    expect(text).toContain(`${RLM}الأمير:\n${RLM}ملأنا البر … حتى ضاق عنا`)
+    // rule 3: تشكيل off is copied as displayed
+    expect(text).not.toMatch(/[\u064B-\u0652]/)
+    expect(text.split("\n").filter((l) => l.endsWith(":"))).toHaveLength(2)
+    expect(text.endsWith("الغلبة: الأمير · بيتان")).toBe(true)
+    expect(text).not.toMatch(/[\u0660-\u0669]/)
+  })
+
+  it("joins و to a Latin name with a space, and does not invent a pair", () => {
+    expect(betweenHead("كرم", "Zaid")).toBe("قريض — مساجلة: كرم و Zaid")
+    expect(betweenHead("كرم", null)).toBe("قريض — مساجلة")
   })
 })
 

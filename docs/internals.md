@@ -138,7 +138,9 @@ below.
   `API_BASE || location.origin`: the real site on native, same-origin on the
   web.
 - **Three blocks of TEXT leave the app, one pure `share.ts` each**:
-  `client/duel/share.ts` (a مساجلة result), `client/albums/share.ts` (a ديوان)
+  `client/duel/share.ts` (a مساجلة result — the score block «شارك», and
+  «شارك الأبيات», every بيت under the name of whoever said it, on the solo
+  summary and at the end of a room or match), `client/albums/share.ts` (a ديوان)
   and `client/poem/share.ts` (a قصيدة — «شارِك القصيدة», on the poem toolbar and
   in the phone's «أأ» sheet). The قصيدة one is the link-shaped answer to «نسخ
   القصيدة», which is right for a مقطوعة and wrong the moment a reader tries to

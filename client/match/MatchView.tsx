@@ -22,6 +22,8 @@ import { useFollowNewest } from "../duel/ExchangeLog.tsx"
 import { LetterIndicator } from "../duel/LetterIndicator.tsx"
 import { ANSWER_PLACEHOLDER_NARROW } from "../duel/placeholders.ts"
 import { RejectionCard } from "../duel/RejectionCard.tsx"
+import { seatTranscript } from "../duel/share.ts"
+import { shareTextBlock } from "../share/dailyShare.ts"
 import { useNativeChrome } from "../hooks/useNativeChrome.ts"
 import { routeHash } from "../router.ts"
 import { useImmersive } from "../store/immersiveStore.ts"
@@ -330,6 +332,7 @@ function Waiting({ state }: { state: MatchState }) {
 }
 
 export function MatchView({ code, joinKey }: { code: string; joinKey?: string }) {
+  const settings = useSettings()
   const phase = useMatch((s) => s.phase)
   const state = useMatch((s) => s.state)
   const error = useMatch((s) => s.error)
@@ -545,6 +548,25 @@ export function MatchView({ code, joinKey }: { code: string; joinKey?: string })
             <a className="btn btn--primary" href={routeHash({ view: "duel" })}>
               مساجلة جديدة
             </a>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const nameAt = (seat: RoomSeat) => nameOf(seat === "host" ? state.host : state.guest, seat)
+                const text = seatTranscript({
+                  turns: state.turns,
+                  nameOf: nameAt,
+                  winner: state.winner === null ? null : nameAt(state.winner),
+                  tashkeel: settings.tashkeel,
+                })
+                void shareTextBlock(text).then((outcome) => {
+                  if (outcome === "copied") toast("نُسخت أبيات المساجلة", "ok")
+                  else if (outcome === "failed") toast("تعذّرت المشاركة", "warn")
+                })
+              }}
+            >
+              شارك الأبيات
+            </button>
           </div>
         </Panel>
       ) : null}

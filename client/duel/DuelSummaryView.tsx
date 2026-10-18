@@ -55,7 +55,10 @@ import { writeClipboard } from "../bayt/copy.ts"
 import { nativeShareText } from "../platform/share.ts"
 import { ExchangeLog, pulseExchange } from "./ExchangeLog.tsx"
 import { playerTurns, type DuelOutcome, type DuelState } from "./machine.ts"
-import { shareText } from "./share.ts"
+import { shareHead, shareTail, shareText, transcriptText } from "./share.ts"
+import { displayText, displayTextOrNull } from "../bayt/tashkeel.ts"
+import { shareTextBlock } from "../share/dailyShare.ts"
+import { useAuth } from "../store/authStore.ts"
 import { firstLetterOf } from "../../shared/arabic.ts"
 
 /** An `Exchange` is already the denormalized shape المختارات persist. */
@@ -116,6 +119,7 @@ function BigNumber({ label, value }: { label: string; value: string }) {
 export function DuelSummaryView() {
   const session = useDuel((s) => s.session)
   const settings = useSettings()
+  const user = useAuth((s) => s.user)
   const reduced = motionReduced(settings)
   const add = useCollections((s) => s.add)
   const favorites = useCollections((s) => s.favorites)
@@ -203,6 +207,32 @@ export function DuelSummaryView() {
     void nativeShareText(text).then((shared) => {
       if (shared) return
       void writeClipboard(text).then((ok) => toast(ok ? "نُسخت الخلاصة" : "تعذّر النسخ", ok ? "ok" : "warn"))
+    })
+  }
+
+  // The أبيات themselves, each under who said it — the score block above is
+  // the brag, this is the مساجلة. The player is their own display name when
+  // signed in; the machine is «الخصم», what the whole duel screen calls it.
+  const shareAbyat = () => {
+    const me = user?.displayName.trim() || user?.username || "أنا"
+    const scope = {
+      dayKey: session.dailyDate,
+      poetName: session.config.poetName,
+      albumTitle: session.config.album?.title ?? null,
+    }
+    const text = transcriptText({
+      head: shareHead(scope),
+      turns: session.exchanges.map((e) => ({
+        who: e.side === "player" ? me : "الخصم",
+        sadr: displayText(e.sadr, settings.tashkeel),
+        ajuz: displayTextOrNull(e.ajuz, settings.tashkeel),
+        poet: e.poet?.name ?? null,
+      })),
+      tail: shareTail({ chainLength: chain, score: session.score, stumped: session.outcome === "stumped" }),
+    })
+    void shareTextBlock(text).then((outcome) => {
+      if (outcome === "copied") toast("نُسخت أبيات المساجلة", "ok")
+      else if (outcome === "failed") toast("تعذّرت المشاركة", "warn")
     })
   }
 
@@ -395,6 +425,11 @@ export function DuelSummaryView() {
           <button type="button" className="btn" onClick={share}>
             شارك
           </button>
+          {session.exchanges.length ? (
+            <button type="button" className="btn" onClick={shareAbyat}>
+              شارك الأبيات
+            </button>
+          ) : null}
           <button type="button" className="btn btn--ghost" onClick={leave}>
             إلى الإعداد
           </button>
