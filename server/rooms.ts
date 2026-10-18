@@ -852,9 +852,9 @@ export type PlayOutcome =
  *
  * The exclusions are read back off the transcript every time rather than being
  * accumulated in memory: `usedBaitIds` is every بيت the room has accepted (the
- * opening included) and `usedPoemIds` every قصيدة they came from, so the same
- * بيت under a different id — and the same قصيدة under a different بيت — is
- * refused for both players, and a server restart mid-match changes nothing.
+ * opening included), so the same بيت under a different id is refused for both
+ * players — a different بيت of the same قصيدة is not — and a server restart
+ * mid-match changes nothing.
  */
 export function playTurn(
   deps: RoomDeps,
@@ -885,7 +885,7 @@ export function playTurn(
     requiredLetter: undefined,
     mode: live.mode,
     usedBaitIds: chain.map((t) => t.baitId).filter((id): id is number => id !== null),
-    usedPoemIds: chain.map((t) => t.poemId).filter((id): id is number => id !== null),
+    usedPoemIds: [],
     filters: undefined,
     sessionSeed: undefined,
   })
@@ -934,7 +934,7 @@ export function playTurn(
       turnNo: nextTurnNo,
       userId: user.id,
       baitId: result.bait.id,
-      // `poem.poemId` (the internal id the exclusions use) lives on the بيت's
+      // `poem.poemId` (the internal `poems.id`) lives on the بيت's
       // own PoemRef; `result.poem` is the PoemSummary and carries only the
       // public one (server/dto.ts, the `usedPoemIds` backlog note).
       poemId: result.bait.poem.poemId,

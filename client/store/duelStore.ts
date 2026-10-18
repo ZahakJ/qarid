@@ -318,7 +318,6 @@ async function verify(s: DuelState, text: string): Promise<void> {
       requiredLetter: s.required.letter ?? undefined,
       mode: s.config.chainMode,
       usedBaitIds: s.usedBaitIds,
-      usedPoemIds: s.usedPoemIds,
       filters: s.config.filters,
       sessionSeed: s.seed,
     })

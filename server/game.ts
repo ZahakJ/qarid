@@ -718,7 +718,7 @@ function weightedLetters(db: Db, base: GbCond, tier: Difficulty, rng: () => numb
 
 /**
  * Pick the opponent's بيت: tier → bias passes → wrap-around window → drop the
- * أبيات (and the قصائد) already played → seeded choice. If every pass comes up
+ * أبيات already played, preferring قصائد not yet heard → seeded choice. If every pass comes up
  * empty, relax exactly one tier and do it again; then give up, which the client
  * turns into «أفحمتَ الخصم» (+500, amendment 16).
  */
@@ -747,7 +747,13 @@ export function pickBait(db: Db, opts: PickOptions): PickResult | null {
         for (const bias of biasPasses(opts.tailBias)) {
           const branches = branchesFor(base, tier, letter, bias, opts.avoidRawiyy)
           const rows = sampleWindow(db, branches, base.needsPoem, start)
-          const usable = rows.filter((r) => !excludeBaits.has(num(r.b_id)) && !excludePoems.has(num(r.p_id)))
+          // A spent بيت is never said again; a spent قصيدة is only AVOIDED. A
+          // second بيت of a قصيدة already heard is legal (the verifier takes it
+          // from the player too), so the machine falls back to one rather than
+          // concede a letter it can still answer.
+          const unsaid = rows.filter((r) => !excludeBaits.has(num(r.b_id)))
+          const fresh = unsaid.filter((r) => !excludePoems.has(num(r.p_id)))
+          const usable = fresh.length > 0 ? fresh : unsaid
           if (usable.length === 0) continue
           const idx = Math.min(usable.length - 1, Math.floor(rng() * usable.length))
           return { row: usable[idx]!, tier, relaxed: false }
@@ -990,8 +996,10 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
     return { ok: false, reason: "wrong_letter", expected, alsoAccepted, got, normalized: q.normFull }
   }
 
+  // Only the BAYT is spent, never its قصيدة: a different بيت of a قصيدة already
+  // heard is a legal answer. `usedPoemIds` is still parsed (an installed APK
+  // sends it) and deliberately not read.
   const usedBaits = new Set(req.usedBaitIds)
-  const usedPoems = new Set(req.usedPoemIds)
 
   // 3. The exact ladder. `h_full`/`h_sadr` are fnv1a64 over the SAME normalized
   //    string `scripts/ingest/transform.ts` hashed, which is why this works at
@@ -1015,7 +1023,7 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
         return { ok: false, reason: "ambiguous", normalized: q.normFull, candidates: clash.map((r) => baitDto(r)) }
       }
     }
-    return settle(db, rows, kind, 1, q, mode, usedBaits, usedPoems)
+    return settle(db, rows, kind, 1, q, mode, usedBaits)
   }
 
   // 4. Fuzzy. AND first at the loose gate, then OR at the strict one — an OR
@@ -1064,7 +1072,7 @@ export function verifyAnswer(db: Db, req: GameVerifyRequest): GameVerifyResponse
         return { ok: false, reason: "wrong_letter", expected, alsoAccepted, got: found as ArabicLetter, normalized: q.normFull }
       }
     }
-    return settle(db, [best.row], "fuzzy", best.score, q, mode, usedBaits, usedPoems)
+    return settle(db, [best.row], "fuzzy", best.score, q, mode, usedBaits)
   }
 
   // A SUGGESTION THE PLAYER CANNOT PLAY IS NOT A SUGGESTION.
@@ -1266,13 +1274,13 @@ function chainClash(rows: Row[], mode: ChainMode, q: SplitText): Row[] | null {
  * The hash is recomputed from the row's own text with the one normalizer rather
  * than read back out of the column: `server/` never spells a hash twice.
  */
-function alreadyUsed(db: Db, row: Row, usedBaits: Set<number>, usedPoems: Set<number>): Row | undefined {
-  if (usedBaits.size === 0 && usedPoems.size === 0) return undefined
+function alreadyUsed(db: Db, row: Row, usedBaits: Set<number>): Row | undefined {
+  if (usedBaits.size === 0) return undefined
   const copies = db
-    .q("SELECT b.id AS id, b.poem_id AS pid FROM baits b WHERE b.h_full = ?")
+    .q("SELECT b.id AS id FROM baits b WHERE b.h_full = ?")
     .all(fnv1a64Signed(fullNormOf(row))) as Row[]
   for (const copy of copies) {
-    if (usedBaits.has(num(copy.id)) || usedPoems.has(num(copy.pid))) return baitRowById(db, num(copy.id))
+    if (usedBaits.has(num(copy.id))) return baitRowById(db, num(copy.id))
   }
   return undefined
 }
@@ -1311,15 +1319,14 @@ function settle(
   q: SplitText,
   mode: ChainMode,
   usedBaits: Set<number>,
-  usedPoems: Set<number>,
 ): GameVerifyResponse {
-  const used = rows.find((r) => usedBaits.has(num(r.b_id)) || usedPoems.has(num(r.p_id)))
+  const used = rows.find((r) => usedBaits.has(num(r.b_id)))
   if (used !== undefined) return { ok: false, reason: "already_used", bait: baitDto(used) }
 
   const complete = rows.find((r) => strOrNull(r.b_ajuz) !== null) ?? completeCopy(db, rows[0]!)
   if (complete === undefined) return { ok: false, reason: "incomplete_bait", bait: baitDto(rows[0]!) }
 
-  const elsewhere = alreadyUsed(db, complete, usedBaits, usedPoems)
+  const elsewhere = alreadyUsed(db, complete, usedBaits)
   if (elsewhere !== undefined) return { ok: false, reason: "already_used", bait: baitDto(elsewhere) }
 
   return {

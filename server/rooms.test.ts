@@ -185,20 +185,20 @@ async function openRoom(
 
 /**
  * أبيات from the fixture that open on `letter`, most-famous first, minus what
- * the room has already heard. The room's own exclusions are cumulative and
- * per-قصيدة, so the candidate list drops whole قصائد, not just أبيات.
+ * the room has already heard. Only the بيت is spent — a second بيت of a قصيدة
+ * already played is a legal answer — so only أبيات are dropped.
  */
-function candidatesOn(letter: string, usedBaits: Set<number>, usedPoems: Set<number>): { id: number; text: string }[] {
+function candidatesOn(letter: string, usedBaits: Set<number>): { id: number; text: string }[] {
   const rows = db
     .q(
-      `SELECT gb.bait_id AS id, gb.poem_id AS poem_id, b.sadr AS sadr, b.ajuz AS ajuz
+      `SELECT gb.bait_id AS id, b.sadr AS sadr, b.ajuz AS ajuz
        FROM game_baits gb JOIN baits b ON b.id = gb.bait_id
        WHERE gb.first_letter = ? AND b.ajuz IS NOT NULL
        ORDER BY gb.fame DESC, gb.position ASC LIMIT 40`,
     )
     .all(letter) as Array<Record<string, unknown>>
   return rows
-    .filter((r) => !usedBaits.has(Number(r.id)) && !usedPoems.has(Number(r.poem_id)))
+    .filter((r) => !usedBaits.has(Number(r.id)))
     .map((r) => ({ id: Number(r.id), text: `${String(r.sadr)} ${String(r.ajuz)}` }))
 }
 
@@ -210,10 +210,7 @@ async function playOne(code: string, who: Player, state: RoomState): Promise<Roo
   const letter = state.required?.requiredLetter
   expect(letter).toBeTruthy()
   const usedBaits = new Set(state.turns.map((t) => t.bait?.id).filter((id): id is number => typeof id === "number"))
-  const usedPoems = new Set(
-    state.turns.map((t) => t.bait?.poem.poemId).filter((id): id is number => typeof id === "number"),
-  )
-  for (const cand of candidatesOn(letter!, usedBaits, usedPoems)) {
+  for (const cand of candidatesOn(letter!, usedBaits)) {
     const res = await postJson(`/api/room/${code}/turn`, { text: cand.text }, who)
     expect(res.status).toBe(200)
     const parsed = RoomTurnResponseSchema.parse(await res.json())
@@ -403,11 +400,9 @@ describe("a full مساجلة", () => {
     expect(live.guest?.turns).toBe(3)
     expect(live.host?.strikes).toBe(0)
 
-    // Cumulative exclusions: every بيت, and every قصيدة, exactly once.
+    // Cumulative exclusions: every بيت exactly once.
     const baitIds = live.turns.map((t) => t.bait!.id)
     expect(new Set(baitIds).size).toBe(baitIds.length)
-    const poemIds = live.turns.map((t) => t.bait!.poem.poemId)
-    expect(new Set(poemIds).size).toBe(poemIds.length)
 
     // …and each answer really did open on the letter the previous one demanded.
     for (let i = 1; i < live.turns.length; i++) {
@@ -492,7 +487,7 @@ describe("strikes", () => {
     // A real بيت on the WRONG letter: pick any letter the room did not ask for.
     const required = state.required!.requiredLetter
     const wrongLetter = ["ا", "ب", "م", "ق", "و", "ف"].find((l) => l !== required)!
-    const candidate = candidatesOn(wrongLetter, new Set(), new Set())[0]
+    const candidate = candidatesOn(wrongLetter, new Set())[0]
     if (candidate) {
       const res = await postJson(`/api/room/${code}/turn`, { text: candidate.text }, guest)
       const body = RoomTurnResponseSchema.parse(await res.json())
@@ -1180,7 +1175,6 @@ describe("/ws/room/:code", () => {
     let live = joined.type === "join" ? joined.state : created
     const letter = live.required!.requiredLetter
     const used = new Set(live.turns.map((t) => t.bait!.id))
-    const usedPoems = new Set(live.turns.map((t) => t.bait!.poem.poemId))
     const candidate = (() => {
       const rows = wsDb
         .q(
@@ -1189,7 +1183,7 @@ describe("/ws/room/:code", () => {
            WHERE gb.first_letter = ? AND b.ajuz IS NOT NULL ORDER BY gb.fame DESC LIMIT 10`,
         )
         .all(letter) as Array<Record<string, unknown>>
-      const row = rows.find((r) => !used.has(Number(r.id)) && !usedPoems.has(Number(r.poem_id)))
+      const row = rows.find((r) => !used.has(Number(r.id)))
       if (!row) throw new Error("fixture has no candidate for the socket test")
       return `${String(row.sadr)} ${String(row.ajuz)}`
     })()

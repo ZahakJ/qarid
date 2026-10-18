@@ -1126,6 +1126,10 @@ export const GameVerifyRequestSchema = z.object({
   requiredLetter: ArabicLetterSchema.nullish().transform((v) => v ?? undefined),
   mode: ChainModeSchema.default("rhyme"),
   usedBaitIds: excludeIds,
+  /**
+   * IGNORED. A different بيت of a قصيدة already heard is a legal answer; only
+   * the بيت itself is spent. Still parsed because installed APKs send it.
+   */
   usedPoemIds: excludeIds,
   filters: GameFiltersSchema.optional(),
   sessionSeed: SeedSchema.optional(),
@@ -1140,6 +1144,7 @@ export const GameReplyRequestSchema = z.object({
   /** amendments.md §5 — 'easy' avoids rare terminal rawiyy, 'hard' prefers it */
   tailBias: TailBiasSchema.default("none"),
   excludeBaitIds: excludeIds,
+  /** a PREFERENCE: the machine avoids these قصائد but falls back to them before conceding */
   excludePoemIds: excludeIds,
   filters: GameFiltersSchema.optional(),
   /** the ديوان the opponent is confined to; empty means the whole corpus */

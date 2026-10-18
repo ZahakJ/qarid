@@ -209,7 +209,7 @@ describe("turns", () => {
       code: "not_your_turn",
     })
     const input = verifyInputOf(m, "guest", "نص")
-    expect(input.ok && input.request).toMatchObject({ prevBaitId: 1, usedBaitIds: [1], usedPoemIds: [10], mode: "rhyme" })
+    expect(input.ok && input.request).toMatchObject({ prevBaitId: 1, usedBaitIds: [1], usedPoemIds: [], mode: "rhyme" })
   })
 
   it("is refused while waiting and once done", () => {
@@ -234,7 +234,7 @@ describe("turns", () => {
     expect(out.match.deadlineAt).toBe(T0 + 5000 + 60_000)
     expect(out.match.turns[1]).toMatchObject({ turnNo: 1, seat: "guest", verdict: "ok", msTaken: 4000, poemId: 20 })
     const next = verifyInputOf(out.match, "host", "x")
-    expect(next.ok && next.request).toMatchObject({ prevBaitId: 2, usedBaitIds: [1, 2], usedPoemIds: [10, 20] })
+    expect(next.ok && next.request).toMatchObject({ prevBaitId: 2, usedBaitIds: [1, 2], usedPoemIds: [] })
   })
 
   it("a strike stays with the same seat, re-arms the clock and counts down", () => {
