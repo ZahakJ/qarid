@@ -45,6 +45,7 @@ import { ASSIST, VERIFY } from "../shared/constants.ts"
 import { RARE_RAWIYY_WIDE } from "../shared/letters.ts"
 import { rngFrom } from "../shared/rng.ts"
 import { HINT_COSTS } from "../shared/schema.ts"
+import { anthologyBySlug } from "../shared/anthologies.ts"
 import type {
   ArabicLetter,
   BaitDto,
@@ -75,6 +76,7 @@ import {
   type Row,
 } from "./dto.ts"
 import { poetIdBySlug, seedBucket, slugMaps } from "./query.ts"
+import { resolveAnthology } from "./routes/anthology.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SQL shapes
@@ -601,6 +603,74 @@ function branchesFor(
 }
 
 /**
+ * How often مبتدئ answers from the canon when the canon has a بيت to give.
+ *
+ * `fame = 3 AND position <= 2` is the tier's proxy for «بيت مشهور», and it is
+ * a proxy for the مطلع, not for fame: «الخيل والليل والبيداء تعرفني» is بيت 23
+ * of its قصيدة, so the tier never held it — nor 51 more of «مئة بيت سائر»,
+ * the hundred أبيات the ديوان itself names as the ones every reader knows.
+ * Merely ADMITTING them would change nothing a player sees: 84 playable أبيات
+ * against the tier's 97,391 is one reply in a thousand. So they are a pass of
+ * their own, taken a third of the time it can be — enough that a مبتدئ duel
+ * meets the lines it promises, not so often that every duel on ألف opens on
+ * the same five.
+ */
+const CANON_SHARE = 1 / 3
+
+/** «مئة بيت سائر», resolved to bait ids once per handle (the shelf's own memo). */
+const CANON = new WeakMap<Db, readonly number[]>()
+
+function canonBaitIds(db: Db): readonly number[] {
+  let ids = CANON.get(db)
+  if (ids === undefined) {
+    const sair = anthologyBySlug("sair")
+    ids = sair === null ? [] : resolveAnthology(db, sair).flatMap((i) => (i.bait === null ? [] : [i.bait.id]))
+    CANON.set(db, ids)
+  }
+  return ids
+}
+
+/**
+ * A canon بيت on `letter` that every rule of the pick allows — the «قيود», the
+ * ديوان pool, `avoidRawiyy`, the أبيات already said, and the same taste for an
+ * unheard قصيدة the window has — or `null`, which costs nothing: the ordinary
+ * window runs next. The ids are integers this process resolved itself, so they
+ * are inlined like `RARE_LIST`, never bound from a request.
+ */
+function canonPick(
+  db: Db,
+  base: GbCond,
+  letter: string,
+  avoidRawiyy: string | undefined,
+  excludeBaits: Set<number>,
+  excludePoems: Set<number>,
+  rng: () => number,
+): Row | null {
+  const ids = canonBaitIds(db)
+  if (ids.length === 0) return null
+  const where = [base.where, "gb.first_letter = ?", `gb.bait_id IN (${ids.join(",")})`]
+  const params: Array<string | number> = [...base.params, letter]
+  if (avoidRawiyy !== undefined) {
+    where.push("gb.rawiyy <> ?")
+    params.push(avoidRawiyy)
+  }
+  const narrowJoin = base.needsPoem ? "JOIN poems p ON p.id = gb.poem_id" : ""
+  const rows = db
+    .q(
+      `SELECT ${SERVED_COLS}
+       FROM (SELECT gb.bait_id AS bid FROM game_baits gb ${narrowJoin} WHERE ${where.join(" AND ")}) sel
+       ${SERVED_JOINS}
+       ORDER BY sel.bid ASC`,
+    )
+    .all(...params) as Row[]
+  const unsaid = rows.filter((r) => !excludeBaits.has(num(r.b_id)))
+  const fresh = unsaid.filter((r) => !excludePoems.has(num(r.p_id)))
+  const usable = fresh.length > 0 ? fresh : unsaid
+  if (usable.length === 0 || rng() >= CANON_SHARE) return null
+  return usable[Math.min(usable.length - 1, Math.floor(rng() * usable.length))]!
+}
+
+/**
  * One wrap-around window over `gb.bucket`, sorted inside subqueries that read
  * `game_baits` and nothing else.
  *
@@ -744,6 +814,10 @@ export function pickBait(db: Db, opts: PickOptions): PickResult | null {
 
       for (const letter of letters) {
         if (letter !== undefined && opts.letter !== undefined && comboCount(db, letter, base, tier) === 0) continue
+        if (tier === "easy" && letter !== undefined) {
+          const canon = canonPick(db, base, letter, opts.avoidRawiyy, excludeBaits, excludePoems, rng)
+          if (canon !== null) return { row: canon, tier, relaxed: false }
+        }
         for (const bias of biasPasses(opts.tailBias)) {
           const branches = branchesFor(base, tier, letter, bias, opts.avoidRawiyy)
           const rows = sampleWindow(db, branches, base.needsPoem, start)

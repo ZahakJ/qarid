@@ -1148,6 +1148,16 @@ thing the artefact has to a per-line popularity signal; it still leaves ≥ 208
 أبيات on the thinnest letter (ظ), and `pickBait` relaxes one tier when a
 combination is dry.
 
+The cap is a proxy for the مطلع, not for fame, and it misses the lines people
+actually quote from the middle of a قصيدة: «الخيل والليل والبيداء تعرفني» is
+بيت 23 of 38 and sat in سيف only (fame 3 fails فحل's `fame <= 2`, position 23
+fails شاعر's cap). So مبتدئ has one door past it: «مئة بيت سائر»
+(`shared/anthologies.ts`), resolved at runtime by the shelf's own resolver.
+84 of the hundred are playable and 52 of those are past position 2; `pickBait`
+takes a canon بيت on the required letter `CANON_SHARE` (1/3) of the times one
+is available, under every rule the window obeys. `combo_counts` and «العدد
+المتاح» do not count them — 52 أبيات against 95,387.
+
 ### Latency on the real corpus (p50, warm, over HTTP)
 
 `/api/anthologies` 0.03 warm (167 ms cold, pre-warmed at boot) · `/api/buhur`

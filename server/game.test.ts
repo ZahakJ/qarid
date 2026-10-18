@@ -29,6 +29,7 @@ import {
   type GameVerifyResponse,
 } from "../shared/schema.ts"
 import { TIER_PREDICATES } from "../scripts/ingest/ddl.ts"
+import { anthologyBySlug } from "../shared/anthologies.ts"
 import { ensureFixtureDb, FIXTURE_DB } from "../test/fixtureDb.ts"
 import { createApp } from "./app.ts"
 import { loadConfig } from "./config.ts"
@@ -47,6 +48,7 @@ import {
   type Scored,
 } from "./game.ts"
 import { createRateLimiter } from "./ratelimit.ts"
+import { resolveAnthology } from "./routes/anthology.ts"
 import { MAX_GAME_BODY } from "./routes/game.ts"
 
 const config = loadConfig({ HOST: "127.0.0.1", PORT: "5762", NODE_ENV: "test" } as NodeJS.ProcessEnv)
@@ -775,16 +777,48 @@ describe("POST /api/game/reply", () => {
   })
 })
 
+/** «مئة بيت سائر» as the fixture resolves it — the canon مبتدئ draws on. */
+function canonIds(): Set<number> {
+  return new Set(resolveAnthology(db, anthologyBySlug("sair")!).flatMap((i) => (i.bait === null ? [] : [i.bait.id])))
+}
+
 describe("pickBait (engine, no HTTP)", () => {
   it("respects the easy tier's fame and position bounds", () => {
+    const canon = canonIds()
     for (let i = 0; i < 10; i++) {
       const picked = pickBait(db, { difficulty: "easy", tailBias: "none", seed: `p${i}` })
       if (picked === null) continue
       // easy may have RELAXed to normal on a thin fixture; the tier it reports
       // is the one it actually used.
       if (picked.tier !== "easy") continue
+      // «مئة بيت سائر» is the one door past the position bound
+      if (canon.has(Number(picked.row.b_id))) continue
       expect(Number(picked.row.po_fame)).toBe(3)
       expect(Number(picked.row.b_position)).toBeLessThanOrEqual(6)
+    }
+  })
+
+  it("lets مبتدئ answer from «مئة بيت سائر» about a third of the time", () => {
+    const canon = canonIds()
+    const onWaw = [...canon].filter(
+      (id) => (db.q("SELECT first_letter AS l FROM game_baits WHERE bait_id = ?").get(id) as { l: string } | undefined)?.l === "و",
+    )
+    expect(onWaw.length).toBeGreaterThan(0)
+    const easyOnWaw = Number(
+      (db.q("SELECT COUNT(*) AS n FROM game_baits WHERE first_letter = 'و' AND fame = 3 AND position <= 2").get() as { n: number }).n,
+    )
+    let hits = 0
+    const runs = 120
+    for (let i = 0; i < runs; i++) {
+      const picked = pickBait(db, { letter: "و", difficulty: "easy", tailBias: "easy", seed: `canon${i}` })
+      if (picked !== null && canon.has(Number(picked.row.b_id))) hits++
+    }
+    // The window alone would give the canon its plain share of the tier.
+    expect(hits / runs).toBeGreaterThan(onWaw.length / easyOnWaw + 0.15)
+    // …and the canon pass still never says a بيت twice.
+    for (let i = 0; i < 30; i++) {
+      const picked = pickBait(db, { letter: "و", difficulty: "easy", tailBias: "easy", excludeBaitIds: onWaw, seed: `canon${i}` })
+      if (picked !== null) expect(onWaw).not.toContain(Number(picked.row.b_id))
     }
   })
 
