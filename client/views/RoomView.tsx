@@ -37,6 +37,8 @@ import { useFollowNewest } from "../duel/ExchangeLog.tsx"
 import { LetterIndicator } from "../duel/LetterIndicator.tsx"
 import { ANSWER_PLACEHOLDER_NARROW } from "../duel/placeholders.ts"
 import { RejectionCard } from "../duel/RejectionCard.tsx"
+import { seatTranscript } from "../duel/share.ts"
+import { shareTextBlock } from "../share/dailyShare.ts"
 import { navigate, routeHash } from "../router.ts"
 import { useChromeTitle } from "../components/AppBar.tsx"
 import { useNativeChrome } from "../hooks/useNativeChrome.ts"
@@ -955,6 +957,24 @@ export function RoomView({ code, joinKey }: { code: string; joinKey?: string }) 
                 رجعة — وتُبدَّل الأدوار
               </button>
             ) : null}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                const text = seatTranscript({
+                  turns: state.turns,
+                  nameOf: (seat) => (seat === "host" ? state.host : state.guest)?.displayName ?? "لاعب",
+                  winner: winnerName,
+                  tashkeel: settings.tashkeel,
+                })
+                void shareTextBlock(text).then((outcome) => {
+                  if (outcome === "copied") toast("نُسخت أبيات المساجلة", "ok")
+                  else if (outcome === "failed") toast("تعذّرت المشاركة", "warn")
+                })
+              }}
+            >
+              شارك الأبيات
+            </button>
             <a className="btn" href={routeHash({ view: "profile", username: user.username })}>
               سجلّك
             </a>

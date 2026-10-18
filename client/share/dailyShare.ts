@@ -45,8 +45,8 @@ export function dailyShareText({ date, sadr, ajuz, poet, url }: DailyShareInput)
 
 export type ShareOutcome = "shared" | "copied" | "dismissed" | "failed"
 
-/** Hand the block to the reader's best channel. */
-export async function shareDailyText(text: string): Promise<ShareOutcome> {
+/** Hand a text block to the reader's best channel — بيت اليوم's, or a مساجلة's. */
+export async function shareTextBlock(text: string): Promise<ShareOutcome> {
   if (await nativeShareText(text)) return "shared"
 
   const nav = typeof navigator !== "undefined" ? navigator : undefined
@@ -65,7 +65,7 @@ export async function shareDailyText(text: string): Promise<ShareOutcome> {
 /** The «شارك» button on بيت اليوم: build the block, send it, say what happened. */
 export async function shareDailyBait(bayt: Omit<DailyShareInput, "url">): Promise<void> {
   const text = dailyShareText({ ...bayt, url: dailyShareUrl(shareOrigin(), bayt.date) })
-  const outcome = await shareDailyText(text)
+  const outcome = await shareTextBlock(text)
   if (outcome === "copied") toast("نُسخ رابط بيت اليوم", "ok")
   else if (outcome === "failed") toast("تعذّرت المشاركة", "danger")
 }
