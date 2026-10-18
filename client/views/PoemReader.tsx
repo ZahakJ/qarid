@@ -76,6 +76,8 @@ export type PoemReaderProps = {
   /** the three sizes, named once by the قصيدة page and shared with the sheet */
   sizes: readonly { value: VerseSize; label: string }[]
   onExit: () => void
+  /** «شارِك» — the whole قصيدة as text; absent until the قصيدة has landed */
+  onShare?: () => void
 }
 
 export function PoemReader({
@@ -94,6 +96,7 @@ export function PoemReader({
   showRawiyy,
   sizes,
   onExit,
+  onShare,
 }: PoemReaderProps) {
   const controls = useReaderControls()
   const moved = useReaderMoved()
@@ -230,7 +233,7 @@ export function PoemReader({
         </div>
       </div>
 
-      {/* The chrome, such as it is: one cluster, both affordances, gone again
+      {/* The chrome, such as it is: one cluster, its few affordances, gone again
           in two and a half seconds. `inert` and not merely faded — a hidden
           control that still answers Tab is a trap for a keyboard reader. */}
       <div
@@ -246,6 +249,13 @@ export function PoemReader({
           <span>رجوع</span>
         </button>
         <Segmented label="حجم الخط" value={size} onChange={onSize} options={sizes} />
+        {/* The reading is the phone's way into a قصيدة, so the قصيدة has to be
+            sendable from inside it, not only from the «أأ» sheet behind it. */}
+        {onShare ? (
+          <button type="button" className="reader__exit" onClick={onShare}>
+            <span>شارِك</span>
+          </button>
+        ) : null}
       </div>
     </div>,
     document.body,
