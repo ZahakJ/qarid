@@ -94,9 +94,29 @@ export type CopyMode = (typeof COPY_MODES)[number]["key"]
  */
 export async function writeClipboard(text: string): Promise<boolean> {
   try {
-    if (typeof navigator === "undefined" || !navigator.clipboard) return false
-    await navigator.clipboard.writeText(text)
-    return true
+    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+  } catch {
+    // The async Clipboard API rejects in app WebViews and on some mobile
+    // browsers (document not focused, no permission, transient activation
+    // already spent) — fall through to the legacy path rather than give up.
+  }
+  try {
+    if (typeof document === "undefined") return false
+    const ta = document.createElement("textarea")
+    ta.value = text
+    ta.setAttribute("readonly", "")
+    ta.style.position = "fixed"
+    ta.style.top = "-9999px"
+    ta.style.opacity = "0"
+    document.body.appendChild(ta)
+    ta.select()
+    ta.setSelectionRange(0, text.length)
+    const ok = document.execCommand("copy")
+    document.body.removeChild(ta)
+    return ok
   } catch {
     return false
   }

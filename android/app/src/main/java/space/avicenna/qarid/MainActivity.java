@@ -1,4 +1,4 @@
-package com.example.qarid;
+package space.avicenna.qarid;
 
 import com.getcapacitor.BridgeActivity;
 
