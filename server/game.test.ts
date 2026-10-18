@@ -461,8 +461,16 @@ describe("POST /api/game/verify — rejections", () => {
     expect(res.bait.id).toBe(wardah.id)
   })
 
-  it("answers already_used when the قصيدة has been mined already", async () => {
-    const res = await verify({ text: wardah.full, usedPoemIds: [wardah.poemId] })
+  it("accepts a DIFFERENT بيت of a قصيدة already heard — only the بيت is spent", async () => {
+    expect(qadYab.poemId).toBe(wardah.poemId)
+    // `usedPoemIds` is what an installed APK still sends; it must not bar anything.
+    const res = await verify({ text: qadYab.full, usedBaitIds: [wardah.id], usedPoemIds: [wardah.poemId] })
+    if (!res.ok) throw new Error(`expected acceptance, got ${JSON.stringify(res)}`)
+    expect(res.bait.id).toBe(qadYab.id)
+  })
+
+  it("still answers already_used for the same بيت when its قصيدة is listed too", async () => {
+    const res = await verify({ text: wardah.full, usedBaitIds: [wardah.id], usedPoemIds: [wardah.poemId] })
     expect(res.ok).toBe(false)
     if (res.ok) throw new Error("expected a rejection")
     expect(res.reason).toBe("already_used")
@@ -618,8 +626,19 @@ describe("POST /api/game/reply", () => {
     expect(second.bait.id).not.toBe(first.bait.id)
   })
 
-  it("honours excludePoemIds", async () => {
-    // Exclude every قصيدة that has a بيت starting on و: nothing can be served.
+  it("prefers a قصيدة not yet heard (excludePoemIds)", async () => {
+    const first = GameReplyResponseSchema.parse((await post("/api/game/reply", { letter: "و", seed: "z2" })).body)
+    if (!first.ok) throw new Error("expected a reply")
+    const second = GameReplyResponseSchema.parse(
+      (await post("/api/game/reply", { letter: "و", seed: "z2", excludePoemIds: [first.bait.poem.poemId] })).body,
+    )
+    if (!second.ok) throw new Error("expected a reply")
+    expect(second.bait.poem.poemId).not.toBe(first.bait.poem.poemId)
+  })
+
+  it("falls back to a used قصيدة rather than concede — a different بيت of it is legal", async () => {
+    // Every قصيدة with a بيت on و is listed: the preference cannot be met, and
+    // the machine still answers instead of «أفحمتَ الخصم».
     const poems = (db.q("SELECT DISTINCT poem_id AS id FROM game_baits WHERE first_letter = 'و'").all() as Array<{
       id: number
     }>).map((r) => Number(r.id))
@@ -627,10 +646,8 @@ describe("POST /api/game/reply", () => {
     const res = GameReplyResponseSchema.parse(
       (await post("/api/game/reply", { letter: "و", excludePoemIds: poems })).body,
     )
-    expect(res.ok).toBe(false)
-    if (res.ok) return
-    expect(res.reason).toBe("no_bait")
-    expect(res.letter).toBe("و")
+    if (!res.ok) throw new Error(`expected a reply, got ${JSON.stringify(res)}`)
+    expect(res.bait.firstLetter).toBe("و")
   })
 
   it("answers no_bait on a letter the pool never opens on", async () => {
@@ -703,7 +720,8 @@ describe("POST /api/game/reply", () => {
     const usedBaits: number[] = []
     const usedPoems: number[] = []
     let stumped = false
-    for (let turn = 0; turn < 40; turn++) {
+    let revisited = false
+    for (let turn = 0; turn < 200; turn++) {
       const res = GameReplyResponseSchema.parse(
         (
           await post("/api/game/reply", {
@@ -722,12 +740,13 @@ describe("POST /api/game/reply", () => {
         break
       }
       expect(usedBaits).not.toContain(res.bait.id)
-      expect(usedPoems).not.toContain(Number(res.bait.baytKey.split(":")[0]))
       expect(res.bait.firstLetter).toBe("و")
+      // a used قصيدة is avoided, not barred: it may come back only once every
+      // fresh one on the letter is spent
+      if (usedPoems.includes(res.bait.poem.poemId)) revisited = true
+      else expect(revisited).toBe(false)
       usedBaits.push(res.bait.id)
-      usedPoems.push(
-        Number((db.q("SELECT poem_id AS id FROM baits WHERE id = ?").get(res.bait.id) as { id: number }).id),
-      )
+      usedPoems.push(res.bait.poem.poemId)
     }
     expect(usedBaits.length).toBeGreaterThanOrEqual(3)
     expect(new Set(usedBaits).size).toBe(usedBaits.length)

@@ -354,7 +354,7 @@ export function verifyInputOf(
       requiredLetter: undefined,
       mode: m.mode,
       usedBaitIds: chain.map((t) => t.bait?.id).filter((id): id is number => typeof id === "number"),
-      usedPoemIds: chain.map((t) => t.poemId).filter((id): id is number => typeof id === "number"),
+      usedPoemIds: [],
       filters: undefined,
       sessionSeed: undefined,
     },

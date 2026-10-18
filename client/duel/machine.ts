@@ -372,17 +372,15 @@ function exchangeOf(served: ServedBait, side: "player" | "opponent", now: number
 }
 
 /**
- * Add a served بيت to the used sets — nobody may say it twice, and nobody may
- * come back for a second بيت of the same قصيدة.
+ * Add a served بيت to the used sets. Nobody may say the same بيت twice; a
+ * DIFFERENT بيت of a قصيدة already heard is legal. `usedPoemIds` survives only
+ * as the machine's taste for variety (`excludePoemIds` on reply, a preference
+ * the server drops before it concedes) and is never sent to the verifier.
  *
  * `usedPoemIds` / `excludePoemIds` are the server's INTERNAL `poems.id`, and
- * that is precisely what `bait.poem.poemId` is (`PoemRefSchema`). It used to be
- * derived by parsing the PUBLIC id — which is `q<rowid>` for the 73% of قصائد
- * with no aldiwan page but the bare aldiwan number for the other 27%
- * (docs/internals.md corpus finding 1). On those, parsing gave either nothing (so the
- * exclusion silently did not happen) or an unrelated poem's id. Reading the
- * field the server already sends makes poem-level exclusion true for all of
- * them.
+ * that is precisely what `bait.poem.poemId` is (`PoemRefSchema`) — never the
+ * PUBLIC id, which is the bare aldiwan number for 27% of قصائد
+ * (docs/internals.md corpus finding 1).
  */
 function withUsed(s: DuelState, served: ServedBait): Pick<DuelState, "usedKeys" | "usedBaitIds" | "usedPoemIds"> {
   const poemNum = served.bait.poem.poemId
