@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest"
 
 import { RLM } from "../../shared/format.ts"
-import { poemShareText, poemShareUrl } from "./share.ts"
+import { poemFullShareText, poemShareText, poemShareUrl } from "./share.ts"
 
 const URL = "https://qarid.example.com/p/16182"
 
@@ -109,5 +109,40 @@ describe("poemShareUrl", () => {
 
   it("encodes an id that would otherwise change the path", () => {
     expect(poemShareUrl("https://q.test", "a/b")).toBe("https://q.test/p/a%2Fb")
+  })
+})
+
+describe("poemFullShareText", () => {
+  const poem = {
+    title: "قفا نبكِ من ذكرى حبيبٍ ومنزلِ …",
+    poet: "امرؤ القيس",
+    baits: [
+      { sadr: "قفا نبكِ من ذكرى حبيبٍ ومنزلِ", ajuz: "بسِقطِ اللوى بين الدَّخول فحَوملِ" },
+      { sadr: "فتوضِحَ فالمقراةِ لم يعفُ رسمُها", ajuz: "لما نسجتها من جنوبٍ وشمألِ" },
+    ],
+  }
+
+  it("carries every بيت, one per line, then the link", () => {
+    const lines = poemFullShareText(poem, URL).split("\n")
+    expect(lines.slice(3, 5).map((l) => l.includes(" … "))).toEqual([true, true])
+    expect(lines[4]).toContain("لما نسجتها")
+    expect(lines.at(-2)).toBe("")
+    expect(lines.at(-1)).toBe(`${RLM}${URL}`)
+  })
+
+  it("opens every non-blank line with U+200F", () => {
+    for (const line of poemFullShareText(poem, URL).split("\n")) {
+      if (line) expect(line.startsWith(RLM)).toBe(true)
+    }
+  })
+
+  it("drops the ellipsis headingOf hangs on a مطلع", () => {
+    const head = poemFullShareText(poem, URL).split("\n")[0]!
+    expect(head).toBe(`${RLM}قفا نبكِ من ذكرى حبيبٍ ومنزلِ`)
+  })
+
+  it("is «نسخ القصيدة»'s text alone when there is no link", () => {
+    expect(poemFullShareText(poem)).not.toContain("http")
+    expect(poemFullShareText(poem).split("\n")).toHaveLength(5)
   })
 })

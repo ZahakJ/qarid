@@ -146,7 +146,10 @@ below.
   القصيدة», which is right for a مقطوعة and wrong the moment a reader tries to
   put 951 أبيات in a chat window; it names the قصيدة, its شاعر and its length,
   then points at it, and costs no `ensureAll` because it carries the count and
-  not the verse. All three take the URL from the caller, open EVERY line with
+  not the verse. Its sibling «شارِك نصّ القصيدة» (toolbar, «أأ» sheet, and the
+  reading's own cluster) sends «نسخ القصيدة»'s body with the link under it. Every
+  one of these goes out through `shareTextBlock`: native sheet, Web Share,
+  clipboard. All three take the URL from the caller, open EVERY line with
   U+200F, and count through `shared/format.ts`. None of them attributes with
   `lamPrefix`: the لام is a preposition, its noun is مجرور, and these names are
   stored in the nominative — «لأبو الطيب» is what gluing it on gets you, where

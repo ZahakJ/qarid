@@ -10,7 +10,8 @@
  *  • control over the reading itself: تشكيل (only offered when the قصيدة has
  *    any), إظهار الرويّ, حجم الخط — all persisted in `qarid:v1:settings` — and
  *    نسخ القصيدة — and «شارِك القصيدة» beside it, which sends the LINK with
- *    the قصيدة's name on it rather than its 951 أبيات (client/poem/share.ts).
+ *    the قصيدة's name on it rather than its 951 أبيات, and «شارِك نصّ
+ *    القصيدة», which sends the أبيات themselves (client/poem/share.ts).
  *  • the way OUT of all of it: «اقرأ» hands the قصيدة to وضع القراءة
  *    (`?read=1`, client/views/PoemReader.tsx), where every bar stands down and
  *    the أبيات alone run down one measure. This view keeps its state while the
@@ -43,9 +44,9 @@ import { cachePoemBaits, loadPoem, loadSimilarPoems } from "../store/libraryStor
 import { savedFromBait, useCollections } from "../store/collectionsStore.ts"
 import { useKeyboard } from "../hooks/useKeyboard.ts"
 import { useNativeChrome } from "../hooks/useNativeChrome.ts"
-import { nativeShareText } from "../platform/share.ts"
 import { shareOrigin } from "../platform/native.ts"
-import { poemShareText, poemShareUrl } from "../poem/share.ts"
+import { poemFullShareText, poemShareText, poemShareUrl } from "../poem/share.ts"
+import { shareTextBlock } from "../share/dailyShare.ts"
 import { openShareCard } from "../share/ShareDialog.tsx"
 import { useSettings } from "../store/settingsStore.ts"
 import { rememberEntry, takeEntry } from "../store/readerStore.ts"
@@ -253,8 +254,8 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
    * then point at it, and it needs no `ensureAll`: the block carries the
    * count, not the verse, so it costs nothing on a قصيدة of 11,608 hemistichs.
    *
-   * Delivery is بيت اليوم's and the ديوان's — the native shell opens the OS
-   * sheet, the web falls back to the clipboard (`client/platform/share.ts`).
+   * Delivery is بيت اليوم's (`shareTextBlock`): the native sheet in the app,
+   * the Web Share API in a browser that has one, the clipboard otherwise.
    */
   const sharePoem = useCallback(() => {
     if (!poem || !poet) return
@@ -266,14 +267,46 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
       count: total,
       url: poemShareUrl(shareOrigin(), id),
     })
-    void nativeShareText(text).then((shared) => {
-      if (shared) return
+    void shareTextBlock(text).then((outcome) => {
       // «نُسخ رابط القصيدة», not «نُسخ نصّها»: one word away sits «نُسخت
       // القصيدة», and the reader has to be able to tell which of the two he
       // just pressed.
-      void writeClipboard(text).then((ok) => toast(ok ? "نُسخ رابط القصيدة" : "تعذّر النسخ", ok ? "ok" : "danger"))
+      if (outcome === "copied") toast("نُسخ رابط القصيدة", "ok")
+      else if (outcome === "failed") toast("تعذّرت المشاركة", "danger")
     })
   }, [poem, poet, total, id])
+
+  /**
+   * «شارِك نصّ القصيدة» — the أبيات themselves, through the same sheet.
+   *
+   * «نسخ القصيدة»'s body with the link under it, so it needs `ensureAll` as
+   * that one does. A قصيدة too long for the OS sheet's transaction is refused
+   * by it, and `shareTextBlock` carries on down to the clipboard.
+   */
+  const sharePoemText = useCallback(() => {
+    if (!poem || !poet) return
+    void ensureAll()
+      .then((all) =>
+        shareTextBlock(
+          poemFullShareText(
+            {
+              title: headingOf(poem).text,
+              poet: poet.name,
+              baits: all.map((b) => ({
+                sadr: displayText(b.sadr, settings.tashkeel),
+                ajuz: displayTextOrNull(b.ajuz, settings.tashkeel),
+              })),
+            },
+            poemShareUrl(shareOrigin(), id),
+          ),
+        ),
+      )
+      .then((outcome) => {
+        if (outcome === "copied") toast("نُسخت القصيدة", "ok")
+        else if (outcome === "failed") toast("تعذّرت المشاركة", "danger")
+      })
+      .catch(() => toast("تعذّرت المشاركة", "danger"))
+  }, [poem, poet, ensureAll, settings.tashkeel, id])
 
   const runCopy = useCallback(
     (mode: CopyMode, b: BaitDto) => {
@@ -463,6 +496,7 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
         showRawiyy={settings.showRawiyy}
         sizes={VERSE_SIZES}
         onExit={closeReader}
+        onShare={poem && poet ? sharePoemText : undefined}
       />
     )
   }
@@ -603,6 +637,9 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
           <button type="button" className="btn" onClick={sharePoem}>
             شارِك القصيدة
           </button>
+          <button type="button" className="btn" onClick={sharePoemText}>
+            شارِك نصّ القصيدة
+          </button>
           {/* The whole-قصيدة half of the collection gesture: one entry on the
               shelf, however long the قصيدة is. */}
           <button type="button" className="btn" onClick={addPoemToAlbum}>
@@ -648,6 +685,16 @@ export function PoemView({ id, bayt, read = false }: { id: string; bayt?: number
                 }}
               >
                 شارِك القصيدة
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setTypeSheet(false)
+                  sharePoemText()
+                }}
+              >
+                شارِك نصّ القصيدة
               </button>
             </div>
           }

@@ -25,6 +25,7 @@
  *  4. Western digits, like every other number in the app.
  */
 import { BAYT_FORMS, RLM, countedNoun } from "../../shared/format.ts"
+import { formatPoem, type CopyPoem } from "../bayt/copy.ts"
 
 export type PoemShareInput = {
   /** the page's own heading — عنوان, or the مطلع standing in for a missing one */
@@ -94,4 +95,26 @@ export function poemShareText({ heading, isMatla, poet, count, url = null }: Poe
 
   if (url) lines.push(url)
   return RLM + lines.join(`\n${RLM}`)
+}
+
+/**
+ * «شارِك القصيدة كاملة» — the OTHER share: every بيت, for the reader who does
+ * want the verse itself in the chat window and not a pointer to it.
+ *
+ *     ‏على قدر أهل العزم
+ *     ‏أبو الطيب المتنبي
+ *
+ *     ‏على قدر أهل العزم تأتي العزائم … وتأتي على قدر الكرام المكارم
+ *     ‏…
+ *
+ *     ‏https://qarid.example.com/p/16182
+ *
+ * The body is «نسخ القصيدة»'s own (`formatPoem`), so the two gestures never
+ * disagree on a line; the link closes it, because a pasted قصيدة is read far
+ * from the app and the way back to it costs one line. The heading loses
+ * `headingOf`'s ellipsis for the reason `poemShareText`'s does.
+ */
+export function poemFullShareText(poem: CopyPoem, url?: string | null): string {
+  const body = formatPoem({ ...poem, title: undecorate(poem.title) || poem.title })
+  return url ? `${body}\n\n${RLM}${url}` : body
 }
