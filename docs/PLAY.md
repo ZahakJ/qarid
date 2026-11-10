@@ -1,10 +1,10 @@
 # Google Play
 
 Everything the Play Console asks for, settled from the repository. Section 1 is
-the list of steps only the owner can take; the rest is what those steps paste
+the list of steps that need the Play Console account; the rest is what those steps paste
 or upload.
 
-## 1. Owner steps in the Play Console
+## 1. Steps in the Play Console
 
 1. **Developer account.** Create it (one-time fee, identity verification). A
    personal account created after November 2023 must run a closed test with at
@@ -65,7 +65,7 @@ refuses to finish if the bundle does not name that host, or if it is unsigned.
 **Identity** — `android/identity.properties` (gitignored; keys in
 `identity.properties.example`): `applicationId`, `appLinkHost`.
 
-**Signing** — the keystore stays with the owner and never enters the
+**Signing** — the keystore never enters the
 repository. The build reads each value from the first of these that has it:
 
 | Value | `android/keystore.properties` | Gradle property | Environment |
