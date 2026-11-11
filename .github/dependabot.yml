@@ -19,3 +19,7 @@ updates:
       # Everything else that is not a major: one pull request a month.
       minor-and-patch:
         update-types: ["minor", "patch"]
+      # New majors, also one pull request a month: a list of what is
+      # available, taken deliberately rather than merged as a bump.
+      major:
+        update-types: ["major"]
