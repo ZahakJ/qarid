@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    ignore:
+      # Follows the Node major in "engines", not the latest typings.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # The four Capacitor plugins and the ten @capacitor packages move
       # together or not at all; separate PRs for them are pure noise.
@@ -12,3 +16,6 @@ updates:
         patterns: ["@capacitor*"]
       fonts:
         patterns: ["@fontsource/*"]
+      # Everything else that is not a major: one pull request a month.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
