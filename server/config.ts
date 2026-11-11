@@ -1,4 +1,5 @@
 import path from "node:path"
+import { isCanonicalUsername, usernameKey } from "./username.ts"
 
 export type Config = {
   host: string
@@ -15,8 +16,9 @@ export type Config = {
   /**
    * ADMIN_USERNAMES — comma list of accounts that may reach `/api/admin/*`
    * Empty by default: no account is an admin unless the operator names
-   * it in the environment, and the routes 403 for everyone else. Matched
-   * case-insensitively, because usernames are `UNIQUE COLLATE NOCASE`.
+   * it in the environment, and the routes 403 for everyone else. Matched by
+   * `usernameKey` (NFKC + lowercase). A listed name cannot be taken through
+   * open registration: register the account first, then list it.
    */
   adminUsernames: readonly string[]
   dev: boolean
@@ -50,14 +52,31 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 }
 
 /**
- * Is this username on the admin allowlist? Case-insensitive, because
- * accounts are `UNIQUE COLLATE NOCASE` — «Owner» and «owner» are one account and
- * must be one admin. An empty allowlist makes this always false: no `/api/admin`
- * route is reachable until the operator sets `ADMIN_USERNAMES`.
+ * Is this NAME on the admin allowlist? Compared by `usernameKey`, so «Owner»,
+ * «owner» and a Kelvin-sign «owneK» all count as the allowlisted name. Used to
+ * keep listed names out of open registration; it is NOT the admin check — see
+ * `isAdminAccount`. An empty allowlist makes this always false.
  */
 export function isAdminUsername(config: Config, username: string | null | undefined): boolean {
   if (!username) return false
-  const want = username.trim().toLowerCase()
+  const want = usernameKey(username)
   if (!want) return false
-  return config.adminUsernames.some((u) => u.toLowerCase() === want)
+  return config.adminUsernames.some((u) => usernameKey(u) === want)
+}
+
+/**
+ * Is this ACCOUNT an admin? Only the account that owns the allowlisted name's
+ * key (`users.username_key`), and only if its stored name is itself canonical:
+ * a look-alike account (a pre-existing «owneK» with a Kelvin sign, which the
+ * key migration leaves without a key) never is. An empty allowlist makes this
+ * always false: no `/api/admin` route is reachable until the operator sets
+ * `ADMIN_USERNAMES`.
+ */
+export function isAdminAccount(
+  config: Config,
+  account: { username: string; username_key: string | null } | null | undefined,
+): boolean {
+  if (!account || !account.username_key || !isCanonicalUsername(account.username)) return false
+  if (account.username_key !== usernameKey(account.username)) return false
+  return config.adminUsernames.some((u) => usernameKey(u) === account.username_key)
 }

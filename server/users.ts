@@ -36,6 +36,7 @@ import { createHash, randomBytes, randomInt, scrypt as scryptCb, timingSafeEqual
 import { DatabaseSync, type StatementSync } from "node:sqlite"
 
 import type { AvatarMime } from "../shared/schema.ts"
+import { isCanonicalUsername, usernameKey } from "./username.ts"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -59,7 +60,7 @@ export const SESSION_REFRESH_AFTER_MS = 24 * 60 * 60 * 1000
 const MAX_UA = 200
 
 /** Schema version this build expects; `PRAGMA user_version` is the ledger. */
-export const USERS_SCHEMA_VERSION = 11
+export const USERS_SCHEMA_VERSION = 12
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handle
@@ -519,6 +520,34 @@ const MIGRATIONS: ReadonlyArray<(raw: DatabaseSync) => void> = [
       DROP TABLE album_baits;
     `)
   },
+
+  /*
+   * 11 → 12: `username_key` — the name as `usernameKey` compares it (NFKC +
+   * lowercase), UNIQUE, so two accounts can no longer differ only by a case or
+   * a look-alike character the ASCII-only NOCASE collation did not fold.
+   *
+   * Existing rows: every account keeps its row and its exact name, and can
+   * still sign in with it. Where several existing accounts share a key, ONE
+   * gets it — the oldest whose name is already canonical (NFKC), else the
+   * oldest — and the others keep a NULL key: they still sign in by their exact
+   * name, but are never matched by the key (so never an admin, never found by
+   * a look-alike spelling).
+   */
+  (raw) => {
+    raw.exec(`ALTER TABLE users ADD COLUMN username_key TEXT`)
+    const rows = raw.prepare("SELECT id, username FROM users ORDER BY id").all() as { id: number; username: string }[]
+    const owner = new Map<string, { id: number; canonical: boolean }>()
+    for (const r of rows) {
+      const name = String(r.username)
+      const key = usernameKey(name)
+      const canonical = isCanonicalUsername(name)
+      const held = owner.get(key)
+      if (!held || (canonical && !held.canonical)) owner.set(key, { id: Number(r.id), canonical })
+    }
+    const set = raw.prepare("UPDATE users SET username_key = ? WHERE id = ?")
+    for (const [key, o] of owner) set.run(key, o.id)
+    raw.exec(`CREATE UNIQUE INDEX users_username_key ON users(username_key)`)
+  },
 ]
 
 /**
@@ -859,6 +888,8 @@ export type UserRow = {
   last_seen: number
   /** 0 = active; an epoch-ms timestamp in the future = suspended until then */
   suspended_until: number
+  /** `usernameKey(username)`; NULL only for a pre-existing look-alike (migration 12) */
+  username_key: string | null
 }
 
 export type SessionRow = {
@@ -881,13 +912,22 @@ function userRow(row: unknown): UserRow | null {
     created_at: Number(r.created_at),
     last_seen: Number(r.last_seen),
     suspended_until: Number(r.suspended_until ?? 0),
+    username_key: r.username_key === null || r.username_key === undefined ? null : String(r.username_key),
   }
 }
 
-const USER_COLS = "id, username, display_name, pass_hash, created_at, last_seen, suspended_until"
+const USER_COLS = "id, username, display_name, pass_hash, created_at, last_seen, suspended_until, username_key"
 
+/**
+ * The account a typed name means: the exact name first (so an account the key
+ * migration left without a key still signs in by its own name), then the
+ * account that owns the name's `usernameKey`.
+ */
 export function findUserByUsername(db: UsersDb, username: string): UserRow | null {
-  return userRow(db.q(`SELECT ${USER_COLS} FROM users WHERE username = ? COLLATE NOCASE`).get(username))
+  return (
+    userRow(db.q(`SELECT ${USER_COLS} FROM users WHERE username = ? COLLATE NOCASE`).get(username)) ??
+    userRow(db.q(`SELECT ${USER_COLS} FROM users WHERE username_key = ?`).get(usernameKey(username)))
+  )
 }
 
 export function findUserById(db: UsersDb, id: number): UserRow | null {
@@ -904,13 +944,9 @@ export function createUser(
   input: { username: string; displayName: string; passHash: string; now: number },
 ): UserRow | null {
   try {
-    db.q("INSERT INTO users (username, display_name, pass_hash, created_at, last_seen) VALUES (?, ?, ?, ?, ?)").run(
-      input.username,
-      input.displayName,
-      input.passHash,
-      input.now,
-      input.now,
-    )
+    db.q(
+      "INSERT INTO users (username, display_name, pass_hash, created_at, last_seen, username_key) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(input.username, input.displayName, input.passHash, input.now, input.now, usernameKey(input.username))
   } catch (err) {
     if (isUniqueViolation(err)) return null
     throw err

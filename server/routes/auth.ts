@@ -35,7 +35,8 @@ import {
   toErrorBody,
   type AuthUser,
 } from "../../shared/schema.ts"
-import type { Config } from "../config.ts"
+import { isAdminUsername, type Config } from "../config.ts"
+import { isCanonicalUsername } from "../username.ts"
 import { clientKey, createRateLimiter } from "../ratelimit.ts"
 import {
   SESSION_COOKIE,
@@ -365,6 +366,18 @@ export function authRoutes(users: UsersDb | null, config: Config): Hono {
 
     if (!inviteAccepted(config, invite)) {
       return c.json({ error: "invite_required", message: "رمز الدعوة مطلوب أو غير صحيح" }, 403)
+    }
+
+    // A new name must be in its ordinary form: a Kelvin sign or a full-width
+    // letter would make a look-alike of someone else's name (server/username.ts).
+    if (!isCanonicalUsername(username)) {
+      return c.json({ error: "invalid_username", message: "اكتب الاسم بحروفه المعتادة" }, 400)
+    }
+    // A name on the admin allowlist is never handed out by open registration:
+    // an operator lists an account that exists, and a listed name with no
+    // account (not yet created, or deleted) stays unclaimable.
+    if (isAdminUsername(config, username)) {
+      return c.json({ error: "username_taken", message: "هذا الاسم مأخوذ" }, 409)
     }
 
     const wantBearer = wantsBearer(c, parsed.data)

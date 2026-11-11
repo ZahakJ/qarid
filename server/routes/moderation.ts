@@ -39,7 +39,7 @@ import {
   avatarUrlFor,
   type BlockedUser,
 } from "../../shared/schema.ts"
-import { isAdminUsername, type Config } from "../config.ts"
+import { isAdminAccount, type Config } from "../config.ts"
 import { clientKey, createRateLimiter } from "../ratelimit.ts"
 import {
   SUSPEND_DEFAULT_DAYS,
@@ -232,7 +232,7 @@ export function adminRoutes(users: UsersDb | null, config: Config): Hono {
     if (!users) return { res: unavailable(c) }
     const me = currentUser(c, users, config)
     if (!me) return { res: unauthenticated(c) }
-    if (!isAdminUsername(config, me.username)) {
+    if (!isAdminAccount(config, me)) {
       return { res: c.json({ error: "forbidden", message: "لا صلاحية لك" }, 403) }
     }
     return { me }
