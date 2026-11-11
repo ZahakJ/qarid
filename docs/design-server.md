@@ -129,10 +129,24 @@ requiredLetterSource = 'rawiyy' when rawiyy===last_letter else 'peeled'. obscuri
 reply: fold letter; tier predicate; bucket sampling LIMIT 40 (+wrap); drop excludes (bait AND poem); empty → relax one tier once; still empty → `{ok:false, reason:'no_bait', letter}` (client = «أفحمتَ الخصم» victory). Optional seed for determinism.
 
 ## 9. Deploy
-`.env.example`: HOST=127.0.0.1, PORT, PUBLIC_ORIGIN, #DB_PATH. `deploy/qarid.service` is a systemd USER unit (WorkingDirectory=the checkout, ExecStart=node --env-file-if-exists=.env server/index.ts, Restart=always, NODE_ENV=production). server/index.ts binds 127.0.0.1 AND ::1. Put a reverse proxy or a tunnel in front for TLS; the server itself never listens on a public interface.
-vite.config.ts: server.port 5751 strictPort, proxy /api + /healthz → http://127.0.0.1:5750; preview.port 6750.
+The shape of a deployment, whatever the host:
+
+```
+browser ──TLS──> reverse proxy or tunnel (qarid.example.com) ──http──> 127.0.0.1:$PORT / [::1]:$PORT
+                                                                        node server/index.ts
+                                                                        ├── dist/            built client, served by the same process
+                                                                        ├── data/qarid.db    corpus, read-only
+                                                                        └── data/qarid-users.db, data/qarid-matches.db   the only writable files
+```
+
+- Configuration is `.env` in the checkout (see `.env.example`): HOST=127.0.0.1, PORT (the app's default is 8010), PUBLIC_ORIGIN (e.g. https://qarid.example.com, no useful default), DB_PATH, USERS_DB_PATH, MATCHES_DB_PATH.
+- server/index.ts binds 127.0.0.1 AND ::1 and never a public interface; TLS and the public hostname belong to whatever sits in front of it (a reverse proxy, or a tunnel to a hosted edge).
+- `deploy/qarid.service` is a template systemd USER unit (WorkingDirectory=the checkout, adjust it; ExecStart=node --env-file-if-exists=.env server/index.ts, Restart=always, NODE_ENV=production). Any process supervisor that restarts on exit works the same way.
+- If other sites share the registrable domain (sibling subdomains of example.com), they are same-site with قريض; `server/origin.ts` is what keeps their requests out.
+
+Development: vite.config.ts server.port 5751 strictPort, proxy /api + /healthz → http://127.0.0.1:5750; preview.port 6750.
 Scripts: dev (vite 5751), dev:server (PORT=5750 node --watch), build (tsc && vite build), preview (6750), start, typecheck, test (vitest run), smoke (tools/screenshot.mjs), ingest, ingest:fixture.
-Checks: `npm run typecheck && npm test && npm run build && npm run smoke`; curl /healthz on 127.0.0.1:8010 and [::1]:8010.
+Checks: `npm run typecheck && npm run build && npm test && npm run smoke`; after a deploy, `curl http://127.0.0.1:$PORT/healthz` and `curl 'http://[::1]:$PORT/healthz'`.
 screenshot.mjs: server on 6750 with DB = data/qarid.db else data/fixture.db else fail; routes home, poets, poet, poem, browse, search, duel, daily; waits `body[data-app-ready="1"]` (set after first data fetch resolves); fails on console error/pageerror; writes screenshots/<route>.png.
 
 ## 10. Tests
