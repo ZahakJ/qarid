@@ -406,6 +406,12 @@ export function createApp(
     })
   } else {
     app.get("/", (c) => c.text("qarid server up — client dist not built (dev mode uses vite)", 200))
+    // No shell to fall back to, but an unknown /api path is still a JSON 404,
+    // the same answer as with the bundle built.
+    app.notFound((c) => {
+      if (c.req.path.startsWith("/api/")) return c.json({ error: "not_found" }, 404)
+      return c.text("404 Not Found", 404)
+    })
   }
 
   return { app, injectWebSocket }
