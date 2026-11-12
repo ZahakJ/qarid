@@ -10,7 +10,8 @@ if (keystorePropsFile.exists()) {
 }
 
 // App identity: android/identity.properties (gitignored; see
-// identity.properties.example). Absent, the placeholders below are used.
+// identity.properties.example). Absent, the placeholders below are used, which
+// only a debug build accepts (see qaridCheckReleaseIdentity below).
 def identityPropsFile = rootProject.file("identity.properties")
 def identityProps = new Properties()
 if (identityPropsFile.exists()) {
@@ -18,6 +19,8 @@ if (identityPropsFile.exists()) {
 }
 def qaridAppId = identityProps.getProperty("applicationId") ?: "com.example.qarid"
 def qaridLinkHost = identityProps.getProperty("appLinkHost") ?: "qarid.example.com"
+def qaridPlaceholderId = qaridAppId == "com.example" || qaridAppId.startsWith("com.example.")
+def qaridPlaceholderHost = qaridLinkHost == "example.com" || qaridLinkHost.endsWith(".example.com")
 
 // The version lives in version.properties.
 def versionPropsFile = rootProject.file("version.properties")
@@ -78,6 +81,54 @@ android {
         }
     }
 }
+
+// The placeholders are for debug builds only. Every release variant (signed or
+// not: assembleRelease, bundleRelease, `assemble`) and any build of a commit
+// tagged v* stops here under them, and a release also stops when `cap sync`
+// ran without the same id. v2.1.2 and v2.1.3 shipped as com.example.qarid
+// and installed beside the real app instead of updating it.
+// tools/android-identity.ts makes the same check for tools/android-bundle.sh.
+def qaridSyncedConfig = file("src/main/assets/capacitor.config.json")
+def qaridVersionTag = providers.exec {
+    commandLine "git", "describe", "--exact-match", "--tags", "--match", "v*", "HEAD"
+    ignoreExitValue = true
+}.standardOutput.asText
+def qaridIdentityProblems = { boolean release, String tag ->
+    def problems = []
+    if (qaridPlaceholderId) problems << "applicationId is the placeholder ${qaridAppId}".toString()
+    if (qaridPlaceholderHost) problems << "appLinkHost is the placeholder ${qaridLinkHost}".toString()
+    if (release) {
+        def synced = qaridSyncedConfig.exists() ? new groovy.json.JsonSlurper().parse(qaridSyncedConfig).appId : null
+        if (synced != qaridAppId) {
+            problems << "the synced capacitor.config.json has appId ${synced}, applicationId is ${qaridAppId} (run `npx cap sync android` again)".toString()
+        }
+    }
+    if (!problems) return null
+    def why = release ? "a release build" : "a build of version tag ${tag}"
+    return "Refusing ${why}:\n  - ".toString() + problems.join("\n  - ") +
+        "\nSet android/identity.properties (see identity.properties.example). The com.example placeholders are for debug builds only."
+}
+def qaridCheckRelease = tasks.register("qaridCheckReleaseIdentity") {
+    doLast {
+        def problem = qaridIdentityProblems(true, "")
+        if (problem) throw new GradleException(problem)
+    }
+}
+def qaridCheckTagged = tasks.register("qaridCheckTaggedIdentity") {
+    doLast {
+        def tag = ""
+        try {
+            tag = qaridVersionTag.get().trim()
+        } catch (Exception ignored) {
+            // No git, or not a checkout: no tag to hold the build to.
+        }
+        if (!tag) return
+        def problem = qaridIdentityProblems(false, tag)
+        if (problem) throw new GradleException(problem)
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn qaridCheckRelease }
+tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn qaridCheckTagged }
 
 repositories {
     flatDir{

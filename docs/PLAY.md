@@ -63,7 +63,14 @@ VITE_API_BASE=https://<host> QARID_APP_ID=<package id> tools/android-bundle.sh
 refuses to finish if the bundle does not name that host, or if it is unsigned.
 
 **Identity** — `android/identity.properties` (gitignored; keys in
-`identity.properties.example`): `applicationId`, `appLinkHost`.
+`identity.properties.example`): `applicationId`, `appLinkHost`. Required: the
+script, and Gradle for every release variant, refuse the `com.example`
+placeholders a public checkout carries, and refuse a `QARID_APP_ID` or a synced
+`capacitor.config.json` that names another id.
+
+The same script builds the signed APK for a GitHub release with
+`QARID_ARTIFACT=apk` (→ `android/app/build/outputs/apk/release/app-release.apk`)
+and checks its package id with `aapt2` and prints its certificate digest.
 
 **Signing** — the keystore never enters the
 repository. The build reads each value from the first of these that has it:
@@ -94,7 +101,9 @@ moves with `versionName`.
 | Release | versionCode | versionName | Contents |
 |---|---|---|---|
 | shipped (GitHub) | 3 | 2.1.0 | الديوان قصائد |
-| first Play upload | 4 | 2.2.0 | online مساجلة without an account, بيت اليوم share page |
+| shipped (GitHub) | 4–6 | 2.1.1–2.1.3 | 5 and 6 (2.1.2, 2.1.3) were built as `com.example.qarid` |
+| GitHub | 7 | 2.1.4 | the real package id again; updates 2.1.1 in place |
+| first Play upload | 8 | 2.2.0 | online مساجلة without an account, بيت اليوم share page |
 | each later upload | +1 | semver | |
 
 Play refuses a bundle whose `versionCode` is not above every code it has

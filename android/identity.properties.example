@@ -1,9 +1,16 @@
-# Copy to `identity.properties` (gitignored) and fill in. Without it the build
-# uses these placeholders.
+# Copy to `identity.properties` (gitignored) and fill in.
+#
+# Without it every build uses the com.example placeholders below. A debug build
+# accepts them; a release does not: every release variant (assembleRelease,
+# bundleRelease, `assemble`), a build of a commit tagged v*, and
+# tools/android-bundle.sh stop with an error under them. A release built under
+# the placeholder package id cannot update the installed app: Android treats
+# it as a different app and installs it beside the real one.
 #
 #   applicationId  your Android package id, reverse-domain, e.g. com.acme.qarid
-#                  Must match capacitor.config.ts's appId — export the same
-#                  value as QARID_APP_ID when you run `npx cap sync`.
+#                  Never change it once shipped. capacitor.config.ts reads it
+#                  from this file too; if you also export QARID_APP_ID it must
+#                  be the same value.
 #   appLinkHost    the host whose https:// links should open the app directly.
 #                  It must serve /.well-known/assetlinks.json naming this
 #                  package and your signing certificate, or Android silently
@@ -11,7 +18,7 @@
 applicationId=com.example.qarid
 appLinkHost=qarid.example.com
 
-# The web bundle needs two more, exported at build time:
+# Exported at build time (tools/android-bundle.sh asks for both):
 #
 #   VITE_API_BASE=https://your.host      the deployment the shell talks to
-#   QARID_APP_ID=<applicationId above>   keeps capacitor.config.ts in step
+#   QARID_APP_ID=<applicationId above>   a cross-check; must equal it

@@ -15,12 +15,35 @@
  * `--ink` (#07080c) with a gold nib, matching the PWA theme color.
  */
 import type { CapacitorConfig } from "@capacitor/cli"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+
+/**
+ * The package id: QARID_APP_ID, else android/identity.properties'
+ * `applicationId` (the file Gradle reads), else the `com.example.qarid`
+ * placeholder a public checkout carries. Reading the same file as Gradle keeps
+ * the two equal without remembering to export anything; a release built under
+ * the placeholder is refused by tools/android-identity.ts and by build.gradle.
+ */
+function appId(): string {
+  let fromFile: string | undefined
+  try {
+    const text = readFileSync(join(__dirname, "android", "identity.properties"), "utf8")
+    fromFile = /^\s*applicationId\s*[=:]\s*(\S+)\s*$/m.exec(text)?.[1]
+  } catch {
+    // No identity file: a debug/dev checkout.
+  }
+  const fromEnv = process.env.QARID_APP_ID || undefined
+  if (fromEnv && fromFile && fromEnv !== fromFile) {
+    throw new Error(`QARID_APP_ID (${fromEnv}) differs from android/identity.properties applicationId (${fromFile})`)
+  }
+  return fromEnv ?? fromFile ?? "com.example.qarid"
+}
 
 const config: CapacitorConfig = {
-  // Overridden per build by QARID_APP_ID (see android/identity.properties) so a
-  // public checkout carries nobody's identity. Keep it equal to Gradle's
-  // applicationId, or Capacitor's generated plugin glue points at the wrong one.
-  appId: process.env.QARID_APP_ID ?? "com.example.qarid",
+  // Must equal Gradle's applicationId, or Capacitor's generated plugin glue
+  // points at the wrong one. See appId() above.
+  appId: appId(),
   appName: "قريض",
   // QARID_WEB_DIR lets the app bundle sync from its own build, so a release
   // build never replaces the dist/ a running server is serving.
